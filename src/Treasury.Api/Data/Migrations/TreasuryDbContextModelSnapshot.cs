@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261119234319_Identity";
+    public override string LastMigrationId => "20261119235443_Accounts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -176,6 +176,56 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("AspNetUserTokens");
             });
 
+        modelBuilder.Entity("Treasury.Api.Accounts.Account", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Currency")
+                    .IsRequired()
+                    .HasMaxLength(3)
+                    .HasColumnType("character varying(3)");
+
+                b.Property<string>("Identifier")
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.Property<string>("IntegrationKey")
+                    .IsRequired()
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)");
+
+                b.Property<decimal>("OpeningBalance")
+                    .HasPrecision(19, 4)
+                    .HasColumnType("numeric(19,4)");
+
+                b.Property<DateOnly>("OpeningDate")
+                    .HasColumnType("date");
+
+                b.Property<Guid?>("OwnerMemberId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Slug")
+                    .IsRequired()
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("OwnerMemberId");
+
+                b.HasIndex("Slug")
+                    .IsUnique();
+
+                b.ToTable("Accounts");
+            });
+
         modelBuilder.Entity("Treasury.Api.Auth.Member", b =>
             {
                 b.Property<Guid>("Id")
@@ -290,6 +340,14 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("UserId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
+            });
+
+        modelBuilder.Entity("Treasury.Api.Accounts.Account", b =>
+            {
+                b.HasOne("Treasury.Api.Auth.Member", null)
+                    .WithMany()
+                    .HasForeignKey("OwnerMemberId")
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 #pragma warning restore 612, 618
     }
