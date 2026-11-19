@@ -66,7 +66,7 @@ export async function getHealth(signal?: AbortSignal): Promise<Health> {
 // ---- Auth ----
 
 /** The logged-in Member. */
-export type Me = { userName: string; roles: string[] }
+export type Me = { id: string; userName: string; roles: string[] }
 
 export const isAdmin = (me: Me) => me.roles.includes('Admin')
 
@@ -85,3 +85,56 @@ export async function getMe(signal?: AbortSignal): Promise<Me | null> {
 
 export const changePassword = (currentPassword: string, newPassword: string) =>
   apiFetch<void>('/api/auth/password', { method: 'POST', body: { currentPassword, newPassword } })
+
+// ---- Owners ----
+
+/** Who something belongs to: a Member or the Family. Requests send `{ kind: 'family' }` or `{ kind: 'member', memberId }`. */
+export type OwnerRef = { kind: 'family' } | { kind: 'member'; memberId: string }
+
+/** An Owner as the API returns it; `name` is the Member's user name or "Family". */
+export type Owner = { kind: 'family' | 'member'; memberId: string | null; name: string }
+
+// ---- Integrations ----
+
+export type Integration = { key: string; name: string; canProvideIdentifier: boolean }
+
+export const listIntegrations = (signal?: AbortSignal) => apiFetch<Integration[]>('/api/integrations', { signal })
+
+// ---- Accounts ----
+
+export const currencies = ['CHF', 'CZK', 'EUR', 'USD'] as const
+export type Currency = (typeof currencies)[number]
+
+export type Account = {
+  id: string
+  name: string
+  /** Name of its Ingest folder: ingest/<slug>/ */
+  slug: string
+  owner: Owner
+  integrationKey: string
+  currency: Currency
+  openingBalance: number
+  /** ISO date, e.g. "2026-01-01" */
+  openingDate: string
+  identifier: string | null
+  balance: number
+}
+
+export type NewAccount = {
+  name: string
+  owner: OwnerRef
+  integrationKey: string
+  currency: Currency
+  openingBalance: number | null
+  openingDate: string | null
+  identifier: string | null
+}
+
+/** The Accounts the current Member can see: their own and the Family's. */
+export const listAccounts = (signal?: AbortSignal) => apiFetch<Account[]>('/api/accounts', { signal })
+
+export const createAccount = (account: NewAccount) =>
+  apiFetch<Account>('/api/accounts', { method: 'POST', body: account })
+
+export const renameAccount = (id: string, name: string) =>
+  apiFetch<Account>(`/api/accounts/${id}`, { method: 'PATCH', body: { name } })
