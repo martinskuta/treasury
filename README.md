@@ -59,3 +59,15 @@ aspire deploy -o deploy     # also builds the image and runs docker compose up
 
 The app is served on `http://localhost:${TREASURY_HTTP_PORT:-8080}` (API and React app in one container) and the
 Aspire dashboard on port 18888. `deploy/` holds secrets (`.env.Production`) and is git-ignored.
+
+## Data folder
+
+Ingest folders (and, later, kept Source files) live in the data folder, the API's `Storage:DataRoot`:
+
+- `aspire run`: the repository's git-ignored `data/` folder.
+- Docker Compose: the host folder `${TREASURY_DATA_DIR:-./data}` (relative to the compose file), bind-mounted at
+  `/data` in the API container. On Linux it must be writable by the container user (uid 1654):
+  `chown -R 1654:1654 data`.
+
+Creating an Account creates `ingest/<account-slug>/` with `processed/` and `failed/` inside (ADR-0002). Back up
+this folder together with the database.
