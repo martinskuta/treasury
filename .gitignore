@@ -424,3 +424,20 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# ---- Treasury ----
+# Frontend
+node_modules/
+web/dist/
+web/dist-ssr/
+*.local
+*.tsbuildinfo
+
+# Generated docker-compose output (aspire publish/deploy -o <dir>); contains secrets in .env*
+/deploy/
+aspire-output/
+.aspire/
+
+# Local data folders (Ingest folders, Source files) and test results
+/data/
+TestResults/
