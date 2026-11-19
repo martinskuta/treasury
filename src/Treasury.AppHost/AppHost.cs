@@ -9,9 +9,17 @@ var postgres = builder.AddPostgres("postgres")
     .WithLifetime(ContainerLifetime.Persistent); // run mode: survives AppHost restarts
 var db = postgres.AddDatabase("treasurydb");     // => ConnectionStrings__treasurydb in the API
 
+// First Admin, created by the API on first startup (no Members yet). Run mode: set
+// Parameters:admin-password via `aspire secret set` / user secrets, or enter it when the dashboard prompts.
+// Publish/deploy: ADMIN_USERNAME / ADMIN_PASSWORD in the generated .env.
+var adminUserName = builder.AddParameter("admin-username", "admin");
+var adminPassword = builder.AddParameter("admin-password", secret: true);
+
 var api = builder.AddDotnetProject("api", "../Treasury.Api/Treasury.Api.csproj")
     .WithReference(db)
     .WaitFor(db)
+    .WithEnvironment("Admin__UserName", adminUserName)
+    .WithEnvironment("Admin__Password", adminPassword)
     .WithHttpHealthCheck("/health")
     .WithExternalHttpEndpoints()
     .PublishAsDockerComposeService((_, service) =>
