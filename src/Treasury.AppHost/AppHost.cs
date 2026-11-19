@@ -28,7 +28,22 @@ var api = builder.AddDotnetProject("api", "../Treasury.Api/Treasury.Api.csproj")
         // Fixed host port instead of the random default.
         service.Ports.Clear();
         service.Ports.Add("${TREASURY_HTTP_PORT:-8080}:${API_PORT}");
+        // Data root (Ingest folders, Source files): a host folder bind-mounted at /data, so Members can drop
+        // statement files into data/ingest/<account-slug>/. On Linux the folder must be writable by uid 1654.
+        service.AddVolume(new Aspire.Hosting.Docker.Resources.ServiceNodes.Volume
+        {
+            Name = "treasury-data",
+            Type = "bind",
+            Source = "${TREASURY_DATA_DIR:-./data}",
+            Target = "/data",
+        });
     });
+
+// Storage:DataRoot of the API. Run mode: the API is a host process -> the repo's git-ignored /data folder.
+// Publish: the API is a container -> /data, bind-mounted above.
+api.WithEnvironment("Storage__DataRoot", builder.ExecutionContext.IsRunMode
+    ? Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "../../data"))
+    : "/data");
 
 // Run mode: Vite dev server; it proxies /api to the API using the injected API_HTTP(S) env vars.
 var web = builder.AddViteApp("web", "../../web")
