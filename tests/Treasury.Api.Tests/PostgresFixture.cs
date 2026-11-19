@@ -18,8 +18,9 @@ public sealed class PostgresFixture : IAsyncInitializer, IAsyncDisposable
         await _container.StartAsync();
         await ExecAsync($"CREATE DATABASE \"{TemplateDb}\"");
 
-        // Run migrations once by booting the API against the template DB.
-        await using (var app = new TreasuryApiFactory(ConnectionStringFor(TemplateDb)))
+        // Run migrations once by booting the API against the template DB. No Admin is seeded there,
+        // so each test's API start is a genuine first startup that creates the first Admin.
+        await using (var app = new TreasuryApiFactory(ConnectionStringFor(TemplateDb), seedAdmin: false))
         {
             _ = app.Services; // triggers host start -> MigrateAsync in Program.cs
         }

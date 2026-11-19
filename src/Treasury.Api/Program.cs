@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api;
+using Treasury.Api.Auth;
 using Treasury.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,19 +10,26 @@ builder.AddServiceDefaults();
 builder.AddNpgsqlDbContext<TreasuryDbContext>("treasurydb", s => s.DisableHealthChecks = true);
 builder.Services.AddHealthChecks().AddDbContextCheck<TreasuryDbContext>("database");
 builder.Services.AddSingleton(TimeProvider.System);
+builder.AddTreasuryAuth();
 
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<TreasuryDbContext>().Database.MigrateAsync();
+    await AuthSetup.SeedFirstAdminAsync(scope.ServiceProvider, app.Configuration, app.Logger);
 }
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapDefaultEndpoints();
 
-var api = app.MapGroup("/api");
+// Every /api endpoint requires a logged-in Member unless it opts out with AllowAnonymous().
+var api = app.MapGroup("/api").RequireAuthorization();
 api.MapHealth();
-api.MapFallback(() => Results.NotFound()); // unknown /api/* must never fall through to the SPA
+api.MapAuth();
+api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 
 // Production: the React build is copied into wwwroot by the AppHost (PublishWithContainerFiles).
 app.UseFileServer();
