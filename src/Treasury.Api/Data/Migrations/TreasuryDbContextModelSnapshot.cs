@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120000428_Transactions";
+    public override string LastMigrationId => "20261120001845_Categories";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -291,6 +291,34 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("AspNetUsers");
             });
 
+        modelBuilder.Entity("Treasury.Api.Categories.Category", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<string>("BuiltInKey")
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)");
+
+                b.Property<Guid?>("ParentId")
+                    .HasColumnType("uuid");
+
+                b.HasKey("Id");
+
+                b.HasIndex("BuiltInKey")
+                    .IsUnique();
+
+                b.HasIndex("ParentId");
+
+                b.ToTable("Categories");
+            });
+
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.Property<Guid>("Id")
@@ -303,6 +331,9 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Property<decimal>("Amount")
                     .HasPrecision(19, 4)
                     .HasColumnType("numeric(19,4)");
+
+                b.Property<Guid?>("CategoryId")
+                    .HasColumnType("uuid");
 
                 b.Property<DateTimeOffset>("CreatedAt")
                     .HasColumnType("timestamp with time zone");
@@ -331,6 +362,8 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("uuid");
 
                 b.HasKey("Id");
+
+                b.HasIndex("CategoryId");
 
                 b.HasIndex("OwnerMemberId");
 
@@ -398,6 +431,14 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+        modelBuilder.Entity("Treasury.Api.Categories.Category", b =>
+            {
+                b.HasOne("Treasury.Api.Categories.Category", null)
+                    .WithMany()
+                    .HasForeignKey("ParentId")
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.HasOne("Treasury.Api.Accounts.Account", "Account")
@@ -405,6 +446,11 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("AccountId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
+
+                b.HasOne("Treasury.Api.Categories.Category", null)
+                    .WithMany()
+                    .HasForeignKey("CategoryId")
+                    .OnDelete(DeleteBehavior.Restrict);
 
                 b.HasOne("Treasury.Api.Auth.Member", null)
                     .WithMany()

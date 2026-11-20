@@ -12,4 +12,9 @@ public static class TransactionQueries
     public static IQueryable<Transaction> VisibleTo(this IQueryable<Transaction> query, Guid viewerId) =>
         query.Where(t => t.OwnerMemberId == null || t.OwnerMemberId == viewerId
             || t.Account.OwnerMemberId == null || t.Account.OwnerMemberId == viewerId);
+
+    /// Income and Expense without a Category (GLOSSARY: Uncategorised). Compose with <see cref="VisibleTo"/>.
+    /// TODO(#16): exclude Transfers here once they exist (Transfers have no Category but are not Uncategorised).
+    public static IQueryable<Transaction> Uncategorised(this IQueryable<Transaction> query) =>
+        query.Where(t => t.CategoryId == null);
 }

@@ -38,6 +38,9 @@ public class Transaction : IOwned
 
     public string? Note { get; set; }
 
+    /// Null = Uncategorised (for Income and Expense; Transfers never have a Category, #16).
+    public Guid? CategoryId { get; set; }
+
     /// Classification fields a Member set by hand; Rules (#15) must leave these alone.
     public ManuallySetFields ManuallySet { get; set; }
 
@@ -67,5 +70,6 @@ public enum ManuallySetFields
 {
     None = 0,
     Owner = 1,
-    // Category = 2, Tags = 4, DisplayName = 8 — added by #13/#14/#15 and the Display name ticket.
+    Category = 2,
+    // Tags = 4, DisplayName = 8 — added by #14 and the Display name ticket.
 }
