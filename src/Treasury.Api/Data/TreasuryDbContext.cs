@@ -7,6 +7,7 @@ using Treasury.Api.Auth;
 using Treasury.Api.Imports;
 using Treasury.Api.Categories;
 using Treasury.Api.ExchangeRates;
+using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
 
 namespace Treasury.Api.Data;
@@ -27,6 +28,12 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
 
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
+
+    public DbSet<Tag> Tags => Set<Tag>();
+
+    public DbSet<TransactionTag> TransactionTags => Set<TransactionTag>();
+
+    public DbSet<TransactionTagRemoval> TransactionTagRemovals => Set<TransactionTagRemoval>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -97,6 +104,33 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             f.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
             f.HasIndex(x => new { x.AccountId, x.ImportedAt });
             f.HasOne<Member>().WithMany().HasForeignKey(x => x.ImportedByMemberId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<Tag>(t =>
+        {
+            t.Ignore(x => x.HasDateRange);
+            t.Ignore(x => x.IsOwnerLimited);
+            t.Ignore(x => x.LimitedToOwners);
+            t.Property(x => x.Name).HasMaxLength(TagEndpoints.MaxNameLength);
+        });
+
+        // A Transaction carries a Tag when at least one link (any source) exists. Deleting the Tag or the
+        // Transaction deletes its links and removals.
+        builder.Entity<TransactionTag>(l =>
+        {
+            l.HasKey(x => new { x.TransactionId, x.TagId, x.Source });
+            l.Property(x => x.Source).HasConversion<string>().HasMaxLength(16);
+            l.HasOne<Transaction>().WithMany(x => x.TagLinks).HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.Cascade);
+            l.HasOne<Tag>().WithMany().HasForeignKey(x => x.TagId).OnDelete(DeleteBehavior.Cascade);
+            l.HasIndex(x => x.TagId);
+        });
+
+        builder.Entity<TransactionTagRemoval>(r =>
+        {
+            r.HasKey(x => new { x.TransactionId, x.TagId });
+            r.HasOne<Transaction>().WithMany().HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.Cascade);
+            r.HasOne<Tag>().WithMany().HasForeignKey(x => x.TagId).OnDelete(DeleteBehavior.Cascade);
+            r.HasIndex(x => x.TagId);
         });
 
         builder.Entity<ExchangeRate>(r =>

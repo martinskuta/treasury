@@ -11,6 +11,7 @@ using Treasury.Api.Ownership;
 using Treasury.Api.Members;
 using Treasury.Api.Reports;
 using Treasury.Api.Storage;
+using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +27,7 @@ builder.AddAccounts();
 builder.AddImports();
 builder.AddStatementChecks();
 builder.AddIngestScan();
+builder.AddTags();
 builder.AddExchangeRates();
 builder.AddMatching();
 
@@ -58,6 +60,7 @@ api.MapOwners();
 api.MapMembers();
 api.MapCategories();
 api.MapReports();
+api.MapTags();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 
 // Production: the React build is copied into wwwroot by the AppHost (PublishWithContainerFiles).

@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120004924_Matching";
+    public override string LastMigrationId => "20261120005323_Tags";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -389,6 +389,69 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("SourceFiles");
             });
 
+        modelBuilder.Entity("Treasury.Api.Tags.Tag", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<DateOnly?>("DateFrom")
+                    .HasColumnType("date");
+
+                b.Property<DateOnly?>("DateTo")
+                    .HasColumnType("date");
+
+                b.Property<bool>("LimitToFamily")
+                    .HasColumnType("boolean");
+
+                b.PrimitiveCollection<Guid[]>("LimitToMemberIds")
+                    .IsRequired()
+                    .HasColumnType("uuid[]");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)");
+
+                b.HasKey("Id");
+
+                b.ToTable("Tags");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Tags.TransactionTag", b =>
+            {
+                b.Property<Guid>("TransactionId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("TagId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Source")
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.HasKey("TransactionId", "TagId", "Source");
+
+                b.HasIndex("TagId");
+
+                b.ToTable("TransactionTags");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Tags.TransactionTagRemoval", b =>
+            {
+                b.Property<Guid>("TransactionId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("TagId")
+                    .HasColumnType("uuid");
+
+                b.HasKey("TransactionId", "TagId");
+
+                b.HasIndex("TagId");
+
+                b.ToTable("TransactionTagRemovals");
+            });
+
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.Property<Guid>("Id")
@@ -563,6 +626,36 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Account");
             });
 
+        modelBuilder.Entity("Treasury.Api.Tags.TransactionTag", b =>
+            {
+                b.HasOne("Treasury.Api.Tags.Tag", null)
+                    .WithMany()
+                    .HasForeignKey("TagId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Treasury.Api.Transactions.Transaction", null)
+                    .WithMany("TagLinks")
+                    .HasForeignKey("TransactionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("Treasury.Api.Tags.TransactionTagRemoval", b =>
+            {
+                b.HasOne("Treasury.Api.Tags.Tag", null)
+                    .WithMany()
+                    .HasForeignKey("TagId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Treasury.Api.Transactions.Transaction", null)
+                    .WithMany()
+                    .HasForeignKey("TransactionId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.HasOne("Treasury.Api.Accounts.Account", "Account")
@@ -594,6 +687,11 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Account");
 
                 b.Navigation("SourceFile");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
+            {
+                b.Navigation("TagLinks");
             });
 #pragma warning restore 612, 618
     }

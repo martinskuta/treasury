@@ -692,3 +692,58 @@ h1 {
 .transaction-link-form {
   margin-top: 8px;
 }
+
+/* ---- Tags ---- */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tag-chip {
+  display: inline-block;
+  font-size: 0.8rem;
+  padding: 1px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+/* Applied automatically (date range or Rule), not by hand. */
+.tag-chip.auto {
+  border-style: dashed;
+}
+
+.checkbox-group {
+  border: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.checkbox-group legend {
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.transaction-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.transaction-filters .field {
+  margin-top: 0;
+  min-width: 200px;
+}

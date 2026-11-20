@@ -11,6 +11,7 @@ import { MembersPage } from './pages/MembersPage'
 import { MonthlyOverviewPage } from './pages/MonthlyOverviewPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { TagsPage } from './pages/TagsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 import { UncategorisedPage } from './pages/UncategorisedPage'
 
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="uncategorised" element={<UncategorisedPage />} />
               <Route path="accounts" element={<AccountsPage />} />
               <Route path="settings/categories" element={<CategoriesPage />} />
+              <Route path="settings/tags" element={<TagsPage />} />
               <Route path="account/password" element={<ChangePasswordPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/members" element={<MembersPage />} />

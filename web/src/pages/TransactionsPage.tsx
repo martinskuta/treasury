@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
 import { SelectField } from '../components/SelectField'
@@ -10,6 +10,7 @@ import {
   listCategories,
   listOwners,
   linkTransactions,
+  listTags,
   listTransactions,
   sourceFileContentUrl,
   unlinkTransaction,
@@ -18,6 +19,8 @@ import {
   type Category,
   type Owner,
   type OwnerRef,
+  type Tag,
+  type TagRef,
   type Transaction,
   type TransactionChanges,
   type TransactionLink,
@@ -53,26 +56,39 @@ export function TransactionsPage() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
+  const [tagFilter, setTagFilter] = useState('')
   const [loadError, setLoadError] = useState(false)
   const [adding, setAdding] = useState(false)
 
-  const load = (signal?: AbortSignal) =>
-    Promise.all([listTransactions(signal), listAccounts(signal), listOwners(signal), listCategories(signal)])
-      .then(([t, a, o, c]) => {
-        setTransactions(t)
-        setAccounts(a)
-        setOwners(o)
-        setCategories(c)
-      })
-      .catch(() => {
-        if (!signal?.aborted) setLoadError(true)
-      })
+  const load = useCallback(
+    (signal?: AbortSignal) =>
+      Promise.all([
+        listTransactions(signal, { tagId: tagFilter || undefined }),
+        listAccounts(signal),
+        listOwners(signal),
+        listCategories(signal),
+        listTags(signal),
+      ])
+        .then(([t, a, o, c, g]) => {
+          setTransactions(t)
+          setAccounts(a)
+          setOwners(o)
+          setCategories(c)
+          setTags(g)
+        })
+        .catch(() => {
+          if (!signal?.aborted) setLoadError(true)
+        }),
+    [tagFilter],
+  )
 
+  // Reloads when the Tag filter changes (load depends on it).
   useEffect(() => {
     const controller = new AbortController()
     void load(controller.signal)
     return () => controller.abort()
-  }, [])
+  }, [load])
 
   // The Accounts listed are exactly the ones the Member can manage (own + Family).
   const manageable = new Set(accounts.map(a => a.id))
@@ -87,6 +103,7 @@ export function TransactionsPage() {
           accounts={accounts}
           owners={owners}
           categories={categories}
+          tags={tags}
           onCancel={() => setAdding(false)}
           onCreated={() => {
             setAdding(false)
@@ -105,10 +122,22 @@ export function TransactionsPage() {
           </button>
         </p>
       )}
+      {tags.length > 0 && (
+        <div className="transaction-filters">
+          <SelectField label="Tag" name="tagFilter" value={tagFilter} onChange={e => setTagFilter(e.target.value)}>
+            <option value="">Any</option>
+            {tags.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      )}
       {transactions !== null && (
         <section className="card">
           {transactions.length === 0 ? (
-            <p>No Transactions yet.</p>
+            <p>{tagFilter ? 'No Transactions with this Tag.' : 'No Transactions yet.'}</p>
           ) : (
             <ul className="transaction-list">
               {transactions.map(t => (
@@ -118,6 +147,7 @@ export function TransactionsPage() {
                   all={transactions}
                   owners={owners}
                   categories={categories}
+                  tags={tags}
                   canEditFacts={t.origin === 'manual' && manageable.has(t.accountId)}
                   onChanged={() => void load()}
                 />
@@ -135,6 +165,7 @@ function TransactionRow({
   all,
   owners,
   categories,
+  tags,
   canEditFacts,
   onChanged,
 }: {
@@ -142,6 +173,7 @@ function TransactionRow({
   all: Transaction[]
   owners: Owner[]
   categories: Category[]
+  tags: Tag[]
   canEditFacts: boolean
   onChanged: () => void
 }) {
@@ -177,6 +209,7 @@ function TransactionRow({
           transaction={t}
           owners={owners}
           categories={categories}
+          tags={tags}
           canEditFacts={canEditFacts}
           onCancel={() => setEditing(false)}
           onSaved={() => {
@@ -218,6 +251,7 @@ function TransactionRow({
             </>
           )}
         </div>
+        <TagChips tags={t.tags} />
         <div className="transaction-actions">
           <button type="button" className="button-link" onClick={() => setEditing(true)}>
             Edit
@@ -266,6 +300,27 @@ function TransactionRow({
         )}
       </div>
     </li>
+  )
+}
+
+/** The Tags on a Transaction; automatically applied ones (date range, Rule) are drawn dashed. */
+function TagChips({ tags }: { tags: TagRef[] }) {
+  if (tags.length === 0) return null
+  return (
+    <div className="tag-list">
+      {tags.map(tag => {
+        const auto = !tag.sources.includes('manual')
+        return (
+          <span
+            key={tag.id}
+            className={`tag-chip${auto ? ' auto' : ''}`}
+            title={auto ? 'Applied automatically' : 'Added by hand'}
+          >
+            {tag.name}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -375,12 +430,14 @@ function NewTransactionForm({
   accounts,
   owners,
   categories,
+  tags,
   onCancel,
   onCreated,
 }: {
   accounts: Account[]
   owners: Owner[]
   categories: Category[]
+  tags: Tag[]
   onCancel: () => void
   onCreated: () => void
 }) {
@@ -391,6 +448,7 @@ function NewTransactionForm({
   const [note, setNote] = useState('')
   const [owner, setOwner] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [tagIds, setTagIds] = useState<string[]>([])
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
@@ -414,6 +472,7 @@ function NewTransactionForm({
         note: note.trim() || null,
         owner: owner ? ownerRefFromValue(owner) : undefined,
         categoryId: categoryId || undefined,
+        tagIds: tagIds.length > 0 ? tagIds : undefined,
       })
       onCreated()
     } catch (err) {
@@ -456,6 +515,13 @@ function NewTransactionForm({
         <OwnerOptions owners={owners} />
       </SelectField>
       <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
+      <TagPicker
+        tags={tags}
+        selected={tagIds}
+        errors={errors.tagIds}
+        onChange={setTagIds}
+        hint="Date-range Tags are added automatically."
+      />
       {errors.form && (
         <p className="form-error" role="alert">
           {errors.form[0]}
@@ -477,6 +543,7 @@ function EditTransactionForm({
   transaction: t,
   owners,
   categories,
+  tags,
   canEditFacts,
   onCancel,
   onSaved,
@@ -484,6 +551,7 @@ function EditTransactionForm({
   transaction: Transaction
   owners: Owner[]
   categories: Category[]
+  tags: Tag[]
   canEditFacts: boolean
   onCancel: () => void
   onSaved: () => void
@@ -495,6 +563,7 @@ function EditTransactionForm({
   const [displayName, setDisplayName] = useState(t.displayName ?? '')
   const [owner, setOwner] = useState(ownerValue(t.owner))
   const [categoryId, setCategoryId] = useState(t.category?.id ?? '')
+  const [tagIds, setTagIds] = useState(t.tags.map(tag => tag.id))
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
@@ -519,6 +588,11 @@ function EditTransactionForm({
       if (categoryId) changes.categoryId = categoryId
       else changes.uncategorise = true
     }
+    const current = t.tags.map(tag => tag.id)
+    const added = tagIds.filter(id => !current.includes(id))
+    const removed = current.filter(id => !tagIds.includes(id))
+    if (added.length > 0) changes.addTagIds = added
+    if (removed.length > 0) changes.removeTagIds = removed
     setBusy(true)
     setErrors({})
     try {
@@ -578,6 +652,13 @@ function EditTransactionForm({
       ) : (
         <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
       )}
+      <TagPicker
+        tags={tags}
+        selected={tagIds}
+        errors={errors.addTagIds ?? errors.removeTagIds}
+        onChange={setTagIds}
+        hint="Unticking an automatically applied Tag removes it for good from this Transaction."
+      />
       {(errors.form ?? errors.transaction) && (
         <p className="form-error" role="alert">
           {(errors.form ?? errors.transaction)[0]}
@@ -654,6 +735,36 @@ function CategoryField(props: {
       <option value="">Uncategorised</option>
       <CategoryOptions categories={props.categories} />
     </SelectField>
+  )
+}
+
+/** Tag checkboxes. */
+function TagPicker(props: {
+  tags: Tag[]
+  selected: string[]
+  errors: string[] | undefined
+  hint: string
+  onChange: (ids: string[]) => void
+}) {
+  if (props.tags.length === 0) return null
+  return (
+    <fieldset className="checkbox-group">
+      <legend>Tags</legend>
+      <span className="account-meta">{props.hint}</span>
+      {props.tags.map(tag => (
+        <label key={tag.id} className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={props.selected.includes(tag.id)}
+            onChange={e =>
+              props.onChange(e.target.checked ? [...props.selected, tag.id] : props.selected.filter(id => id !== tag.id))
+            }
+          />{' '}
+          {tag.name}
+        </label>
+      ))}
+      {props.errors && <p className="form-error">{props.errors[0]}</p>}
+    </fieldset>
   )
 }
 
