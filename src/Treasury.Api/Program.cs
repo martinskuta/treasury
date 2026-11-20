@@ -5,6 +5,7 @@ using Treasury.Api.Auth;
 using Treasury.Api.Categories;
 using Treasury.Api.Data;
 using Treasury.Api.Imports;
+using Treasury.Api.Matching;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 using Treasury.Api.Members;
@@ -23,6 +24,7 @@ builder.AddDataRoot();
 builder.AddAccounts();
 builder.AddImports();
 builder.AddExchangeRates();
+builder.AddMatching();
 
 var app = builder.Build();
 

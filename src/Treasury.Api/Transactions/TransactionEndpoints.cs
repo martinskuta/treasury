@@ -29,7 +29,12 @@ public static class TransactionEndpoints
     public record TransactionResponse(Guid Id, Guid AccountId, string AccountName, DateOnly Date, decimal Amount,
         string Currency, decimal? ChfAmount, string Type, string Description, string? DisplayName,
         string? Counterparty, string? Reference, decimal? OriginalAmount, string? OriginalCurrency, string? Note,
-        OwnerResponse Owner, string Origin, CategoryRef? Category, string[] ManuallySet, SourceFileRef? SourceFile);
+        OwnerResponse Owner, string Origin, CategoryRef? Category, string[] ManuallySet, SourceFileRef? SourceFile,
+        LinkRef? Link);
+
+    /// The other leg of a Transfer or Contribution. Kind "transfer" | "contribution". The other leg may be in an
+    /// Account the viewer can't see (then GET on it is 404).
+    public record LinkRef(string Kind, Guid TransactionId);
 
     public record CategoryRef(Guid Id, string Name, string Path);
 
@@ -228,7 +233,7 @@ public static class TransactionEndpoints
         return trimmed;
     }
 
-    private static async Task<List<TransactionResponse>> ToResponsesAsync(TreasuryDbContext db, ChfConverter chf,
+    internal static async Task<List<TransactionResponse>> ToResponsesAsync(TreasuryDbContext db, ChfConverter chf,
         IReadOnlyList<Transaction> list)
     {
         var names = await db.MemberNamesAsync(list.Select(t => t.OwnerMemberId));
@@ -236,12 +241,22 @@ public static class TransactionEndpoints
         var categories = list.Any(t => t.CategoryId is not null) ? await CategoryTree.LoadAsync(db) : new CategoryTree([]);
         return list.Select(t => new TransactionResponse(t.Id, t.AccountId, t.Account.Name, t.Date, t.Amount,
             t.Account.Currency, rates!.ToChf(t.Amount, t.Account.Currency, t.Date),
-            t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.DisplayName,
+            TypeName(t.Type), t.Description, t.DisplayName,
             t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
             t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
             ToCategoryRef(categories, t.CategoryId), ManuallySetNames(t.ManuallySet),
-            t.SourceFile is null ? null : new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName))).ToList();
+            t.SourceFile is null ? null : new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName),
+            t is { LinkedTransactionId: { } linked, LinkKind: { } kind }
+                ? new LinkRef(kind == LinkKind.Transfer ? "transfer" : "contribution", linked)
+                : null)).ToList();
     }
+
+    private static string TypeName(TransactionType type) => type switch
+    {
+        TransactionType.Income => "income",
+        TransactionType.Expense => "expense",
+        _ => "transfer",
+    };
 
     private static CategoryRef? ToCategoryRef(CategoryTree tree, Guid? categoryId) =>
         categoryId is { } id && tree.Find(id) is { } c ? new(c.Id, c.Name, tree.PathOf(c.Id)) : null;

@@ -13,8 +13,16 @@ public static class TransactionQueries
         query.Where(t => t.OwnerMemberId == null || t.OwnerMemberId == viewerId
             || t.Account.OwnerMemberId == null || t.Account.OwnerMemberId == viewerId);
 
+    /// Legs of a Transfer (SQL form of <see cref="Transaction.IsTransfer"/>).
+    public static IQueryable<Transaction> Transfers(this IQueryable<Transaction> query) =>
+        query.Where(t => t.LinkedTransactionId != null && t.LinkKind == LinkKind.Transfer);
+
+    /// Income and Expense only: Transfers never count in totals, reports or the Uncategorised queue.
+    public static IQueryable<Transaction> CountsAsIncomeOrExpense(this IQueryable<Transaction> query) =>
+        query.Where(t => t.LinkedTransactionId == null || t.LinkKind != LinkKind.Transfer);
+
     /// Income and Expense without a Category (GLOSSARY: Uncategorised). Compose with <see cref="VisibleTo"/>.
-    /// TODO(#16): exclude Transfers here once they exist (Transfers have no Category but are not Uncategorised).
+    /// Transfers have no Category but are not Uncategorised.
     public static IQueryable<Transaction> Uncategorised(this IQueryable<Transaction> query) =>
-        query.Where(t => t.CategoryId == null);
+        query.CountsAsIncomeOrExpense().Where(t => t.CategoryId == null);
 }
