@@ -23,6 +23,7 @@ builder.AddTreasuryAuth();
 builder.AddDataRoot();
 builder.AddAccounts();
 builder.AddImports();
+builder.AddStatementChecks();
 builder.AddExchangeRates();
 
 var app = builder.Build();

@@ -118,6 +118,17 @@ export type Account = {
   openingDate: string
   identifier: string | null
   balance: number
+  /** Set when the most recent statement's closing balance differs from the calculated balance on that date. */
+  balanceWarning: BalanceWarning | null
+}
+
+/** Computed on every read: it disappears once the balances match again. */
+export type BalanceWarning = {
+  /** ISO date of the statement's closing balance */
+  date: string
+  statementBalance: number
+  calculatedBalance: number
+  sourceFile: { id: string; fileName: string }
 }
 
 export type NewAccount = {

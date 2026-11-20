@@ -87,6 +87,7 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             f.Property(x => x.FileName).HasMaxLength(255);
             f.Property(x => x.StoredPath).HasMaxLength(500);
             f.Property(x => x.ContentHash).HasMaxLength(64);
+            f.Property(x => x.ClosingBalanceAmount).HasPrecision(19, 4);
             f.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
             f.HasIndex(x => new { x.AccountId, x.ImportedAt });
             f.HasOne<Member>().WithMany().HasForeignKey(x => x.ImportedByMemberId).OnDelete(DeleteBehavior.SetNull);
