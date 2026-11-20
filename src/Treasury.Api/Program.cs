@@ -3,6 +3,7 @@ using Treasury.Api;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
 using Treasury.Api.Data;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 using Treasury.Api.Storage;
 using Treasury.Api.Transactions;
@@ -17,6 +18,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.AddTreasuryAuth();
 builder.AddDataRoot();
 builder.AddAccounts();
+builder.AddExchangeRates();
 
 var app = builder.Build();
 

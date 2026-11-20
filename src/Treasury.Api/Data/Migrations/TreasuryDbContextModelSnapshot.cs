@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120000428_Transactions";
+    public override string LastMigrationId => "20261120002013_ExchangeRates";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -289,6 +289,24 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasDatabaseName("UserNameIndex");
 
                 b.ToTable("AspNetUsers");
+            });
+
+        modelBuilder.Entity("Treasury.Api.ExchangeRates.ExchangeRate", b =>
+            {
+                b.Property<DateOnly>("Date")
+                    .HasColumnType("date");
+
+                b.Property<string>("Currency")
+                    .HasMaxLength(3)
+                    .HasColumnType("character varying(3)");
+
+                b.Property<decimal>("PerEur")
+                    .HasPrecision(19, 6)
+                    .HasColumnType("numeric(19,6)");
+
+                b.HasKey("Date", "Currency");
+
+                b.ToTable("ExchangeRates");
             });
 
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>

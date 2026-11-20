@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Integrations;
 
 namespace Treasury.Api.Tests;
@@ -18,6 +19,9 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
     public const string AdminPassword = "Admin-Pa55word";
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 20, 9, 0, 0, TimeSpan.Zero));
+
+    /// The exchange-rate source this API fetches from (instead of Frankfurter); publish rates on it.
+    public FakeExchangeRateProvider ExchangeRates { get; } = new();
 
     /// This API's own data root (Storage:DataRoot): a fresh temp folder, deleted on dispose.
     public string DataRoot { get; } = Directory.CreateTempSubdirectory("treasury-test-").FullName;
@@ -44,7 +48,8 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
             // the fake clock) lies in the real past, which would break every logged-in test 14 days after 2026-11-20.
             services.PostConfigure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme,
                 o => o.TimeProvider = TimeProvider.System);
-            // services.Replace(ServiceDescriptor.Singleton<IExchangeRateProvider, FakeExchangeRateProvider>());
+            services.RemoveAll<IExchangeRateProvider>(); // never call the real Frankfurter
+            services.AddSingleton<IExchangeRateProvider>(ExchangeRates);
             foreach (var integration in TestIntegrations.All)
                 services.AddSingleton<IIntegration>(integration);
         });
