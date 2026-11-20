@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Transactions;
 
 namespace Treasury.Api.Data;
@@ -19,6 +20,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
     public DbSet<Account> Accounts => Set<Account>();
 
     public DbSet<Transaction> Transactions => Set<Transaction>();
+
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -51,6 +54,13 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             t.HasIndex(x => new { x.AccountId, x.Date });
             // Owner: null = the Family (same storage as Account.Owner).
             t.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<ExchangeRate>(r =>
+        {
+            r.HasKey(x => new { x.Date, x.Currency });
+            r.Property(x => x.Currency).HasMaxLength(3);
+            r.Property(x => x.PerEur).HasPrecision(19, 6);
         });
     }
 }

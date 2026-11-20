@@ -153,6 +153,8 @@ export type Transaction = {
   /** In the Account's currency; positive = Income, negative = Expense. */
   amount: number
   currency: Currency
+  /** The amount in CHF at the rate of its date (= amount for CHF); null until a rate is available. */
+  chfAmount: number | null
   type: 'income' | 'expense'
   description: string
   note: string | null

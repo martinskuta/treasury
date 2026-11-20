@@ -387,6 +387,11 @@ h1 {
   color: var(--good);
 }
 
+.transaction-chf {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
 .transaction-edit {
   flex: 1 1 100%;
   max-width: 420px;

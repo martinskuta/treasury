@@ -186,6 +186,11 @@ function TransactionRow({
       </div>
       <div className={`amount transaction-amount ${t.type}`}>
         {formatAmount(t.amount)} {t.currency}
+        {t.currency !== 'CHF' && (
+          <div className="transaction-chf" title="CHF equivalent at the rate of the Transaction's date">
+            {t.chfAmount === null ? 'CHF rate pending' : `≈ ${formatAmount(t.chfAmount)} CHF`}
+          </div>
+        )}
       </div>
     </li>
   )
