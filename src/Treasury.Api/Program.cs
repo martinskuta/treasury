@@ -22,6 +22,7 @@ builder.AddTreasuryAuth();
 builder.AddDataRoot();
 builder.AddAccounts();
 builder.AddImports();
+builder.AddIngestScan();
 builder.AddExchangeRates();
 
 var app = builder.Build();
@@ -47,6 +48,7 @@ api.MapAuth();
 api.MapAccounts();
 api.MapTransactions();
 api.MapImports();
+api.MapIngestScan();
 api.MapOwners();
 api.MapMembers();
 api.MapCategories();
