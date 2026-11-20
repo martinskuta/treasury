@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CategoryOptions } from '../components/CategoryOptions'
+import { RuleOffer } from '../components/RuleOffer'
 import { listCategories, listUncategorised, updateTransaction, type Category, type Transaction } from '../lib/api'
 import { formatAmount, formatDate } from '../lib/format'
 
@@ -57,19 +58,36 @@ function UncategorisedRow({
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [categorisedAs, setCategorisedAs] = useState<string | null>(null)
 
   async function categorise(categoryId: string) {
     if (!categoryId) return
     setBusy(true)
     setError(null)
     try {
-      await updateTransaction(t.id, { categoryId })
-      onCategorised()
+      const updated = await updateTransaction(t.id, { categoryId })
+      // Keep the row for a moment to offer a Rule built from this correction.
+      setCategorisedAs(updated.category?.path ?? '')
     } catch {
       setError('Couldn’t set the Category, try again.')
       setBusy(false)
     }
   }
+
+  if (categorisedAs !== null)
+    return (
+      <li className="transaction-row">
+        <div className="transaction-date">{formatDate(t.date)}</div>
+        <div className="transaction-main">
+          <strong>{t.description}</strong>
+          <div className="account-meta">Categorised as {categorisedAs}</div>
+          <RuleOffer transactionId={t.id} onDismiss={onCategorised} />
+        </div>
+        <div className={`amount transaction-amount ${t.type}`}>
+          {formatAmount(t.amount)} {t.currency}
+        </div>
+      </li>
+    )
 
   return (
     <li className="transaction-row">

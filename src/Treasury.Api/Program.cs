@@ -10,6 +10,7 @@ using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 using Treasury.Api.Members;
 using Treasury.Api.Reports;
+using Treasury.Api.Rules;
 using Treasury.Api.Storage;
 using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
@@ -28,6 +29,7 @@ builder.AddImports();
 builder.AddStatementChecks();
 builder.AddIngestScan();
 builder.AddTags();
+builder.AddRules(); // after AddTags: Rules run after date-range Tags in the Classify stage
 builder.AddExchangeRates();
 builder.AddMatching();
 
@@ -61,6 +63,7 @@ api.MapMembers();
 api.MapCategories();
 api.MapReports();
 api.MapTags();
+api.MapRules();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 
 // Production: the React build is copied into wwwroot by the AppHost (PublishWithContainerFiles).

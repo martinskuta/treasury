@@ -17,6 +17,9 @@ export function SettingsPage() {
             <Link to="/settings/tags">Tags</Link> — shared Tags, including date-range Tags applied automatically
           </li>
           <li>
+            <Link to="/settings/rules">Rules</Link> — categorise, tag and assign imported Transactions automatically
+          </li>
+          <li>
             <Link to="/account/password">Change your password</Link>
           </li>
           {isAdmin(me) && (

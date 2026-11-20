@@ -748,6 +748,20 @@ h1 {
   min-width: 200px;
 }
 
+/* Rules (#15): the offer after a manual Category correction, and the priority list. */
+.rule-offer {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+
+.rule-list {
+  padding-left: 24px;
+}
+
+.rule-list .category-main {
+  flex-wrap: wrap;
+}
+
 /* Tag report (#19): Tag picker + period controls reuse report-controls; chips link to the report. */
 .report-controls .field {
   margin: 0;

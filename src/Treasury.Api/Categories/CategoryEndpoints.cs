@@ -108,8 +108,11 @@ public static class CategoryEndpoints
             {
                 await using var tx = await db.Database.BeginTransactionAsync();
                 if (moveTo is { } to)
-                    // A bulk move keeps whether each Category was set by hand.
+                {
+                    // A bulk move keeps whether each Category was set by hand. Rules follow their Transactions.
                     await used.ExecuteUpdateAsync(s => s.SetProperty(t => t.CategoryId, to));
+                    await db.Rules.Where(r => r.CategoryId == id).ExecuteUpdateAsync(s => s.SetProperty(r => r.CategoryId, to));
+                }
                 else if (uncategorise == true)
                     // Back in the Uncategorised queue, where Rules (#15) may categorise them again.
                     await used.ExecuteUpdateAsync(s => s

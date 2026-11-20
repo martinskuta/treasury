@@ -361,6 +361,60 @@ export const updateTag = (id: string, tag: TagInput) => apiFetch<Tag>(`/api/tags
 /** Takes the Tag off every Transaction. */
 export const deleteTag = (id: string) => apiFetch<void>(`/api/tags/${id}`, { method: 'DELETE' })
 
+// ---- Rules (/api/rules) ----
+
+export type RuleField = 'description' | 'counterparty'
+export type RuleMatch = 'contains' | 'equals'
+
+/**
+ * A shared Rule, in priority order (0 = first). `owner` null = the Rule doesn't set an Owner. `active` is false while
+ * its author (the Member who last saved it) is deactivated: it doesn't run until someone saves it again.
+ */
+export type Rule = {
+  id: string
+  priority: number
+  field: RuleField
+  match: RuleMatch
+  text: string
+  category: CategoryRef | null
+  tags: { id: string; name: string }[]
+  owner: Owner | null
+  author: { id: string; name: string }
+  active: boolean
+}
+
+/** Create/replace body; also the shape of a suggested draft. At least one of categoryId, tagIds, owner. */
+export type RuleInput = {
+  field: RuleField
+  match: RuleMatch
+  text: string
+  categoryId: string | null
+  tagIds: string[]
+  owner: OwnerRef | null
+}
+
+export type RuleRunResult = { checked: number; categorised: number }
+
+export const listRules = (signal?: AbortSignal) => apiFetch<Rule[]>('/api/rules', { signal })
+
+export const createRule = (rule: RuleInput) => apiFetch<Rule>('/api/rules', { method: 'POST', body: rule })
+
+/** Replaces condition and actions; the saving Member becomes the author. */
+export const updateRule = (id: string, rule: RuleInput) => apiFetch<Rule>(`/api/rules/${id}`, { method: 'PUT', body: rule })
+
+export const deleteRule = (id: string) => apiFetch<void>(`/api/rules/${id}`, { method: 'DELETE' })
+
+/** The new priority order: every Rule id once, first = runs first. */
+export const reorderRules = (ruleIds: string[]) =>
+  apiFetch<Rule[]>('/api/rules/order', { method: 'PUT', body: { ruleIds } })
+
+/** Runs the Rules over the caller's visible Uncategorised Transactions. */
+export const applyRules = () => apiFetch<RuleRunResult>('/api/rules/apply', { method: 'POST' })
+
+/** A pre-filled Rule built from a Transaction (e.g. right after correcting its Category). Not saved. */
+export const suggestRule = (transactionId: string, signal?: AbortSignal) =>
+  apiFetch<RuleInput>(`/api/rules/suggestion?transactionId=${encodeURIComponent(transactionId)}`, { signal })
+
 // ---- Members (Admin only: /api/admin/members) ----
 
 /** A Member as the Admin sees them in member management. */
