@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
+using Treasury.Api.Integrations;
 
 namespace Treasury.Api.Tests;
 
@@ -18,11 +19,18 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 11, 20, 9, 0, 0, TimeSpan.Zero));
 
+    /// This API's own data root (Storage:DataRoot): a fresh temp folder, deleted on dispose.
+    public string DataRoot { get; } = Directory.CreateTempSubdirectory("treasury-test-").FullName;
+
+    /// Where Ingest folders live under the data root.
+    public string IngestRoot => Path.Combine(DataRoot, "ingest");
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         // UseSetting is visible to WebApplication.CreateBuilder config, i.e. before AddNpgsqlDbContext reads it.
         builder.UseSetting("ConnectionStrings:treasurydb", connectionString);
+        builder.UseSetting("Storage:DataRoot", DataRoot);
         if (seedAdmin)
         {
             builder.UseSetting("Admin:UserName", AdminUserName);
@@ -37,6 +45,14 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
             services.PostConfigure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme,
                 o => o.TimeProvider = TimeProvider.System);
             // services.Replace(ServiceDescriptor.Singleton<IExchangeRateProvider, FakeExchangeRateProvider>());
+            foreach (var integration in TestIntegrations.All)
+                services.AddSingleton<IIntegration>(integration);
         });
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        try { Directory.Delete(DataRoot, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 }

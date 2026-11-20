@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api;
+using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
 using Treasury.Api.Data;
+using Treasury.Api.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -11,8 +13,12 @@ builder.AddNpgsqlDbContext<TreasuryDbContext>("treasurydb", s => s.DisableHealth
 builder.Services.AddHealthChecks().AddDbContextCheck<TreasuryDbContext>("database");
 builder.Services.AddSingleton(TimeProvider.System);
 builder.AddTreasuryAuth();
+builder.AddDataRoot();
+builder.AddAccounts();
 
 var app = builder.Build();
+
+app.Services.GetRequiredService<DataRoot>(); // fail fast when Storage:DataRoot is missing
 
 using (var scope = app.Services.CreateScope())
 {
@@ -29,6 +35,7 @@ app.MapDefaultEndpoints();
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapHealth();
 api.MapAuth();
+api.MapAccounts();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 
 // Production: the React build is copied into wwwroot by the AppHost (PublishWithContainerFiles).

@@ -9,7 +9,7 @@ public static class AuthEndpoints
 
     public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
-    public record MeResponse(string UserName, IReadOnlyList<string> Roles);
+    public record MeResponse(Guid Id, string UserName, IReadOnlyList<string> Roles);
 
     /// /api/auth/*: login, logout, the current Member, changing one's own password.
     public static void MapAuth(this RouteGroupBuilder api)
@@ -56,5 +56,5 @@ public static class AuthEndpoints
     }
 
     private static async Task<MeResponse> ToMeAsync(Member member, UserManager<Member> members) =>
-        new(member.UserName!, [.. await members.GetRolesAsync(member)]);
+        new(member.Id, member.UserName!, [.. await members.GetRolesAsync(member)]);
 }
