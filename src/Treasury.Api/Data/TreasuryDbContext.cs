@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
+using Treasury.Api.Transactions;
 
 namespace Treasury.Api.Data;
 
@@ -16,6 +17,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     public DbSet<Account> Accounts => Set<Account>();
+
+    public DbSet<Transaction> Transactions => Set<Transaction>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -33,6 +36,21 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             a.Property(x => x.Identifier).HasMaxLength(AccountEndpoints.MaxIdentifierLength);
             // Owner: null = the Family. A Member who owns Accounts can't be deleted (handover first, #5).
             a.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Transaction>(t =>
+        {
+            t.Ignore(x => x.Owner);
+            t.Ignore(x => x.Type);
+            t.Ignore(x => x.FactsEditable);
+            t.Property(x => x.Origin).HasConversion<string>().HasMaxLength(16);
+            t.Property(x => x.Amount).HasPrecision(19, 4);
+            t.Property(x => x.Description).HasMaxLength(TransactionEndpoints.MaxDescriptionLength);
+            t.Property(x => x.Note).HasMaxLength(TransactionEndpoints.MaxNoteLength);
+            t.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+            t.HasIndex(x => new { x.AccountId, x.Date });
+            // Owner: null = the Family (same storage as Account.Owner).
+            t.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

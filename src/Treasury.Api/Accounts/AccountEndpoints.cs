@@ -36,13 +36,16 @@ public static class AccountEndpoints
             var viewer = ViewerId(user);
             var list = await db.Accounts.OwnedByViewerOrFamily(viewer).OrderBy(a => a.Name).ToListAsync();
             var names = await MemberNamesAsync(db, list);
-            return Results.Ok(list.Select(a => ToResponse(a, names)));
+            var balances = await BalancesAsync(db, list);
+            return Results.Ok(list.Select(a => ToResponse(a, names, balances)));
         });
 
         accounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db) =>
         {
             var account = await FindVisibleAsync(db, id, ViewerId(user));
-            return account is null ? Results.NotFound() : Results.Ok(ToResponse(account, await MemberNamesAsync(db, [account])));
+            return account is null
+                ? Results.NotFound()
+                : Results.Ok(ToResponse(account, await MemberNamesAsync(db, [account]), await BalancesAsync(db, [account])));
         });
 
         accounts.MapPost("/", async (CreateAccountRequest request, ClaimsPrincipal user, TreasuryDbContext db,
@@ -91,7 +94,7 @@ public static class AccountEndpoints
             db.Accounts.Add(account);
             await db.SaveChangesAsync();
 
-            return Results.Created($"/api/accounts/{account.Id}", ToResponse(account, await MemberNamesAsync(db, [account])));
+            return Results.Created($"/api/accounts/{account.Id}", ToResponse(account, await MemberNamesAsync(db, [account]), new Dictionary<Guid, decimal>()));
         });
 
         accounts.MapPatch("/{id:guid}", async (Guid id, RenameAccountRequest request, ClaimsPrincipal user,
@@ -110,16 +113,14 @@ public static class AccountEndpoints
 
             account.Name = name!;
             await db.SaveChangesAsync();
-            return Results.Ok(ToResponse(account, await MemberNamesAsync(db, [account])));
+            return Results.Ok(ToResponse(account, await MemberNamesAsync(db, [account]), await BalancesAsync(db, [account])));
         });
 
         api.MapGet("/integrations", (IntegrationRegistry integrations) =>
             Results.Ok(integrations.All.OrderBy(i => i.Name).Select(i => new { i.Key, i.Name, i.CanProvideIdentifier })));
     }
 
-    private static Guid ViewerId(ClaimsPrincipal user) =>
-        Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? throw new InvalidOperationException("Endpoint requires a logged-in Member."));
+    private static Guid ViewerId(ClaimsPrincipal user) => user.MemberId();
 
     private static Task<Account?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Accounts.OwnedByViewerOrFamily(viewer).SingleOrDefaultAsync(a => a.Id == id);
@@ -140,16 +141,24 @@ public static class AccountEndpoints
         return candidate;
     }
 
-    private static async Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts)
+    private static Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts) =>
+        db.MemberNamesAsync(accounts.Select(a => a.OwnerMemberId));
+
+    /// Sum of each Account's Transactions after its opening date (all of them: whoever sees an Account sees its
+    /// full contents, whatever the Transactions' Owners). Accounts without such Transactions are missing.
+    private static async Task<Dictionary<Guid, decimal>> BalancesAsync(TreasuryDbContext db, IEnumerable<Account> accounts)
     {
-        var ids = accounts.Select(a => a.OwnerMemberId).OfType<Guid>().Distinct().ToList();
-        return ids.Count == 0
-            ? []
-            : await db.Users.Where(m => ids.Contains(m.Id)).ToDictionaryAsync(m => m.Id, m => m.UserName!);
+        var ids = accounts.Select(a => a.Id).ToList();
+        return await db.Transactions
+            .Where(t => ids.Contains(t.AccountId) && t.Date > t.Account.OpeningDate)
+            .GroupBy(t => t.AccountId)
+            .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
+            .ToDictionaryAsync(x => x.AccountId, x => x.Sum);
     }
 
-    private static AccountResponse ToResponse(Account a, IReadOnlyDictionary<Guid, string> memberNames) =>
+    private static AccountResponse ToResponse(Account a, IReadOnlyDictionary<Guid, string> memberNames,
+        IReadOnlyDictionary<Guid, decimal> transactionSums) =>
         new(a.Id, a.Name, a.Slug, OwnerResponse.From(a.Owner, memberNames), a.IntegrationKey, a.Currency,
             a.OpeningBalance, a.OpeningDate, a.Identifier,
-            Balance: a.OpeningBalance); // Transactions are added from #6/#7 on
+            Balance: a.OpeningBalance + transactionSums.GetValueOrDefault(a.Id));
 }
