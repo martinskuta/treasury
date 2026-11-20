@@ -14,6 +14,9 @@ export function SettingsPage() {
             <Link to="/settings/categories">Categories</Link> — the Family’s Category tree
           </li>
           <li>
+            <Link to="/settings/tags">Tags</Link> — shared Tags, including date-range Tags applied automatically
+          </li>
+          <li>
             <Link to="/account/password">Change your password</Link>
           </li>
           {isAdmin(me) && (
