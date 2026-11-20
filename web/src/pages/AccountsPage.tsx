@@ -5,6 +5,7 @@ import {
   ApiError,
   createAccount,
   currencies,
+  deleteSourceFile,
   importStatement,
   listAccounts,
   listIntegrations,
@@ -161,7 +162,7 @@ function AccountRow({
               Rename
             </button>{' '}
             <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
-              {importing ? 'Close import' : 'Import statement'}
+              {importing ? 'Close imports' : 'Imports'}
             </button>
           </>
         )}
@@ -205,6 +206,8 @@ function ImportPanel({
   const [result, setResult] = useState<ImportResult | null>(null)
   const [sourceFiles, setSourceFiles] = useState<SourceFile[] | null>(null)
 
+  const [undone, setUndone] = useState<string | null>(null)
+  const [undoError, setUndoError] = useState<string | null>(null)
   const [reloads, setReloads] = useState(0)
 
   useEffect(() => {
@@ -226,6 +229,8 @@ function ImportPanel({
     setBusy(true)
     setError(null)
     setResult(null)
+    setUndone(null)
+    setUndoError(null)
     try {
       setResult(await importStatement(account.id, file))
       setFile(null)
@@ -240,6 +245,30 @@ function ImportPanel({
       )
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function undo(f: SourceFile) {
+    const count = `${f.transactionCount} Transaction${f.transactionCount === 1 ? '' : 's'}`
+    if (!window.confirm(`Undo the import of ${f.fileName}? This deletes the file from Treasury and its ${count}.`)) return
+    setBusy(true)
+    setUndoError(null)
+    setUndone(null)
+    setResult(null)
+    setError(null)
+    try {
+      await deleteSourceFile(f.id)
+      setUndone(f.fileName)
+    } catch (err) {
+      setUndoError(
+        err instanceof ApiError && (err.status === 403 || err.status === 404)
+          ? 'You can’t undo imports into this Account.'
+          : 'Something went wrong, try again.',
+      )
+    } finally {
+      setBusy(false)
+      onImported()
+      setReloads(n => n + 1)
     }
   }
 
@@ -271,18 +300,34 @@ function ImportPanel({
           {w}
         </p>
       ))}
+      {undone && (
+        <p className="status status-good" role="status">
+          Undid the import of {undone}. You can import the file again.
+        </p>
+      )}
+      {undoError && (
+        <p className="form-error" role="alert">
+          {undoError}
+        </p>
+      )}
       {sourceFiles && sourceFiles.length > 0 && (
-        <ul className="source-file-list">
-          {sourceFiles.map(f => (
-            <li key={f.id}>
-              <a href={sourceFileContentUrl(f.id)}>{f.fileName}</a>{' '}
-              <span className="account-meta">
-                {formatDate(f.importedAt.slice(0, 10))} · {f.transactionCount} Transaction
-                {f.transactionCount === 1 ? '' : 's'}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <h3 className="source-file-heading">Imported files</h3>
+          <ul className="source-file-list">
+            {sourceFiles.map(f => (
+              <li key={f.id}>
+                <a href={sourceFileContentUrl(f.id)}>{f.fileName}</a>{' '}
+                <span className="account-meta">
+                  {formatDate(f.importedAt.slice(0, 10))} · {f.transactionCount} Transaction
+                  {f.transactionCount === 1 ? '' : 's'}
+                </span>{' '}
+                <button type="button" className="button-link" disabled={busy} onClick={() => undo(f)}>
+                  Undo import
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   )
