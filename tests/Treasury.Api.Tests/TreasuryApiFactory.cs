@@ -25,6 +25,9 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
     /// Where Ingest folders live under the data root.
     public string IngestRoot => Path.Combine(DataRoot, "ingest");
 
+    /// Extra test services (e.g. a fake import pipeline step), applied after the standard fakes.
+    public Action<IServiceCollection>? ExtraServices { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -47,6 +50,7 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
             // services.Replace(ServiceDescriptor.Singleton<IExchangeRateProvider, FakeExchangeRateProvider>());
             foreach (var integration in TestIntegrations.All)
                 services.AddSingleton<IIntegration>(integration);
+            ExtraServices?.Invoke(services);
         });
     }
 

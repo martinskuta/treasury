@@ -5,12 +5,17 @@ import {
   ApiError,
   createAccount,
   currencies,
+  importStatement,
   listAccounts,
   listIntegrations,
+  listSourceFiles,
   renameAccount,
+  sourceFileContentUrl,
   type Account,
   type Currency,
+  type ImportResult,
   type Integration,
+  type SourceFile,
 } from '../lib/api'
 import { useMe } from '../lib/auth'
 import { formatAmount, formatDate } from '../lib/format'
@@ -64,6 +69,7 @@ export function AccountsPage() {
                   account={a}
                   integrationName={integrationName(a.integrationKey)}
                   onRenamed={renamed => setAccounts(list => list?.map(x => (x.id === renamed.id ? renamed : x)) ?? null)}
+                  onImported={() => void reloadAccounts()}
                 />
               ))}
             </ul>
@@ -92,12 +98,15 @@ function AccountRow({
   account,
   integrationName,
   onRenamed,
+  onImported,
 }: {
   account: Account
   integrationName: string
   onRenamed: (a: Account) => void
+  onImported: () => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [name, setName] = useState(account.name)
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
@@ -150,6 +159,9 @@ function AccountRow({
             <strong>{account.name}</strong>{' '}
             <button type="button" className="button-link" onClick={() => setEditing(true)}>
               Rename
+            </button>{' '}
+            <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
+              {importing ? 'Close import' : 'Import statement'}
             </button>
           </>
         )}
@@ -157,12 +169,113 @@ function AccountRow({
           {account.owner.name} · {integrationName}
           {account.identifier && <> · {account.identifier}</>} · Ingest folder ingest/{account.slug}/
         </div>
+        {importing && <ImportPanel account={account} integrationName={integrationName} onImported={onImported} />}
       </div>
       <div className="amount account-balance">
         {formatAmount(account.balance)} {account.currency}
         <div className="account-meta">opening {formatDate(account.openingDate)}</div>
       </div>
     </li>
+  )
+}
+
+/** Upload a statement into the Account (through its Integration) and list the files imported so far. */
+function ImportPanel({
+  account,
+  integrationName,
+  onImported,
+}: {
+  account: Account
+  integrationName: string
+  onImported: () => void
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [inputKey, setInputKey] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<ImportResult | null>(null)
+  const [sourceFiles, setSourceFiles] = useState<SourceFile[] | null>(null)
+
+  const [reloads, setReloads] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    listSourceFiles(account.id, controller.signal)
+      .then(setSourceFiles)
+      .catch(() => {
+        if (!controller.signal.aborted) setSourceFiles([])
+      })
+    return () => controller.abort()
+  }, [account.id, reloads])
+
+  async function upload(e: FormEvent) {
+    e.preventDefault()
+    if (!file) {
+      setError('Choose a statement file.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setResult(null)
+    try {
+      setResult(await importStatement(account.id, file))
+      setFile(null)
+      setInputKey(k => k + 1)
+      onImported()
+      setReloads(n => n + 1)
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 400
+          ? (err.fieldErrors.file?.[0] ?? 'The file couldn’t be imported.')
+          : 'Something went wrong, try again.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="import-panel">
+      <form className="import-form" onSubmit={upload}>
+        <label className="field">
+          <span>Statement file ({integrationName})</span>
+          <input key={inputKey} type="file" name="file" onChange={e => setFile(e.target.files?.[0] ?? null)} />
+        </label>
+        <button type="submit" className="button-primary" disabled={busy || !file}>
+          {busy ? 'Importing…' : 'Import'}
+        </button>
+      </form>
+      {error && (
+        <p className="form-error" role="alert">
+          Not imported: {error} The file was moved to ingest/{account.slug}/failed/.
+        </p>
+      )}
+      {result && (
+        <p className="status status-good" role="status">
+          Imported {result.importedCount} Transaction{result.importedCount === 1 ? '' : 's'} from{' '}
+          {result.sourceFile.fileName}
+          {result.skippedCount > 0 && <>, skipped {result.skippedCount} already imported</>}.
+        </p>
+      )}
+      {result?.warnings.map(w => (
+        <p key={w} className="status status-bad">
+          {w}
+        </p>
+      ))}
+      {sourceFiles && sourceFiles.length > 0 && (
+        <ul className="source-file-list">
+          {sourceFiles.map(f => (
+            <li key={f.id}>
+              <a href={sourceFileContentUrl(f.id)}>{f.fileName}</a>{' '}
+              <span className="account-meta">
+                {formatDate(f.importedAt.slice(0, 10))} · {f.transactionCount} Transaction
+                {f.transactionCount === 1 ? '' : 's'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

@@ -1,7 +1,7 @@
 namespace Treasury.Api.Storage;
 
 /// The folder holding Treasury's files (Storage:DataRoot, env Storage__DataRoot): Ingest folders under
-/// ingest/ and, later, kept Source files under source-files/. The AppHost sets it (run mode: repo /data,
+/// ingest/ and kept Source files under source-files/. The AppHost sets it (run mode: repo /data,
 /// publish: /data in the container, bind-mounted from TREASURY_DATA_DIR). Tests use a temp folder per test.
 public sealed class DataRoot
 {
@@ -17,7 +17,7 @@ public sealed class DataRoot
     /// Parent of every Account's Ingest folder: ingest/&lt;account-slug&gt;/ (flat, ADR-0002).
     public string IngestRoot { get; }
 
-    /// Where imported Source files will be kept (#7).
+    /// Where imported Source files are kept (see Imports/ImportFiles.cs).
     public string SourceFilesRoot { get; }
 }
 

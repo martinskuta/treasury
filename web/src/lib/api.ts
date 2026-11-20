@@ -154,11 +154,21 @@ export type Transaction = {
   amount: number
   currency: Currency
   type: 'income' | 'expense'
+  /** The original description (as entered, or as the bank wrote it); never replaced by the Display name. */
   description: string
+  /** Friendly name shown instead of the description, when set. */
+  displayName: string | null
+  counterparty: string | null
+  reference: string | null
+  /** Foreign-currency purchase: what was paid in `originalCurrency` (any ISO code). */
+  originalAmount: number | null
+  originalCurrency: string | null
   note: string | null
   owner: Owner
-  /** Imported Transactions keep their date, amount and description read-only. */
+  /** Imported Transactions keep their date, amount, description and original amount read-only. */
   origin: 'manual' | 'imported'
+  /** The Source file an imported Transaction came from. */
+  sourceFile: { id: string; fileName: string } | null
 }
 
 export type NewTransaction = {
@@ -171,11 +181,12 @@ export type NewTransaction = {
   owner?: OwnerRef
 }
 
-/** Partial update: leave a field out to keep it; `note: ''` clears the note. */
+/** Partial update: leave a field out to keep it; `note: ''` / `displayName: ''` clear them. */
 export type TransactionChanges = {
   date?: string
   amount?: number
   description?: string
+  displayName?: string
   note?: string
   owner?: OwnerRef
 }
@@ -190,3 +201,45 @@ export const updateTransaction = (id: string, changes: TransactionChanges) =>
   apiFetch<Transaction>(`/api/transactions/${id}`, { method: 'PATCH', body: changes })
 
 export const deleteTransaction = (id: string) => apiFetch<void>(`/api/transactions/${id}`, { method: 'DELETE' })
+
+// ---- Imports and Source files ----
+
+/** A statement file imported into an Account and kept. */
+export type SourceFile = {
+  id: string
+  accountId: string
+  fileName: string
+  size: number
+  importedAt: string
+  transactionCount: number
+}
+
+export type ImportResult = {
+  sourceFile: SourceFile
+  importedCount: number
+  skippedCount: number
+  warnings: string[]
+}
+
+/**
+ * Uploads a statement file into an Account; it is read by the Account's Integration.
+ * A file that can't be imported throws ApiError 400 with `fieldErrors.file` saying why.
+ */
+export async function importStatement(accountId: string, file: File): Promise<ImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`/api/accounts/${accountId}/imports`, { method: 'POST', body: form })
+  if (!res.ok) {
+    if (res.status === 401) unauthorizedHandler?.()
+    const problem = await readProblem(res)
+    throw new ApiError(res.status, problem.errors, problem.title)
+  }
+  return (await res.json()) as ImportResult
+}
+
+/** The Source files of an Account, newest first. */
+export const listSourceFiles = (accountId: string, signal?: AbortSignal) =>
+  apiFetch<SourceFile[]>(`/api/accounts/${accountId}/source-files`, { signal })
+
+/** Link that downloads the original file. */
+export const sourceFileContentUrl = (id: string) => `/api/source-files/${id}/content`

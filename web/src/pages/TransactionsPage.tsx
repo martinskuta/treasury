@@ -8,6 +8,7 @@ import {
   listAccounts,
   listOwners,
   listTransactions,
+  sourceFileContentUrl,
   updateTransaction,
   type Account,
   type Owner,
@@ -163,10 +164,25 @@ function TransactionRow({
     <li className="transaction-row">
       <div className="transaction-date">{formatDate(t.date)}</div>
       <div className="transaction-main">
-        <strong>{t.description}</strong>
+        <strong>{t.displayName ?? t.description}</strong>
+        {(t.displayName || t.counterparty) && (
+          <div className="account-meta transaction-original">
+            {t.displayName && <>{t.description}</>}
+            {t.displayName && t.counterparty && ' · '}
+            {t.counterparty}
+          </div>
+        )}
         <div className="account-meta">
           {t.accountName} · {t.owner.name}
           {t.note && <> · {t.note}</>}
+          {t.sourceFile && (
+            <>
+              {' · '}
+              <a href={sourceFileContentUrl(t.sourceFile.id)} title="Download the Source file">
+                {t.sourceFile.fileName}
+              </a>
+            </>
+          )}
         </div>
         <div className="transaction-actions">
           <button type="button" className="button-link" onClick={() => setEditing(true)}>
@@ -186,8 +202,19 @@ function TransactionRow({
       </div>
       <div className={`amount transaction-amount ${t.type}`}>
         {formatAmount(t.amount)} {t.currency}
+        <OriginalAmount transaction={t} />
       </div>
     </li>
+  )
+}
+
+/** A foreign-currency purchase: what was paid, next to what the Account was charged. */
+function OriginalAmount({ transaction: t }: { transaction: Transaction }) {
+  if (t.originalAmount === null || t.originalCurrency === null) return null
+  return (
+    <div className="account-meta transaction-original-amount">
+      {formatAmount(t.originalAmount)} {t.originalCurrency}
+    </div>
   )
 }
 
@@ -305,6 +332,7 @@ function EditTransactionForm({
   const [amount, setAmount] = useState(String(t.amount))
   const [description, setDescription] = useState(t.description)
   const [note, setNote] = useState(t.note ?? '')
+  const [displayName, setDisplayName] = useState(t.displayName ?? '')
   const [owner, setOwner] = useState(ownerValue(t.owner))
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
@@ -324,6 +352,7 @@ function EditTransactionForm({
       if (description !== t.description) changes.description = description
     }
     if (note !== (t.note ?? '')) changes.note = note
+    if (displayName.trim() !== (t.displayName ?? '')) changes.displayName = displayName.trim()
     if (owner !== ownerValue(t.owner)) changes.owner = ownerRefFromValue(owner)
     setBusy(true)
     setErrors({})
@@ -353,8 +382,28 @@ function EditTransactionForm({
       ) : (
         <p>
           <strong>{t.description}</strong> · {formatDate(t.date)} · {formatAmount(t.amount)} {t.currency}
+          {t.originalAmount !== null && t.originalCurrency !== null && (
+            <>
+              {' '}
+              ({formatAmount(t.originalAmount)} {t.originalCurrency})
+            </>
+          )}
+          <br />
+          <span className="account-meta">
+            {t.origin === 'imported'
+              ? 'Imported from the bank: date, amount and description can’t be changed.'
+              : 'Only the Members who manage this Account can change its date, amount and description.'}
+          </span>
         </p>
       )}
+      <FormField
+        label="Display name (optional, shown instead of the description)"
+        name="displayName"
+        value={displayName}
+        placeholder={t.description}
+        errors={errors.displayName}
+        onChange={e => setDisplayName(e.target.value)}
+      />
       <FormField label="Note (optional)" name="note" value={note} errors={errors.note} onChange={e => setNote(e.target.value)} />
       <SelectField label="Owner" name="owner" value={owner} errors={errors.owner} onChange={e => setOwner(e.target.value)}>
         <OwnerOptions owners={owners} />

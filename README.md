@@ -62,7 +62,7 @@ Aspire dashboard on port 18888. `deploy/` holds secrets (`.env.Production`) and 
 
 ## Data folder
 
-Ingest folders (and, later, kept Source files) live in the data folder, the API's `Storage:DataRoot`:
+Ingest folders and kept Source files live in the data folder, the API's `Storage:DataRoot`:
 
 - `aspire run`: the repository's git-ignored `data/` folder.
 - Docker Compose: the host folder `${TREASURY_DATA_DIR:-./data}` (relative to the compose file), bind-mounted at
@@ -71,3 +71,44 @@ Ingest folders (and, later, kept Source files) live in the data folder, the API'
 
 Creating an Account creates `ingest/<account-slug>/` with `processed/` and `failed/` inside (ADR-0002). Back up
 this folder together with the database.
+
+- `ingest/<account-slug>/processed/`: files imported successfully (uploaded ones are placed here too).
+- `ingest/<account-slug>/failed/`: files that couldn't be imported, each with a `<file>.error.txt` note saying why.
+  Nothing from such a file was imported; fix it and import it again.
+- `source-files/<account-slug>/<id>/<file>`: Treasury's own copy of every imported Source file. Transactions link
+  to it and the app downloads it from here, so don't edit or delete these by hand.
+
+## Importing statements
+
+On the Accounts screen, choose **Import statement** on an Account and upload the bank's export. The Account's
+Integration reads it. Imported date, amount, currency, description and original foreign amount are read-only;
+Display name, note and Owner can be edited.
+
+### Generic CSV (`generic-csv`)
+
+Until there is an Integration for your bank, convert its export (e.g. in a spreadsheet) to this CSV and create the
+Account with the **Generic CSV** Integration:
+
+```csv
+date,amount,description,counterparty,reference,original_amount,original_currency
+2026-11-02,-12.50,COOP-1234 ZURICH HB,Coop,TX-0001,,
+2026-11-03,5000.00,"SALARY NOVEMBER, ACME AG",ACME AG,TX-0002,,
+2026-11-05,-46.20,TRATTORIA ROMA,Trattoria Roma,TX-0003,-48.00,EUR
+```
+
+- UTF-8 (a byte order mark is fine). The first line is the header; column names are case-insensitive and may come
+  in any order. Blank lines are ignored.
+- Separator `,` or `;` (whichever the header uses). Quote values that contain the separator: `"Coop, Zurich"`;
+  a quote inside a quoted value is doubled: `"Bar ""Da Mario"""`. A quoted value can't span lines.
+- Required columns:
+  - `date`: `2026-11-02` or `02.11.2026`
+  - `amount`: in the Account's currency, `.` as the decimal point, `'` thousands separators allowed;
+    negative = money out (Expense), positive = money in (Income)
+  - `description`: the bank's text
+- Optional columns:
+  - `counterparty`: the other party
+  - `reference`: the bank's unique id for the line
+  - `currency`: if present it must be the Account's currency (otherwise the file is rejected)
+  - `original_amount` and `original_currency` (both or neither): for a purchase in a foreign currency, what was
+    paid, e.g. `-48.00` and `EUR`, next to the `amount` the Account was charged
+- No Account identifier and no closing balance, so Accounts using it can't have an identifier.

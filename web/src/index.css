@@ -347,6 +347,42 @@ h1 {
   flex: 1 1 200px;
 }
 
+/* ---- Import (Accounts page) ---- */
+.import-panel {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.import-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.import-form .field {
+  margin-bottom: 0;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.import-form input[type='file'] {
+  max-width: 100%;
+}
+
+.source-file-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.source-file-list li {
+  padding: 2px 0;
+}
+
 /* ---- Transactions ---- */
 .transaction-list {
   margin: 0;
