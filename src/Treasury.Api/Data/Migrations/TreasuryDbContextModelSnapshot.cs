@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120004216_Matching";
+    public override string LastMigrationId => "20261120004631_Matching";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -466,6 +466,9 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("SourceFileId");
 
                 b.HasIndex("AccountId", "Date");
+
+                b.HasIndex("AccountId", "Reference")
+                    .HasFilter("\"Reference\" IS NOT NULL");
 
                 b.ToTable("Transactions");
             });

@@ -12,8 +12,8 @@ using Treasury.Api.Data;
 namespace Treasury.Api.Data.Migrations;
 
 [DbContext(typeof(TreasuryDbContext))]
-[Migration("20261120004216_Matching")]
-partial class _20261120004216_Matching
+[Migration("20261120004631_Matching")]
+partial class _20261120004631_Matching
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -464,6 +464,9 @@ partial class _20261120004216_Matching
                 b.HasIndex("SourceFileId");
 
                 b.HasIndex("AccountId", "Date");
+
+                b.HasIndex("AccountId", "Reference")
+                    .HasFilter("\"Reference\" IS NOT NULL");
 
                 b.ToTable("Transactions");
             });

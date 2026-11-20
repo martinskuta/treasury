@@ -299,6 +299,44 @@ public class MatchingTests : ApiTestBase
         await Assert.That(left.Link).IsNull();
     }
 
+    [Test]
+    public async Task Undoing_an_import_breaks_the_transfers_its_transactions_were_part_of()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        await UploadOkAsync(anna, checking.Id, new TestStatement().Row("2026-11-16", -500m, "TO SAVINGS"));
+        var import = await UploadOkAsync(anna, savings.Id, new TestStatement().Row("2026-11-16", 500m, "FROM CHECKING"));
+
+        var res = await anna.DeleteAsync($"/api/source-files/{import.SourceFile.Id}");
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        var left = (await ListAsync(anna)).Single();
+        await Assert.That(left.Description).IsEqualTo("TO SAVINGS");
+        await Assert.That(left.Type).IsEqualTo("expense");
+        await Assert.That(left.Link).IsNull();
+        await Assert.That((await UncategorisedAsync(anna)).Select(t => t.Id)).IsEquivalentTo([left.Id]);
+    }
+
+    [Test]
+    public async Task Undoing_an_import_turns_the_other_leg_of_a_contribution_back_into_an_uncategorised_transaction()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var personal = await CreateAccountAsync(anna, "Anna's account", await MeAsync(anna));
+        var household = await CreateAccountAsync(anna, "Household", Family);
+        var import = await UploadOkAsync(anna, personal.Id, new TestStatement().Row("2026-11-01", -1500m, "TO HOUSEHOLD"));
+        await UploadOkAsync(anna, household.Id, new TestStatement().Row("2026-11-01", 1500m, "ANNA MONTHLY"));
+
+        await Assert.That((await anna.DeleteAsync($"/api/source-files/{import.SourceFile.Id}")).StatusCode)
+            .IsEqualTo(HttpStatusCode.NoContent);
+
+        var left = (await ListAsync(anna)).Single();
+        await Assert.That(left.Type).IsEqualTo("income");
+        await Assert.That(left.Link).IsNull();
+        await Assert.That(left.Category).IsNull();
+    }
+
     // ---- helpers ----
 
     private static async Task<Guid> CategoryIdAsync(HttpClient client, string path) =>

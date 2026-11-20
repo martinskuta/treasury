@@ -5,6 +5,7 @@ import { Layout, type NavItem } from './Layout'
 /** Screens in the sidebar. Add an entry here and a <Route> in App.tsx for each new screen. */
 const nav: NavItem[] = [
   { label: 'Home', href: '/' },
+  { label: 'Overview', href: '/overview' },
   { label: 'Transactions', href: '/transactions' },
   { label: 'Uncategorised', href: '/uncategorised' },
   { label: 'Accounts', href: '/accounts' },
