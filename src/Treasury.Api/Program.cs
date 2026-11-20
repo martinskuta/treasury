@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Treasury.Api;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
+using Treasury.Api.Categories;
 using Treasury.Api.Data;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
@@ -29,6 +30,7 @@ using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<TreasuryDbContext>().Database.MigrateAsync();
     await AuthSetup.SeedFirstAdminAsync(scope.ServiceProvider, app.Configuration, app.Logger);
+    await CategorySeeding.SeedCategoriesAsync(scope.ServiceProvider);
 }
 
 app.UseAuthentication();
@@ -44,6 +46,7 @@ api.MapAccounts();
 api.MapTransactions();
 api.MapOwners();
 api.MapMembers();
+api.MapCategories();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 
 // Production: the React build is copied into wwwroot by the AppHost (PublishWithContainerFiles).
