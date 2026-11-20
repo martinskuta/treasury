@@ -310,6 +310,9 @@ function FilterBar({
 }) {
   const value = (key: string) => params.get(key) ?? ''
   const q = value('q')
+  const active = FILTER_KEYS.filter(k => k !== 'q' && params.get(k)).length
+  // On a phone the filters fold away under the search box unless some are applied; on wider screens they show.
+  const [open, setOpen] = useState(() => active > 0 || window.matchMedia('(min-width: 768px)').matches)
 
   function search(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -326,47 +329,52 @@ function FilterBar({
           Search
         </button>
       </form>
-      <SelectField label="Account" name="account" value={value('account')} onChange={e => onChange({ account: e.target.value })}>
-        <option value="">All Accounts</option>
-        {accounts.map(a => (
-          <option key={a.id} value={a.id}>
-            {a.name}
-          </option>
-        ))}
-      </SelectField>
-      <SelectField label="Owner" name="owner" value={value('owner')} onChange={e => onChange({ owner: e.target.value })}>
-        <option value="">Any Owner</option>
-        <OwnerOptions owners={owners} />
-      </SelectField>
-      <SelectField
-        label="Category"
-        name="category"
-        value={value('category')}
-        onChange={e => onChange({ category: e.target.value })}
-      >
-        <option value="">Any Category</option>
-        <option value="uncategorised">Uncategorised</option>
-        <CategoryOptions categories={categories} />
-      </SelectField>
-      {tags.length > 0 && (
-        <SelectField label="Tag" name="tag" value={value('tag')} onChange={e => onChange({ tag: e.target.value })}>
-          <option value="">Any Tag</option>
-          {tags.map(t => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </SelectField>
-      )}
-      <FormField label="From" name="from" type="date" value={value('from')} onChange={e => onChange({ from: e.target.value })} />
-      <FormField label="To" name="to" type="date" value={value('to')} onChange={e => onChange({ to: e.target.value })} />
-      <SelectField label="Sort" name="sort" value={value('sort') || 'date-desc'} onChange={e => onChange({ sort: e.target.value === 'date-desc' ? '' : e.target.value })}>
-        {SORTS.map(s => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
-        ))}
-      </SelectField>
+      <details className="transaction-filter-details" open={open} onToggle={e => setOpen(e.currentTarget.open)}>
+        <summary>Filters{active > 0 ? ` · ${active} applied` : ''}</summary>
+        <div className="transaction-filter-grid">
+          <SelectField label="Account" name="account" value={value('account')} onChange={e => onChange({ account: e.target.value })}>
+            <option value="">All Accounts</option>
+            {accounts.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Owner" name="owner" value={value('owner')} onChange={e => onChange({ owner: e.target.value })}>
+            <option value="">Any Owner</option>
+            <OwnerOptions owners={owners} />
+          </SelectField>
+          <SelectField
+            label="Category"
+            name="category"
+            value={value('category')}
+            onChange={e => onChange({ category: e.target.value })}
+          >
+            <option value="">Any Category</option>
+            <option value="uncategorised">Uncategorised</option>
+            <CategoryOptions categories={categories} />
+          </SelectField>
+          {tags.length > 0 && (
+            <SelectField label="Tag" name="tag" value={value('tag')} onChange={e => onChange({ tag: e.target.value })}>
+              <option value="">Any Tag</option>
+              {tags.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </SelectField>
+          )}
+          <FormField label="From" name="from" type="date" value={value('from')} onChange={e => onChange({ from: e.target.value })} />
+          <FormField label="To" name="to" type="date" value={value('to')} onChange={e => onChange({ to: e.target.value })} />
+          <SelectField label="Sort" name="sort" value={value('sort') || 'date-desc'} onChange={e => onChange({ sort: e.target.value === 'date-desc' ? '' : e.target.value })}>
+            {SORTS.map(s => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </details>
       {filtered && (
         <button type="button" className="button-link transaction-filters-clear" onClick={onClear}>
           Clear filters
