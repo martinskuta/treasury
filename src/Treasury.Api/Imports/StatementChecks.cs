@@ -1,3 +1,4 @@
+using System.Globalization;
 using Treasury.Api.Accounts;
 
 namespace Treasury.Api.Imports;
@@ -8,6 +9,7 @@ public static class StatementChecks
     public static void AddStatementChecks(this WebApplicationBuilder builder)
     {
         builder.Services.AddScoped<IImportStep, IdentifierCheck>();
+        builder.Services.AddScoped<IImportStep, ClosingBalanceCheck>();
     }
 }
 
@@ -29,4 +31,32 @@ public sealed class IdentifierCheck : IImportStep
                 $"identifier {expected}. Was it dropped into the wrong folder? Nothing was imported.");
         return Task.CompletedTask;
     }
+}
+
+/// Keeps the statement's closing balance on its Source file (the Account's balance warning is computed from it on
+/// read, see <see cref="AccountBalances"/>) and tells the importing Member right away when it doesn't match the
+/// calculated balance on that date. Never rejects the file.
+public sealed class ClosingBalanceCheck : IImportStep
+{
+    public ImportStage Stage => ImportStage.Verify;
+
+    public async Task RunAsync(ImportContext context, CancellationToken ct)
+    {
+        if (context.Statement.ClosingBalance is not { } closing) return;
+        context.SourceFile.ClosingBalanceDate = closing.Date;
+        context.SourceFile.ClosingBalanceAmount = closing.Amount;
+
+        var account = context.Account;
+        if (closing.Date < account.OpeningDate) return; // before the opening balance: nothing to compare with
+        var calculated = await AccountBalances.OnAsync(context.Db, account, closing.Date, ct);
+        if (calculated != closing.Amount)
+            context.Warnings.Add(
+                $"The statement's closing balance on {closing.Date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} is " +
+                $"{Format(closing.Amount)} {account.Currency}, but the Account's calculated balance on that date is " +
+                $"{Format(calculated)} {account.Currency}. An import may be missing or doubled.");
+    }
+
+    /// Swiss style like the frontend's formatAmount: 1'234.50.
+    private static string Format(decimal amount) =>
+        amount.ToString("#,##0.00", new NumberFormatInfo { NumberGroupSeparator = "'", NumberDecimalSeparator = "." });
 }

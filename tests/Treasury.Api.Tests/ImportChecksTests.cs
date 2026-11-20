@@ -98,6 +98,138 @@ public class ImportChecksTests : ApiTestBase
         await Assert.That(result.ImportedCount).IsEqualTo(1);
     }
 
+    [Test]
+    public async Task A_closing_balance_that_differs_from_the_calculated_balance_shows_a_warning_on_the_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        // Statement says 950 on Nov 30, but only -30 of movements are in it (a row is missing): calculated 970.
+        var result = await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
+            .Closing("2026-11-30", 950m)
+            .Row("2026-11-10", -30m, "Groceries"));
+
+        await Assert.That(result.Warnings).Count().IsEqualTo(1);
+        await Assert.That(result.Warnings[0]).Contains("950");
+        var warning = (await GetAccountAsync(anna, account.Id)).BalanceWarning;
+        await Assert.That(warning).IsNotNull();
+        await Assert.That(warning!.Date).IsEqualTo(new DateOnly(2026, 11, 30));
+        await Assert.That(warning.StatementBalance).IsEqualTo(950m);
+        await Assert.That(warning.CalculatedBalance).IsEqualTo(970m);
+        await Assert.That(warning.SourceFile.Id).IsEqualTo(result.SourceFile.Id);
+        await Assert.That(warning.SourceFile.FileName).IsEqualTo("november.txt");
+        var listed = (await anna.GetFromJsonAsync<List<Account>>("/api/accounts"))!.Single();
+        await Assert.That(listed.BalanceWarning).IsEqualTo(warning);
+    }
+
+    [Test]
+    public async Task A_matching_closing_balance_shows_no_warning()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var result = await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
+            .Closing("2026-11-30", 970m)
+            .Row("2026-10-31", -999m, "Already in the opening balance")
+            .Row("2026-11-10", -30m, "Groceries")
+            .Row("2026-12-01", -5m, "After the closing date"));
+
+        await Assert.That(result.Warnings).IsEmpty();
+        await Assert.That((await GetAccountAsync(anna, account.Id)).BalanceWarning).IsNull();
+    }
+
+    [Test]
+    public async Task The_warning_clears_once_the_missing_data_is_imported()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB", openingBalance: 1000m, openingDate: "2026-09-30");
+        // November's statement arrives first; October's movements are still missing.
+        await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
+            .Closing("2026-11-30", 900m)
+            .Row("2026-11-10", -30m, "Groceries"));
+        await Assert.That((await GetAccountAsync(anna, account.Id)).BalanceWarning).IsNotNull();
+
+        var october = await UploadOkAsync(anna, account.Id, "october.txt", new TestStatement()
+            .Closing("2026-10-31", 930m)
+            .Row("2026-10-05", -70m, "Rent share"));
+
+        await Assert.That(october.Warnings).IsEmpty();
+        await Assert.That((await GetAccountAsync(anna, account.Id)).BalanceWarning).IsNull();
+    }
+
+    [Test]
+    public async Task The_warning_follows_the_most_recent_statement()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB", openingBalance: 100m, openingDate: "2026-09-30");
+        await UploadOkAsync(anna, account.Id, "october.txt", new TestStatement()
+            .Closing("2026-10-31", 90m)
+            .Row("2026-10-05", -10m, "Fee"));
+        // A doubled October fee: the November closing balance no longer matches.
+        var doubled = await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
+            .Closing("2026-11-30", 80m)
+            .Row("2026-10-05", -10m, "Fee")
+            .Row("2026-11-05", -10m, "Fee"));
+
+        var warning = (await GetAccountAsync(anna, account.Id)).BalanceWarning;
+
+        await Assert.That(doubled.Warnings).Count().IsEqualTo(1);
+        await Assert.That(warning).IsNotNull();
+        await Assert.That(warning!.SourceFile.FileName).IsEqualTo("november.txt");
+        await Assert.That(warning.CalculatedBalance).IsEqualTo(70m);
+    }
+
+    [Test]
+    public async Task A_manual_transaction_that_fills_the_gap_clears_the_warning()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB", openingBalance: 0m, openingDate: "2026-10-31");
+        await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
+            .Closing("2026-11-30", -50m)
+            .Row("2026-11-10", -30m, "Groceries"));
+
+        var added = await anna.PostAsJsonAsync("/api/transactions",
+            new { accountId = account.Id, date = "2026-11-20", amount = -20m, description = "Cash withdrawal" });
+
+        await Assert.That(added.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await Assert.That((await GetAccountAsync(anna, account.Id)).BalanceWarning).IsNull();
+    }
+
+    [Test]
+    public async Task A_closing_balance_before_the_opening_date_is_not_compared()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB", openingBalance: 500m, openingDate: "2026-11-01");
+
+        var result = await UploadOkAsync(anna, account.Id, "october.txt", new TestStatement()
+            .Closing("2026-10-31", 123m)
+            .Row("2026-10-10", -30m, "Groceries"));
+
+        await Assert.That(result.Warnings).IsEmpty();
+        await Assert.That((await GetAccountAsync(anna, account.Id)).BalanceWarning).IsNull();
+    }
+
+    [Test]
+    public async Task Another_members_view_of_a_family_account_shows_the_same_warning()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        var res = await anna.PostAsJsonAsync("/api/accounts", new
+        {
+            name = "Joint", owner = new { kind = "family" }, integrationKey = "test", currency = "CHF",
+            openingBalance = 0m, openingDate = "2026-10-31",
+        });
+        var joint = (await res.Content.ReadFromJsonAsync<Account>())!;
+        await UploadOkAsync(anna, joint.Id, "joint.txt", new TestStatement()
+            .Closing("2026-11-30", -100m)
+            .Row("2026-11-10", -30m, "Groceries"));
+
+        var seenByBob = await GetAccountAsync(bob, joint.Id);
+
+        await Assert.That(seenByBob.BalanceWarning).IsNotNull();
+        await Assert.That(seenByBob.BalanceWarning!.CalculatedBalance).IsEqualTo(-30m);
+    }
+
     // ---- helpers ----
 
     private static async Task<ImportResult> UploadOkAsync(HttpClient client, Guid accountId, string fileName, object content)
