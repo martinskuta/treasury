@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <!-- Integration reader samples (seam 2): one folder per Integration. -->
-    <None Include="Integrations\**\*.csv;Integrations\**\*.txt;Integrations\**\*.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Integrations\**\*.csv;Integrations\**\*.txt;Integrations\**\*.xml;Integrations\**\*.zip" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

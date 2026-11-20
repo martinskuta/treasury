@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.04">
+  <BkToCstmrStmt>
+    <GrpHdr><MsgId>FX-1</MsgId><CreDtTm>2026-11-01T06:00:00+01:00</CreDtTm></GrpHdr>
+    <Stmt>
+      <Id>STMT-FX-1</Id>
+      <FrToDt><FrDtTm>2026-10-01T00:00:00+02:00</FrDtTm><ToDtTm>2026-10-31T23:59:59+01:00</ToDtTm></FrToDt>
+      <Acct><Id><IBAN>CH9300762011623852957</IBAN></Id><Ccy>CHF</Ccy></Acct>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">500.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-01</Dt></Dt>
+      </Bal>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">453.80</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-31</Dt></Dt>
+      </Bal>
+      <Ntry>
+        <Amt Ccy="CHF">46.20</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-10-21</Dt></BookgDt>
+        <AcctSvcrRef>TKB-CARD-FX-1</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Amt Ccy="CHF">46.20</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+          <AmtDtls>
+            <InstdAmt><Amt Ccy="EUR">48.00</Amt></InstdAmt>
+            <TxAmt><Amt Ccy="CHF">46.20</Amt></TxAmt>
+          </AmtDtls>
+          <RltdPties><Cdtr><Nm>Trattoria Roma</Nm></Cdtr></RltdPties>
+        </TxDtls></NtryDtls>
+        <AddtlNtryInf>Kartenzahlung</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

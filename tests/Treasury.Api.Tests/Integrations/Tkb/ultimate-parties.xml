@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.04">
+  <BkToCstmrStmt>
+    <GrpHdr><MsgId>ULT-1</MsgId><CreDtTm>2026-11-01T06:00:00+01:00</CreDtTm></GrpHdr>
+    <Stmt>
+      <Id>STMT-ULT-1</Id>
+      <FrToDt><FrDtTm>2026-10-01T00:00:00+02:00</FrDtTm><ToDtTm>2026-10-31T23:59:59+01:00</ToDtTm></FrToDt>
+      <Acct><Id><IBAN>CH9300762011623852957</IBAN></Id><Ccy>CHF</Ccy></Acct>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">100.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-01</Dt></Dt>
+      </Bal>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">65.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-31</Dt></Dt>
+      </Bal>
+      <Ntry>
+        <Amt Ccy="CHF">75.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-10-05</Dt></BookgDt>
+        <AcctSvcrRef>TKB-ULT-1</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Amt Ccy="CHF">75.00</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+          <RltdPties>
+            <Cdtr><Nm>PayPal Europe</Nm></Cdtr>
+            <UltmtCdtr><Nm>Digitec Galaxus AG</Nm></UltmtCdtr>
+          </RltdPties>
+          <RmtInf><Ustrd>Bestellung 4711</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+        <AddtlNtryInf>Lastschrift</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">40.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-10-06</Dt></BookgDt>
+        <AcctSvcrRef>TKB-ULT-2</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Amt Ccy="CHF">40.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+          <RltdPties>
+            <Dbtr><Nm>TWINT AG</Nm></Dbtr>
+            <UltmtDbtr><Nm>Beat Beispiel</Nm></UltmtDbtr>
+          </RltdPties>
+        </TxDtls></NtryDtls>
+        <AddtlNtryInf>TWINT Gutschrift</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>
