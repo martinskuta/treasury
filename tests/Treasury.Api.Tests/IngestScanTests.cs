@@ -64,8 +64,8 @@ public class IngestScanTests : ApiTestBase
         await Assert.That(again).IsEmpty();
         await Assert.That(await ListAsync(anna)).Count().IsEqualTo(1);
         var folder = Path.Combine(App.IngestRoot, account.Slug);
-        await Assert.That(Directory.GetFiles(Path.Combine(folder, "processed")).Select(Path.GetFileName)).IsEquivalentTo(["good.txt"]);
-        await Assert.That(Directory.GetFiles(Path.Combine(folder, "failed")).Select(Path.GetFileName))
+        await Assert.That(Directory.GetFiles(Path.Combine(folder, "processed")).Select(f => Path.GetFileName(f)!)).IsEquivalentTo(["good.txt"]);
+        await Assert.That(Directory.GetFiles(Path.Combine(folder, "failed")).Select(f => Path.GetFileName(f)!))
             .IsEquivalentTo(["bad.txt", "bad.txt.error.txt"]);
     }
 
