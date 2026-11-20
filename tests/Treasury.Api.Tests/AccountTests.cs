@@ -111,7 +111,7 @@ public class AccountTests : ApiTestBase
 
         await Assert.That(annas.Slug).IsEqualTo("cash");
         await Assert.That(bobs.Slug).IsEqualTo("cash-2");
-        await Assert.That(Directory.GetDirectories(App.IngestRoot).Select(Path.GetFileName))
+        await Assert.That(Directory.GetDirectories(App.IngestRoot).Select(d => Path.GetFileName(d)!))
             .IsEquivalentTo(["cash", "cash-2"]);
     }
 
