@@ -230,16 +230,66 @@ export type TransactionChanges = {
   removeTagIds?: string[]
 }
 
-/** Filters for the Transactions list. */
-export type TransactionFilter = { tagId?: string }
+export type TransactionSort = 'date-desc' | 'date-asc' | 'amount-asc' | 'amount-desc'
 
-/** The Transactions the current Member can see, newest first. */
-export const listTransactions = (signal?: AbortSignal, filter: TransactionFilter = {}) => {
-  const query = new URLSearchParams()
-  if (filter.tagId) query.set('tagId', filter.tagId)
-  const qs = query.toString()
-  return apiFetch<Transaction[]>(`/api/transactions${qs ? `?${qs}` : ''}`, { signal })
+/** Filters for the Transactions list; all optional and combined with AND (never beyond what the Member can see). */
+export type TransactionFilter = {
+  accountId?: string
+  /** "family" or a Member id: the Transaction's Owner. */
+  owner?: string
+  /** This Category or any of its subcategories. */
+  categoryId?: string
+  /** Only Uncategorised Income and Expense. */
+  uncategorised?: boolean
+  tagId?: string
+  /** Inclusive ISO dates. */
+  from?: string
+  to?: string
+  /** Text in the description, Display name, counterparty, reference or note. */
+  q?: string
+  sort?: TransactionSort
+  offset?: number
+  limit?: number
 }
+
+/** One page of a list plus the number of items across all pages. */
+export type Page<T> = { items: T[]; total: number }
+
+/** The Transactions the current Member can see matching the filter, one page (newest first by default). */
+export async function listTransactions(signal?: AbortSignal, filter: TransactionFilter = {}): Promise<Page<Transaction>> {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(filter)) {
+    if (value !== undefined && value !== '' && value !== false) query.set(key, String(value))
+  }
+  const qs = query.toString()
+  const res = await fetch(`/api/transactions${qs ? `?${qs}` : ''}`, { signal })
+  if (!res.ok) {
+    if (res.status === 401) unauthorizedHandler?.()
+    const problem = await readProblem(res)
+    throw new ApiError(res.status, problem.errors, problem.title)
+  }
+  const items = (await res.json()) as Transaction[]
+  return { items, total: Number(res.headers.get('X-Total-Count') ?? items.length) }
+}
+
+/**
+ * The same Owner / Category / Tag change on several Transactions, all or nothing. A Transaction that can't take it
+ * is reported in ApiError.fieldErrors under `transactions[<id>]` (see bulkErrorKey) and nothing is changed.
+ */
+export type BulkEdit = {
+  transactionIds: string[]
+  owner?: OwnerRef
+  categoryId?: string
+  uncategorise?: true
+  addTagIds?: string[]
+  removeTagIds?: string[]
+}
+
+export const bulkEditTransactions = (edit: BulkEdit) =>
+  apiFetch<Transaction[]>('/api/transactions/bulk-edit', { method: 'POST', body: edit })
+
+/** fieldErrors key of a Transaction refused by a bulk edit. */
+export const bulkErrorKey = (transactionId: string) => `transactions[${transactionId}]`
 
 /** The Uncategorised queue: visible Income and Expense without a Category, newest first. */
 export const listUncategorised = (signal?: AbortSignal) =>
