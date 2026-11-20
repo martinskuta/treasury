@@ -18,46 +18,46 @@ public sealed class TkbIntegration : IIntegration
     {
         var statements = Camt053Reader.Read(file, ExportHint);
         var rows = statements.SelectMany(s => s.Entries).Where(e => e.IsBooked).SelectMany(Rows).ToList();
-        var last = statements.MaxBy(s => s.To);
-        return new ParsedStatement(rows, statements[0].Iban,
-            last?.Closing is { } closing ? new ClosingBalance(closing.Date, closing.Amount) : null);
+        var closing = statements.MaxBy(s => s.To)!.Closing;
+        return new ParsedStatement(rows, statements[0].Iban, new ClosingBalance(closing.Date, closing.Amount));
     }
 
+    /// One row per booked entry, except a batch (several transaction details) whose details all have amounts that
+    /// add up to the entry's amount: that becomes one row per detail.
     private static IEnumerable<StatementRow> Rows(Camt053Entry entry)
     {
         var date = entry.BookingDate
-            ?? throw new StatementFormatException($"{entry.Location}: the booked entry has no booking date.");
-        if (entry.Details.Count <= 1)
-        {
-            var details = entry.Details.SingleOrDefault();
-            yield return Row(entry, details, date, entry.Amount, entry.Currency, entry.AccountServicerReference);
-            yield break;
-        }
+            ?? throw new StatementFormatException($"{entry.Location}: there is no booking date (BookgDt).");
+        if (IsSplittableBatch(entry))
+            return entry.Details.Select(details => Row(entry, details, date, details.Amount!.Value, details.IsCredit,
+                details.Currency ?? entry.Currency, details.AccountServicerReference, details.InstructedAmount));
 
-        foreach (var details in entry.Details)
-        {
-            var amount = details.Amount
-                ?? throw new StatementFormatException($"{entry.Location}: a payment of the batch has no amount.");
-            yield return Row(entry, details, date, amount, details.Currency ?? entry.Currency,
-                details.AccountServicerReference);
-        }
+        var first = entry.Details.FirstOrDefault();
+        var instructed = entry.Details.Count == 1 ? first!.InstructedAmount ?? entry.InstructedAmount : entry.InstructedAmount;
+        return [Row(entry, first, date, entry.Amount, entry.IsCredit, entry.Currency, entry.AccountServicerReference, instructed)];
     }
 
+    private static bool IsSplittableBatch(Camt053Entry entry) =>
+        entry.Details.Count > 1
+        && entry.Details.All(d => d.Amount is not null)
+        && entry.Details.Sum(d => d.Amount!.Value) == entry.Amount;
+
     private static StatementRow Row(Camt053Entry entry, Camt053TransactionDetails? details, DateOnly date,
-        decimal amount, string? currency, string? reference)
+        decimal amount, bool isCredit, string? currency, string? reference, Camt053Amount? instructed)
     {
-        var counterparty = amount < 0
-            ? details?.UltimateCreditor ?? details?.Creditor
-            : details?.UltimateDebtor ?? details?.Debtor;
+        var counterparty = isCredit
+            ? details?.UltimateDebtor ?? details?.Debtor
+            : details?.UltimateCreditor ?? details?.Creditor;
         IEnumerable<string?> remittance = details is null ? []
             : details.UnstructuredRemittance.Count > 0 ? details.UnstructuredRemittance.ToList<string?>()
             : [details.CreditorReference];
         var description = string.Join('\n',
             new[] { entry.AdditionalInfo, counterparty }.Concat(remittance)
                 .Where(line => !string.IsNullOrWhiteSpace(line)));
-        var foreign = details?.InstructedAmount is not null && details.InstructedCurrency != currency;
+        var original = instructed is { Currency: { } instructedCurrency } && instructedCurrency != currency
+            ? instructed
+            : null;
         return new StatementRow(date, amount, currency, description, counterparty, reference,
-            foreign ? Math.Abs(details!.InstructedAmount!.Value) * Math.Sign(amount) : null,
-            foreign ? details!.InstructedCurrency : null);
+            original?.Amount, original?.Currency);
     }
 }

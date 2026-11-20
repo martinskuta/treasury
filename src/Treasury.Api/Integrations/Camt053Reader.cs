@@ -23,26 +23,19 @@ public static class Camt053Reader
         var statements = new List<Camt053Statement>();
         foreach (var (name, document) in Documents(file, exportHint))
             statements.AddRange(ReadDocument(name, document, exportHint));
-        foreach (var statement in statements) Check(statement);
+        foreach (var statement in statements) CheckBalance(statement);
         CheckTogether(statements);
         return statements.OrderBy(s => s.From).ToList();
     }
 
-    private static void Check(Camt053Statement statement)
+    private static void CheckBalance(Camt053Statement statement)
     {
-        var name = statement.FileName;
-        if (!statement.IsLastPage)
-            throw new StatementFormatException(
-                $"{name} is only one page of a statement with several pages (not the last page). Download the whole statement.");
-        var opening = statement.Opening
-            ?? throw new StatementFormatException($"{name}: the statement has no opening booked balance (OPBD).");
-        var closing = statement.Closing
-            ?? throw new StatementFormatException($"{name}: the statement has no closing booked balance (CLBD).");
+        var (opening, closing) = (statement.Opening.Amount, statement.Closing.Amount);
         var booked = statement.Entries.Where(e => e.IsBooked).Sum(e => e.Amount);
-        if (opening.Amount + booked != closing.Amount)
+        if (opening + booked != closing)
             throw new StatementFormatException(
-                $"{name}: the opening balance {Format(opening.Amount)} plus the booked entries {Format(booked)} " +
-                $"is {Format(opening.Amount + booked)}, but the closing balance is {Format(closing.Amount)}. " +
+                $"{statement.FileName}: the opening balance {Format(opening)} plus the money in and out with status BOOK " +
+                $"({Format(booked)}) is {Format(opening + booked)}, but the closing balance is {Format(closing)}. " +
                 "The statement is incomplete or damaged.");
     }
 
@@ -60,23 +53,23 @@ public static class Camt053Reader
                     $"{first.FileName} is in {first.Currency} but {other.FileName} is in {other.Currency}; " +
                     "one file may only contain statements in one currency.");
         }
+        // Periods are half-open [From, To): a statement ending at the instant the next one starts doesn't overlap it.
         for (var i = 0; i < statements.Count; i++)
         for (var j = i + 1; j < statements.Count; j++)
         {
             var (a, b) = (statements[i], statements[j]);
-            if (a.From is null || a.To is null || b.From is null || b.To is null) continue;
-            if (a.From <= b.To && b.From <= a.To)
+            if (a.From < b.To && b.From < a.To)
                 throw new StatementFormatException(
                     $"The statements {a.FileName} ({Period(a)}) and {b.FileName} ({Period(b)}) overlap; " +
-                    "their movements would be imported twice.");
+                    "their Transactions would be imported twice.");
         }
     }
 
     private static string Format(decimal amount) => amount.ToString("0.00", CultureInfo.InvariantCulture);
 
     private static string Period(Camt053Statement s) =>
-        $"{s.From!.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} to " +
-        $"{s.To!.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)}";
+        $"{s.From.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)} to " +
+        $"{s.To.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)}";
 
     private static IEnumerable<(string Name, XDocument Document)> Documents(SourceFileContent file, string exportHint)
     {
@@ -126,7 +119,7 @@ public static class Camt053Reader
         }
     }
 
-    /// Unpacks an entry, counting the bytes actually read (the sizes in the zip's directory may lie).
+    /// Unpacks a zip entry, counting the bytes actually read (the sizes in the zip's directory may lie).
     private static byte[] Unpack(ZipArchiveEntry entry, UnpackBudget budget)
     {
         using var source = entry.Open();
@@ -174,71 +167,70 @@ public static class Camt053Reader
 
     private static Camt053Statement ReadStatement(string name, XElement stmt, bool? groupLastPage)
     {
+        var isLastPage = Child(stmt, "StmtPgntn", "LastPgInd") is { } stmtLastPage
+            ? ParseBool(stmtLastPage, name)
+            : groupLastPage ?? true;
+        if (!isLastPage)
+            throw new StatementFormatException(
+                $"{name} is only one page of a statement with several pages (not the last page). Download the whole statement.");
+
         var account = Child(stmt, "Acct");
         var iban = Text(account, "Id", "IBAN") ?? Text(account, "Id", "Othr", "Id")
             ?? throw new StatementFormatException($"{name}: the statement has no account IBAN.");
         var balances = Children(stmt, "Bal").Select(b => ReadBalance(name, b)).ToList();
-        var opening = balances.FirstOrDefault(b => b.Code == "OPBD") ?? balances.FirstOrDefault(b => b.Code == "PRCD");
-        var closing = balances.FirstOrDefault(b => b.Code == "CLBD");
-        var currency = Text(account, "Ccy") ?? closing?.Currency
+        var opening = balances.FirstOrDefault(b => b.Code == "OPBD") ?? balances.FirstOrDefault(b => b.Code == "PRCD")
+            ?? throw new StatementFormatException(
+                $"{name}: the statement has no opening booked balance (OPBD, or PRCD for the previous day's closing balance).");
+        var closing = balances.FirstOrDefault(b => b.Code == "CLBD")
+            ?? throw new StatementFormatException($"{name}: the statement has no closing booked balance (CLBD).");
+        var currency = Text(account, "Ccy") ?? closing.Currency
             ?? throw new StatementFormatException($"{name}: the statement has no account currency.");
-        var lastPage = Child(stmt, "StmtPgntn", "LastPgInd") is { } stmtLastPage
-            ? ParseBool(stmtLastPage, name)
-            : groupLastPage ?? true;
+        var entries = Children(stmt, "Ntry").Select((e, i) => ReadEntry($"{name}, Ntry {i + 1}", e)).ToList();
 
+        // Without FrToDt the period runs from the first booking date (the opening balance may be PRCD, dated the
+        // previous day) to the end of the closing balance's day.
         var period = Child(stmt, "FrToDt");
-        DateTimeOffset? from = Text(period, "FrDtTm") is { } f ? ParseDateTime(f, name)
-            : opening is null ? null : StartOf(opening.Date);
-        DateTimeOffset? to = Text(period, "ToDtTm") is { } t ? ParseDateTime(t, name)
-            : closing is null ? null : EndOf(closing.Date);
+        var from = Text(period, "FrDtTm") is { } f ? ParseDateTime(f, name)
+            : StartOf(entries.Where(e => e.IsBooked).Min(e => e.BookingDate) ?? closing.Date);
+        var to = Text(period, "ToDtTm") is { } t ? ParseDateTime(t, name) : StartOf(closing.Date.AddDays(1));
 
-        var entries = Children(stmt, "Ntry").Select((e, i) => ReadEntry($"{name}, entry {i + 1}", e)).ToList();
         return new Camt053Statement(name, iban.Replace(" ", ""), currency.ToUpperInvariant(), from, to,
-            opening is null ? null : new Camt053Balance(opening.Date, opening.Amount),
-            closing is null ? null : new Camt053Balance(closing.Date, closing.Amount),
-            lastPage, entries);
+            opening, closing, entries);
     }
 
-    private sealed record RawBalance(string? Code, DateOnly Date, decimal Amount, string? Currency);
-
-    private static RawBalance ReadBalance(string name, XElement bal)
+    private static Camt053Balance ReadBalance(string name, XElement bal)
     {
         var code = Text(bal, "Tp", "CdOrPrtry", "Cd") ?? Text(bal, "Tp", "CdOrPrtry", "Prtry");
         var amount = Child(bal, "Amt") ?? throw new StatementFormatException($"{name}: the {code} balance has no amount.");
-        var date = Text(bal, "Dt", "Dt") is { } d ? ParseDate(d, name)
-            : Text(bal, "Dt", "DtTm") is { } dt ? DateOnly.FromDateTime(ParseDateTime(dt, name).DateTime)
-            : throw new StatementFormatException($"{name}: the {code} balance has no date.");
-        return new RawBalance(code, date, Signed(ParseAmount(amount.Value, name), Text(bal, "CdtDbtInd"), name),
-            amount.Attribute("Ccy")?.Value);
+        var date = ReadDate(Child(bal, "Dt"), name)
+            ?? throw new StatementFormatException($"{name}: the {code} balance has no date.");
+        return new Camt053Balance(code, date, SignedAmount(amount, Text(bal, "CdtDbtInd"), name), Currency(amount));
     }
 
     private static Camt053Entry ReadEntry(string at, XElement ntry)
     {
-        var amount = Child(ntry, "Amt") ?? throw new StatementFormatException($"{at}: the entry has no amount.");
+        var amount = Child(ntry, "Amt") ?? throw new StatementFormatException($"{at}: there is no amount (Amt).");
         var indicator = Text(ntry, "CdtDbtInd");
         var status = Text(ntry, "Sts", "Cd") ?? Text(ntry, "Sts", "Prtry") ?? Text(ntry, "Sts") ?? "";
-        var bookingDate = Text(ntry, "BookgDt", "Dt") is { } d ? ParseDate(d, at)
-            : Text(ntry, "BookgDt", "DtTm") is { } dt ? DateOnly.FromDateTime(ParseDateTime(dt, at).DateTime)
-            : (DateOnly?)null;
         var details = Children(ntry, "NtryDtls")
             .SelectMany(n => Children(n, "TxDtls"))
             .Select(tx => ReadDetails(at, tx, indicator))
             .ToList();
-        return new Camt053Entry(at, Signed(ParseAmount(amount.Value, at), indicator, at),
-            amount.Attribute("Ccy")?.Value.ToUpperInvariant(), status.Trim(), bookingDate, Text(ntry, "AcctSvcrRef"),
-            Text(ntry, "AddtlNtryInf"), details);
+        return new Camt053Entry(at, SignedAmount(amount, indicator, at), indicator == "CRDT", Currency(amount),
+            status, ReadDate(Child(ntry, "BookgDt"), at), Text(ntry, "AcctSvcrRef"), Text(ntry, "AddtlNtryInf"),
+            InstructedAmount(ntry, indicator, at), details);
     }
 
     private static Camt053TransactionDetails ReadDetails(string at, XElement tx, string? entryIndicator)
     {
         var amount = Child(tx, "Amt") ?? Child(tx, "AmtDtls", "TxAmt", "Amt");
         var indicator = Text(tx, "CdtDbtInd") ?? entryIndicator;
-        var instructed = Child(tx, "AmtDtls", "InstdAmt", "Amt");
         var parties = Child(tx, "RltdPties");
         var remittance = Child(tx, "RmtInf");
         return new Camt053TransactionDetails(
-            amount is null ? null : Signed(ParseAmount(amount.Value, at), indicator, at),
-            amount?.Attribute("Ccy")?.Value.ToUpperInvariant(),
+            amount is null ? null : SignedAmount(amount, indicator, at),
+            indicator == "CRDT",
+            Currency(amount),
             Text(tx, "Refs", "AcctSvcrRef"),
             PartyName(parties, "Dbtr"),
             PartyName(parties, "UltmtDbtr"),
@@ -246,20 +238,43 @@ public static class Camt053Reader
             PartyName(parties, "UltmtCdtr"),
             Children(remittance, "Ustrd").Select(u => u.Value.Trim()).Where(u => u.Length > 0).ToList(),
             Children(remittance, "Strd").Select(s => Text(s, "CdtrRefInf", "Ref")).FirstOrDefault(r => r is not null),
-            instructed is null ? null : Signed(ParseAmount(instructed.Value, at), indicator, at),
-            instructed?.Attribute("Ccy")?.Value.ToUpperInvariant());
+            InstructedAmount(tx, indicator, at));
     }
+
+    /// AmtDtls/InstdAmt of an entry or a transaction's details, signed like its parent.
+    private static Camt053Amount? InstructedAmount(XElement parent, string? indicator, string at) =>
+        Child(parent, "AmtDtls", "InstdAmt", "Amt") is { } amount
+            ? new Camt053Amount(SignedAmount(amount, indicator, at), Currency(amount))
+            : null;
 
     /// A party's name: "Nm" directly (.001.04) or inside "Pty" (.001.08).
     private static string? PartyName(XElement? parties, string role) =>
         Text(parties, role, "Nm") ?? Text(parties, role, "Pty", "Nm");
 
-    private static decimal Signed(decimal amount, string? indicator, string at) => indicator switch
+    /// An Amt element's value, positive for CRDT and negative for DBIT.
+    private static decimal SignedAmount(XElement amount, string? indicator, string at)
     {
-        "CRDT" => amount,
-        "DBIT" => -amount,
-        _ => throw new StatementFormatException($"{at}: '{indicator}' is not a credit/debit indicator (CRDT or DBIT)."),
-    };
+        var value = amount.Value.Trim();
+        if (!decimal.TryParse(value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var parsed))
+            throw new StatementFormatException($"{at}: '{value}' is not an amount.");
+        return indicator switch
+        {
+            "CRDT" => parsed,
+            "DBIT" => -parsed,
+            _ => throw new StatementFormatException(
+                $"{at}: '{indicator}' is not a money in/out indicator (CdtDbtInd CRDT or DBIT)."),
+        };
+    }
+
+    /// An Amt element's Ccy attribute, upper case.
+    private static string? Currency(XElement? amount) =>
+        amount?.Attribute("Ccy")?.Value.Trim() is { Length: > 0 } ccy ? ccy.ToUpperInvariant() : null;
+
+    /// The date of a date choice element: its Dt child, else the date part of its DtTm child.
+    private static DateOnly? ReadDate(XElement? choice, string at) =>
+        Text(choice, "Dt") is { } d ? ParseDate(d, at)
+        : Text(choice, "DtTm") is { } dt ? DateOnly.FromDateTime(ParseDateTime(dt, at).DateTime)
+        : null;
 
     private static XElement? Child(XElement? parent, params string[] path)
     {
@@ -278,18 +293,14 @@ public static class Camt053Reader
     private static string? Text(XElement? parent, params string[] path) =>
         Child(parent, path)?.Value.Trim() is { Length: > 0 } value ? value : null;
 
-    private static decimal ParseAmount(string value, string at) =>
-        decimal.TryParse(value.Trim(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount)
-            ? amount
-            : throw new StatementFormatException($"{at}: '{value.Trim()}' is not an amount.");
-
     private static DateOnly ParseDate(string value, string at) =>
         DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
             ? date
             : throw new StatementFormatException($"{at}: '{value}' is not a date.");
 
+    /// A date and time; one without an offset is taken as UTC, so the result never depends on the server's time zone.
     private static DateTimeOffset ParseDateTime(string value, string at) =>
-        DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var dt)
+        DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dt)
             ? dt
             : throw new StatementFormatException($"{at}: '{value}' is not a date and time.");
 
@@ -301,49 +312,56 @@ public static class Camt053Reader
     };
 
     private static DateTimeOffset StartOf(DateOnly date) => new(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-
-    private static DateTimeOffset EndOf(DateOnly date) => new(date.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero);
 }
 
-/// One camt.053 statement (Stmt).
+/// One complete camt.053 statement (Stmt): the last page, with both booked balances.
 /// <param name="FileName">The XML file it came from (its path inside the zip for a zip).</param>
-/// <param name="From">Start of the statement period (FrToDt, else the opening balance's date).</param>
-/// <param name="To">End of the statement period (FrToDt, else the closing balance's date).</param>
-/// <param name="Opening">Opening booked balance (OPBD, else PRCD), signed.</param>
-/// <param name="Closing">Closing booked balance (CLBD), signed.</param>
-/// <param name="IsLastPage">False when the statement is one page of several and not the last one.</param>
+/// <param name="From">Start of the statement period (FrDtTm, else the first booking date, else the closing balance's date).</param>
+/// <param name="To">End of the statement period, exclusive (ToDtTm, else the day after the closing balance's date).</param>
+/// <param name="Opening">Opening booked balance (OPBD, else PRCD).</param>
+/// <param name="Closing">Closing booked balance (CLBD).</param>
 public sealed record Camt053Statement(
     string FileName,
     string Iban,
     string Currency,
-    DateTimeOffset? From,
-    DateTimeOffset? To,
-    Camt053Balance? Opening,
-    Camt053Balance? Closing,
-    bool IsLastPage,
+    DateTimeOffset From,
+    DateTimeOffset To,
+    Camt053Balance Opening,
+    Camt053Balance Closing,
     IReadOnlyList<Camt053Entry> Entries);
 
-public sealed record Camt053Balance(DateOnly Date, decimal Amount);
+/// A balance (Bal). The amount is signed: credit positive, debit negative.
+/// <param name="Code">OPBD, PRCD, CLBD, ...</param>
+public sealed record Camt053Balance(string? Code, DateOnly Date, decimal Amount, string? Currency);
+
+/// An amount with its currency (null when the Amt has no Ccy). Signed like its parent.
+public sealed record Camt053Amount(decimal Amount, string? Currency);
 
 /// One entry (Ntry). Amounts are signed: credit positive, debit negative.
-/// <param name="Location">Where it is, for error messages, e.g. "statement.xml, entry 3".</param>
+/// <param name="Location">Where it is, for error messages, e.g. "statement.xml, Ntry 3".</param>
+/// <param name="IsCredit">CdtDbtInd is CRDT (money in); otherwise DBIT (money out).</param>
 /// <param name="Status">BOOK (booked), PDNG (pending), INFO, ...</param>
+/// <param name="InstructedAmount">The entry's own AmtDtls/InstdAmt.</param>
 public sealed record Camt053Entry(
     string Location,
     decimal Amount,
+    bool IsCredit,
     string? Currency,
     string Status,
     DateOnly? BookingDate,
     string? AccountServicerReference,
     string? AdditionalInfo,
+    Camt053Amount? InstructedAmount,
     IReadOnlyList<Camt053TransactionDetails> Details)
 {
     public bool IsBooked => Status == "BOOK";
 }
 
-/// One transaction's details (TxDtls) inside an entry. Amounts are signed (the detail's indicator, else the entry's).
+/// One transaction's details (TxDtls) inside an entry. Amounts are signed and <paramref name="IsCredit"/> is set by
+/// the detail's own CdtDbtInd, else the entry's.
 public sealed record Camt053TransactionDetails(
     decimal? Amount,
+    bool IsCredit,
     string? Currency,
     string? AccountServicerReference,
     string? Debtor,
@@ -352,5 +370,4 @@ public sealed record Camt053TransactionDetails(
     string? UltimateCreditor,
     IReadOnlyList<string> UnstructuredRemittance,
     string? CreditorReference,
-    decimal? InstructedAmount,
-    string? InstructedCurrency);
+    Camt053Amount? InstructedAmount);

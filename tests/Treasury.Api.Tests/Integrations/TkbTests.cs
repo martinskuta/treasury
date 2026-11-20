@@ -67,6 +67,102 @@ public class TkbTests
     }
 
     [Test]
+    public async Task A_batch_whose_payments_do_not_add_up_to_its_amount_stays_one_row()
+    {
+        var statement = Read(Statement(1000m, 650m, """
+            <Ntry><Amt Ccy="CHF">350.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts>BOOK</Sts><BookgDt><Dt>2026-10-15</Dt></BookgDt>
+              <AcctSvcrRef>TKB-SUM-1</AcctSvcrRef>
+              <NtryDtls>
+                <TxDtls><Amt Ccy="CHF">120.50</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+                  <RltdPties><Cdtr><Nm>Helvetia Versicherungen</Nm></Cdtr></RltdPties><RmtInf><Ustrd>Police 1</Ustrd></RmtInf></TxDtls>
+                <TxDtls><Refs><AcctSvcrRef>TKB-SUM-1-2</AcctSvcrRef></Refs><Amt Ccy="CHF">229.50</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+                  <RltdPties><Cdtr><Nm>EKT Energie</Nm></Cdtr></RltdPties></TxDtls>
+              </NtryDtls>
+              <AddtlNtryInf>Sammelauftrag</AddtlNtryInf></Ntry>
+            """));
+
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(new DateOnly(2026, 10, 15), -350m, "CHF", "Sammelauftrag\nHelvetia Versicherungen\nPolice 1",
+                "Helvetia Versicherungen", "TKB-SUM-1"),
+        });
+    }
+
+    [Test]
+    public async Task A_batch_with_a_payment_without_amount_stays_one_row()
+    {
+        var statement = Read(Statement(1000m, 900m, """
+            <Ntry><Amt Ccy="CHF">100.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts>BOOK</Sts><BookgDt><Dt>2026-10-16</Dt></BookgDt>
+              <AcctSvcrRef>TKB-NOAMT-1</AcctSvcrRef>
+              <NtryDtls>
+                <TxDtls><Amt Ccy="CHF">60.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><RltdPties><Cdtr><Nm>Muster AG</Nm></Cdtr></RltdPties></TxDtls>
+                <TxDtls><RltdPties><Cdtr><Nm>Beispiel GmbH</Nm></Cdtr></RltdPties></TxDtls>
+              </NtryDtls>
+              <AddtlNtryInf>Sammelauftrag</AddtlNtryInf></Ntry>
+            """));
+
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(new DateOnly(2026, 10, 16), -100m, "CHF", "Sammelauftrag\nMuster AG", "Muster AG", "TKB-NOAMT-1"),
+        });
+    }
+
+    [Test]
+    public async Task The_original_amount_is_also_read_from_the_entry_when_it_has_no_transaction_details()
+    {
+        var row = Read(Statement(500m, 453.80m, """
+            <Ntry><Amt Ccy="CHF">46.20</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts>BOOK</Sts><BookgDt><Dt>2026-10-21</Dt></BookgDt>
+              <AcctSvcrRef>TKB-CARD-FX-2</AcctSvcrRef>
+              <AmtDtls><InstdAmt><Amt Ccy="EUR">48.00</Amt></InstdAmt></AmtDtls>
+              <AddtlNtryInf>Kartenzahlung Trattoria Roma</AddtlNtryInf></Ntry>
+            """)).Rows.Single();
+
+        await Assert.That(row).IsEqualTo(new StatementRow(new DateOnly(2026, 10, 21), -46.20m, "CHF",
+            "Kartenzahlung Trattoria Roma", null, "TKB-CARD-FX-2", -48.00m, "EUR"));
+    }
+
+    [Test]
+    public async Task An_original_amount_without_currency_is_ignored()
+    {
+        var row = Read(Statement(500m, 453.80m, """
+            <Ntry><Amt Ccy="CHF">46.20</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts>BOOK</Sts><BookgDt><Dt>2026-10-21</Dt></BookgDt>
+              <AcctSvcrRef>TKB-CARD-FX-3</AcctSvcrRef>
+              <NtryDtls><TxDtls><Amt Ccy="CHF">46.20</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+                <AmtDtls><InstdAmt><Amt>48.00</Amt></InstdAmt></AmtDtls>
+                <RltdPties><Cdtr><Nm>Trattoria Roma</Nm></Cdtr></RltdPties></TxDtls></NtryDtls>
+              <AddtlNtryInf>Kartenzahlung</AddtlNtryInf></Ntry>
+            """)).Rows.Single();
+
+        await Assert.That(row).IsEqualTo(new StatementRow(new DateOnly(2026, 10, 21), -46.20m, "CHF",
+            "Kartenzahlung\nTrattoria Roma", "Trattoria Roma", "TKB-CARD-FX-3"));
+    }
+
+    [Test]
+    public async Task The_counterparty_follows_the_money_out_or_in_indicator_even_for_a_zero_amount()
+    {
+        var row = Read(Statement(100m, 100m, """
+            <Ntry><Amt Ccy="CHF">0.00</Amt><CdtDbtInd>DBIT</CdtDbtInd><Sts>BOOK</Sts><BookgDt><Dt>2026-10-22</Dt></BookgDt>
+              <AcctSvcrRef>TKB-ZERO-1</AcctSvcrRef>
+              <NtryDtls><TxDtls><Amt Ccy="CHF">0.00</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+                <RltdPties><Dbtr><Nm>Beat Beispiel</Nm></Dbtr><Cdtr><Nm>Kartenservice AG</Nm></Cdtr></RltdPties></TxDtls></NtryDtls>
+              <AddtlNtryInf>Jahresgebuehr erlassen</AddtlNtryInf></Ntry>
+            """)).Rows.Single();
+
+        await Assert.That(row.Counterparty).IsEqualTo("Kartenservice AG");
+    }
+
+    [Test]
+    public async Task A_statement_without_opening_balance_is_rejected_naming_both_balance_codes()
+    {
+        var xml = Camt("2026-11-01", "2026-11-01", 0m, [("2026-11-01", 10m, "A")], openingCode: null);
+
+        var e = Assert.Throws<StatementFormatException>(() => Read(xml));
+
+        await Assert.That(e.Message).Contains("OPBD");
+        await Assert.That(e.Message).Contains("PRCD");
+    }
+
+    [Test]
     public async Task Only_booked_entries_are_read_and_pending_ones_are_left_out_of_the_balance_check()
     {
         var statement = ReadSample("pending.xml");
@@ -171,6 +267,66 @@ public class TkbTests
     }
 
     [Test]
+    public async Task Statements_that_only_touch_are_not_overlapping()
+    {
+        var zip = Zip(
+            ("day1.xml", Camt("2026-11-01", "2026-11-01", 0m, [("2026-11-01", 10m, "A")],
+                fromDtTm: "2026-11-01T00:00:00+01:00", toDtTm: "2026-11-02T00:00:00+01:00")),
+            ("day2.xml", Camt("2026-11-02", "2026-11-02", 10m, [("2026-11-02", 5m, "B")],
+                fromDtTm: "2026-11-02T00:00:00+01:00", toDtTm: "2026-11-03T00:00:00+01:00")));
+
+        var statement = Reader.Read(new SourceFileContent("download.zip", zip));
+
+        await Assert.That(string.Join(",", statement.Rows.Select(r => r.Reference))).IsEqualTo("A,B");
+    }
+
+    [Test]
+    [Arguments("2026-11-01T23:59:59", "2026-11-02T00:00:00Z")]
+    [Arguments("2026-11-01T23:59:59Z", "2026-11-02T00:00:00")]
+    public async Task Period_times_without_an_offset_are_read_as_utc_whatever_the_server_time_zone(
+        string firstEnds, string secondStarts)
+    {
+        var zip = Zip(
+            ("day1.xml", Camt("2026-11-01", "2026-11-01", 0m, [("2026-11-01", 10m, "A")],
+                fromDtTm: "2026-11-01T00:00:00Z", toDtTm: firstEnds)),
+            ("day2.xml", Camt("2026-11-02", "2026-11-02", 10m, [("2026-11-02", 5m, "B")],
+                fromDtTm: secondStarts, toDtTm: "2026-11-02T23:59:59Z")));
+
+        var statement = Reader.Read(new SourceFileContent("download.zip", zip));
+
+        await Assert.That(string.Join(",", statement.Rows.Select(r => r.Reference))).IsEqualTo("A,B");
+    }
+
+    [Test]
+    public async Task Without_a_period_a_statement_runs_from_its_first_booking_date_to_its_closing_balance_date()
+    {
+        // Each opening balance (PRCD) is dated the previous day; day3 has no Transactions and runs from its
+        // closing balance date only.
+        var zip = Zip(
+            ("day2.xml", Camt("2026-11-01", "2026-11-02", 10m, [("2026-11-02", 5m, "B")], withPeriod: false, openingCode: "PRCD")),
+            ("day1.xml", Camt("2026-10-31", "2026-11-01", 0m, [("2026-11-01", 10m, "A")], withPeriod: false, openingCode: "PRCD")),
+            ("day3.xml", Camt("2026-11-02", "2026-11-03", 15m, [], withPeriod: false, openingCode: "PRCD")));
+
+        var statement = Reader.Read(new SourceFileContent("download.zip", zip));
+
+        await Assert.That(string.Join(",", statement.Rows.Select(r => r.Reference))).IsEqualTo("A,B");
+        await Assert.That(statement.ClosingBalance).IsEqualTo(new ClosingBalance(new DateOnly(2026, 11, 3), 15m));
+    }
+
+    [Test]
+    public async Task Without_a_period_statements_with_transactions_on_the_same_day_overlap()
+    {
+        var zip = Zip(
+            ("a.xml", Camt("2026-10-31", "2026-11-01", 0m, [("2026-11-01", 10m, "A")], withPeriod: false, openingCode: "PRCD")),
+            ("b.xml", Camt("2026-10-31", "2026-11-01", 10m, [("2026-11-01", 5m, "B")], withPeriod: false, openingCode: "PRCD")));
+
+        var e = Assert.Throws<StatementFormatException>(() => Reader.Read(new SourceFileContent("download.zip", zip)));
+
+        await Assert.That(e.Message).Contains("a.xml");
+        await Assert.That(e.Message).Contains("b.xml");
+    }
+
+    [Test]
     public async Task Statements_for_different_accounts_in_one_zip_are_rejected()
     {
         var zip = Zip(
@@ -242,10 +398,19 @@ public class TkbTests
     private static string Camt(string from, string to, decimal opening, params (string Date, decimal Amount, string Reference)[] entries) =>
         Camt(from, to, opening, entries, Iban);
 
-    /// A minimal camt.053 statement whose closing balance (dated <paramref name="to"/>) is opening + entries.
+    /// A minimal camt.053 statement with an opening balance dated <paramref name="from"/> and a closing balance
+    /// (dated <paramref name="to"/>) of opening + entries. The period (FrToDt) defaults to the whole days from..to.
     private static string Camt(string from, string to, decimal opening, (string Date, decimal Amount, string Reference)[] entries,
-        string iban = Iban, string currency = "CHF")
+        string iban = Iban, string currency = "CHF", string? fromDtTm = null, string? toDtTm = null,
+        bool withPeriod = true, string? openingCode = "OPBD")
     {
+        var period = withPeriod
+            ? $"<FrToDt><FrDtTm>{fromDtTm ?? from + "T00:00:00+01:00"}</FrDtTm><ToDtTm>{toDtTm ?? to + "T23:59:59+01:00"}</ToDtTm></FrToDt>"
+            : "";
+        var openingBalance = openingCode is null ? "" : $"""
+            <Bal><Tp><CdOrPrtry><Cd>{openingCode}</Cd></CdOrPrtry></Tp><Amt Ccy="{currency}">{Amount(opening)}</Amt>
+              <CdtDbtInd>{Indicator(opening)}</CdtDbtInd><Dt><Dt>{from}</Dt></Dt></Bal>
+            """;
         static string Amount(decimal a) => Math.Abs(a).ToString("0.00", CultureInfo.InvariantCulture);
         static string Indicator(decimal a) => a < 0 ? "DBIT" : "CRDT";
         var closing = opening + entries.Sum(e => e.Amount);
@@ -258,10 +423,9 @@ public class TkbTests
             <Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.04"><BkToCstmrStmt>
               <GrpHdr><MsgId>M</MsgId><CreDtTm>2026-11-20T06:00:00+01:00</CreDtTm></GrpHdr>
               <Stmt><Id>S</Id>
-                <FrToDt><FrDtTm>{from}T00:00:00+01:00</FrDtTm><ToDtTm>{to}T23:59:59+01:00</ToDtTm></FrToDt>
+                {period}
                 <Acct><Id><IBAN>{iban}</IBAN></Id><Ccy>{currency}</Ccy></Acct>
-                <Bal><Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp><Amt Ccy="{currency}">{Amount(opening)}</Amt>
-                  <CdtDbtInd>{Indicator(opening)}</CdtDbtInd><Dt><Dt>{from}</Dt></Dt></Bal>
+                {openingBalance}
                 <Bal><Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp><Amt Ccy="{currency}">{Amount(closing)}</Amt>
                   <CdtDbtInd>{Indicator(closing)}</CdtDbtInd><Dt><Dt>{to}</Dt></Dt></Bal>
                 {ntries}
@@ -269,6 +433,26 @@ public class TkbTests
             </BkToCstmrStmt></Document>
             """;
     }
+
+    private static ParsedStatement Read(string xml) =>
+        Reader.Read(new SourceFileContent("statement.xml", Encoding.UTF8.GetBytes(xml)));
+
+    /// A one-statement camt.053 document for October 2026 with the given balances and Ntry elements.
+    private static string Statement(decimal opening, decimal closing, string ntries) => $"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.04"><BkToCstmrStmt>
+          <GrpHdr><MsgId>M</MsgId><CreDtTm>2026-11-01T06:00:00+01:00</CreDtTm></GrpHdr>
+          <Stmt><Id>S</Id>
+            <FrToDt><FrDtTm>2026-10-01T00:00:00+02:00</FrDtTm><ToDtTm>2026-10-31T23:59:59+01:00</ToDtTm></FrToDt>
+            <Acct><Id><IBAN>{Iban}</IBAN></Id><Ccy>CHF</Ccy></Acct>
+            <Bal><Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp><Amt Ccy="CHF">{opening.ToString("0.00", CultureInfo.InvariantCulture)}</Amt>
+              <CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-01</Dt></Dt></Bal>
+            <Bal><Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp><Amt Ccy="CHF">{closing.ToString("0.00", CultureInfo.InvariantCulture)}</Amt>
+              <CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-31</Dt></Dt></Bal>
+            {ntries}
+          </Stmt>
+        </BkToCstmrStmt></Document>
+        """;
 
     private static byte[] Zip(params (string Name, string Content)[] files)
     {
