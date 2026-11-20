@@ -21,6 +21,7 @@ public static class ImportEndpoints
         builder.Services.AddSingleton<ImportLocks>();
         builder.Services.AddScoped<ImportPipeline>();
         builder.Services.AddScoped<ImportUndo>();
+        builder.Services.AddScoped<IImportStep, DuplicateDetection>();
         // Production Integrations (tests register their fake ones on top). Bank-specific ones (#21/#22) go here.
         builder.Services.AddSingleton<IIntegration, GenericCsvIntegration>();
     }
