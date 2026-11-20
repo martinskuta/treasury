@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Data;
 using Treasury.Api.Imports;
 using Treasury.Api.Matching;
+using Treasury.Api.Ownership;
 using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
 
@@ -26,9 +27,7 @@ public sealed class RuleEngine(TreasuryDbContext db, TransactionMatcher matcher)
             .OrderBy(r => r.Priority).ThenBy(r => r.Id).ToListAsync(ct);
         if (rules.Count == 0) return new(0, 0);
 
-        var accountIds = transactions.Select(t => t.AccountId).Distinct().ToList();
-        var accountOwners = await db.Accounts.Where(a => accountIds.Contains(a.Id))
-            .ToDictionaryAsync(a => a.Id, a => a.OwnerMemberId, ct);
+        var reach = await ReachAsync(rules, transactions, ct);
         var ownerIds = rules.Where(r => r.SetsOwner && r.OwnerMemberId != null).Select(r => r.OwnerMemberId!.Value).ToList();
         var activeOwners = (await db.Users.Where(m => ownerIds.Contains(m.Id) && m.DeactivatedAt == null)
             .Select(m => m.Id).ToListAsync(ct)).ToHashSet();
@@ -38,9 +37,8 @@ public sealed class RuleEngine(TreasuryDbContext db, TransactionMatcher matcher)
         var tags = new List<(Guid TransactionId, Guid TagId)>();
         foreach (var t in transactions)
         {
-            var accountOwner = accountOwners[t.AccountId];
             var matching = rules
-                .Where(r => accountOwner == null || accountOwner == r.AuthorMemberId)
+                .Where(r => reach[r.AuthorMemberId].Contains(t.AccountId))
                 .Where(r => r.Matches(t)).ToList();
             if (matching.Count == 0) continue;
 
@@ -74,6 +72,20 @@ public sealed class RuleEngine(TreasuryDbContext db, TransactionMatcher matcher)
         await Tagging.AddAutomaticallyAsync(db, TransactionTagSource.Rule, tags.Distinct().ToList());
         await db.SaveChangesAsync(ct);
         return new(transactions.Count, categorised);
+    }
+
+    /// Per author: which of the Transactions' Accounts their Rules reach = the Accounts the author can see (owned by
+    /// the author or the Family), via the shared <see cref="OwnerQueries.OwnedByViewerOrFamily"/> rule. Deliberately
+    /// Account-based and narrower than <see cref="TransactionQueries.VisibleTo"/> (ADR 0008).
+    private async Task<Dictionary<Guid, HashSet<Guid>>> ReachAsync(List<Rule> rules,
+        IReadOnlyCollection<Transaction> transactions, CancellationToken ct)
+    {
+        var accountIds = transactions.Select(t => t.AccountId).Distinct().ToList();
+        var reach = new Dictionary<Guid, HashSet<Guid>>();
+        foreach (var author in rules.Select(r => r.AuthorMemberId).Distinct())
+            reach[author] = (await db.Accounts.OwnedByViewerOrFamily(author)
+                .Where(a => accountIds.Contains(a.Id)).Select(a => a.Id).ToListAsync(ct)).ToHashSet();
+        return reach;
     }
 }
 
