@@ -140,13 +140,19 @@ a PDF copy, are ignored). A zip is one Source file, so undoing its import remove
 supported.
 
 - Enter the IBAN as the Account's identifier to have statements for another account rejected.
-- Only booked entries are imported; pending ones are skipped. Each Transaction gets the booking date, the amount
-  (credit positive, debit negative), the bank's reference, the other party as counterparty (the payee for money out,
-  the payer for money in, preferring the ultimate party) and a description made of the bank's entry text, the
-  counterparty and the payment message or reference, one per line. A batch booking becomes one Transaction per
-  payment. A foreign-currency purchase keeps its original amount and currency.
+- Each camt.053 `Ntry` with status `BOOK` becomes a Transaction; other statuses (such as `PDNG`) are skipped. A
+  Transaction gets the bank's booking date (`BookgDt`), the amount (money in positive, money out negative), the
+  bank's reference (`AcctSvcrRef`), the other party as counterparty (the recipient for money out, the sender for
+  money in, preferring the ultimate party) and a description made of the bank's text (`AddtlNtryInf`), the
+  counterparty and the remittance message or reference, one per line. A foreign-currency purchase keeps its
+  original amount and currency (`InstdAmt`).
+- A `Ntry` that bundles several transfers (several `TxDtls`) becomes one Transaction per `TxDtls`, each dated with
+  the bank's booking date and keeping the `TxDtls`' own reference, if any. If a `TxDtls` has no amount, or the
+  amounts don't add up to the `Ntry`'s amount, the `Ntry` is imported as one Transaction instead.
 - The closing balance of the statement that ends last is used for the balance check.
-- Rejected (nothing imported): a statement whose opening balance plus booked entries doesn't equal its closing
-  balance, a page of a multi-page statement that isn't the last, statements for different accounts or currencies
-  or with overlapping periods in one zip, a zip without XML or larger than 50 MB unpacked, and anything that isn't
-  camt.053 (CSV, camt.052, camt.054).
+- Rejected (nothing imported): a statement whose opening balance (`OPBD` or `PRCD`) plus its money in and out with
+  status `BOOK` doesn't equal its closing balance (`CLBD`), a page of a multi-page statement that isn't the last,
+  statements for different accounts or currencies or with overlapping periods in one zip (statements that only
+  touch, one ending when the next starts, are fine; without `FrToDt` a statement runs from its first booking date to
+  its closing balance date), a zip without XML or larger than 50 MB unpacked, and anything that isn't camt.053 (CSV,
+  camt.052, camt.054).
