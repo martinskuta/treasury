@@ -317,3 +317,44 @@ export const listMemberAccountsForHandover = (id: string, signal?: AbortSignal) 
 /** Accounts not listed in `handover` stay with the deactivated Member. */
 export const deactivateMember = (id: string, handover: Handover[]) =>
   apiFetch<void>(`/api/admin/members/${id}/deactivate`, { method: 'POST', body: { handover } })
+
+// ---- Reports (/api/reports) ----
+
+/** Whose figures a report shows: the viewer's own Transactions, or Family-owned ones only. */
+export type ReportOwner = 'me' | 'family'
+
+/** A Category's CHF amount: `total` includes every Category below it, `direct` only what is assigned to it. */
+export type CategoryTotal = {
+  id: string
+  name: string
+  parentId: string | null
+  path: string
+  builtInKey: string | null
+  total: number
+  direct: number
+}
+
+/**
+ * One side (Income or Expense) of a report, as positive CHF amounts. `categories` lists, in tree order, every
+ * Category whose subtree holds amounts (drill in by `parentId`). Amounts without a CHF rate yet are in no total;
+ * `pendingConversion` counts them.
+ */
+export type ReportSection = {
+  total: number
+  pendingConversion: number
+  uncategorised: number
+  contributions: number
+  categories: CategoryTotal[]
+}
+
+export type MonthlyReport = {
+  month: string // yyyy-MM
+  owner: ReportOwner
+  currency: 'CHF'
+  income: ReportSection
+  expense: ReportSection
+  net: number
+}
+
+export const getMonthlyReport = (month: string, owner: ReportOwner, signal?: AbortSignal) =>
+  apiFetch<MonthlyReport>(`/api/reports/monthly?month=${encodeURIComponent(month)}&owner=${owner}`, { signal })
