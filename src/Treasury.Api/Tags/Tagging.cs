@@ -27,10 +27,8 @@ public static class Tagging
         if (tagIds.Count == 0 || transactionIds.Count == 0) return;
         db.TransactionTagRemovals.RemoveRange(await db.TransactionTagRemovals
             .Where(r => transactionIds.Contains(r.TransactionId) && tagIds.Contains(r.TagId)).ToListAsync());
-        var existing = (await db.TransactionTags
-                .Where(l => transactionIds.Contains(l.TransactionId) && l.Source == TransactionTagSource.Manual && tagIds.Contains(l.TagId))
-                .Select(l => new { l.TransactionId, l.TagId }).ToListAsync())
-            .Select(l => (l.TransactionId, l.TagId)).ToHashSet();
+        var existing = await PairsAsync(db.TransactionTags
+            .Where(l => transactionIds.Contains(l.TransactionId) && l.Source == TransactionTagSource.Manual && tagIds.Contains(l.TagId)));
         db.TransactionTags.AddRange(
             from transactionId in transactionIds.Distinct()
             from tagId in tagIds.Distinct()
@@ -45,10 +43,8 @@ public static class Tagging
         if (tagIds.Count == 0 || transactionIds.Count == 0) return;
         db.TransactionTags.RemoveRange(await db.TransactionTags
             .Where(l => transactionIds.Contains(l.TransactionId) && tagIds.Contains(l.TagId)).ToListAsync());
-        var removed = (await db.TransactionTagRemovals
-                .Where(r => transactionIds.Contains(r.TransactionId) && tagIds.Contains(r.TagId))
-                .Select(r => new { r.TransactionId, r.TagId }).ToListAsync())
-            .Select(r => (r.TransactionId, r.TagId)).ToHashSet();
+        var removed = await PairsAsync(db.TransactionTagRemovals
+            .Where(r => transactionIds.Contains(r.TransactionId) && tagIds.Contains(r.TagId)));
         db.TransactionTagRemovals.AddRange(
             from transactionId in transactionIds.Distinct()
             from tagId in tagIds.Distinct()
@@ -65,10 +61,8 @@ public static class Tagging
         if (links.Count == 0) return;
         var transactionIds = links.Select(l => l.TransactionId).Distinct().ToList();
         var removed = await RemovalsAsync(db, transactionIds);
-        var existing = (await db.TransactionTags
-                .Where(l => transactionIds.Contains(l.TransactionId) && l.Source == source)
-                .Select(l => new { l.TransactionId, l.TagId }).ToListAsync())
-            .Select(l => (l.TransactionId, l.TagId)).ToHashSet();
+        var existing = await PairsAsync(db.TransactionTags
+            .Where(l => transactionIds.Contains(l.TransactionId) && l.Source == source));
         db.TransactionTags.AddRange(links.Distinct().Where(l => !removed.Contains(l) && !existing.Contains(l))
             .Select(l => new TransactionTag { TransactionId = l.TransactionId, TagId = l.TagId, Source = source }));
     }
@@ -123,10 +117,14 @@ public static class Tagging
             new TransactionTag { TransactionId = w.TransactionId, TagId = w.TagId, Source = TransactionTagSource.DateRange }));
     }
 
-    private static async Task<HashSet<(Guid TransactionId, Guid TagId)>> RemovalsAsync(TreasuryDbContext db, List<Guid> transactionIds) =>
-        (await db.TransactionTagRemovals.Where(r => transactionIds.Contains(r.TransactionId))
-            .Select(r => new { r.TransactionId, r.TagId }).ToListAsync())
-        .Select(r => (r.TransactionId, r.TagId)).ToHashSet();
+    private static Task<HashSet<(Guid TransactionId, Guid TagId)>> RemovalsAsync(TreasuryDbContext db, List<Guid> transactionIds) =>
+        PairsAsync(db.TransactionTagRemovals.Where(r => transactionIds.Contains(r.TransactionId)));
+
+    /// The (Transaction, Tag) pairs of the links or removals the query selects, in one query.
+    private static async Task<HashSet<(Guid TransactionId, Guid TagId)>> PairsAsync<T>(IQueryable<T> query)
+        where T : class, ITransactionTagPair =>
+        (await query.Select(x => new { x.TransactionId, x.TagId }).ToListAsync())
+        .Select(x => (x.TransactionId, x.TagId)).ToHashSet();
 
     /// The Tags on these Transactions, for responses: Tag id/name with the sources that put it there.
     public static async Task<Dictionary<Guid, List<TagOnTransaction>>> LoadAsync(TreasuryDbContext db,
