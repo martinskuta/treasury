@@ -210,7 +210,7 @@ public class IngestScanTests : ApiTestBase
 
     private record SourceFileRef(Guid Id, string FileName);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Description, string Origin,
+    private record Transaction(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Description, string Origin,
         SourceFileRef? SourceFile);
 
     private record ScannedFile(Guid AccountId, string FileName, bool Succeeded, int ImportedCount, string? Error);

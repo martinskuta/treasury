@@ -597,6 +597,6 @@ public class MatchingTests : ApiTestBase
 
     private record LinkDto(string Kind, Guid? TransactionId);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Currency,
+    private record Transaction(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Currency,
         decimal? ChfAmount, string Type, string Description, CategoryRef? Category, LinkDto? Link);
 }

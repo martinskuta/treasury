@@ -517,6 +517,6 @@ public class TransactionTests : ApiTestBase
 
     private record Account(Guid Id, string Name, OwnerDto Owner, decimal OpeningBalance, DateOnly OpeningDate, decimal Balance);
 
-    private record Transaction(Guid Id, Guid AccountId, string AccountName, DateOnly Date, decimal Amount, string Currency,
+    private record Transaction(Guid Id, Guid? AccountId, string? AccountName, DateOnly Date, decimal Amount, string Currency,
         string Type, string Description, string? Note, OwnerDto Owner, string Origin);
 }

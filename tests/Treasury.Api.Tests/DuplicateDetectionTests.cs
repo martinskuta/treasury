@@ -170,5 +170,5 @@ public class DuplicateDetectionTests : ApiTestBase
 
     private record ImportResult(int ImportedCount, int SkippedCount);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Description, string? Reference);
+    private record Transaction(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Description, string? Reference);
 }
