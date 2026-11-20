@@ -81,7 +81,13 @@ this folder together with the database.
 ## Importing statements
 
 On the Accounts screen, choose **Import statement** on an Account and upload the bank's export. The Account's
-Integration reads it. Imported date, amount, currency, description and original foreign amount are read-only;
+Integration reads it. Or drop the file into the Account's Ingest folder, `ingest/<account-slug>/`: Treasury checks
+every Ingest folder at startup and then every minute, imports each file it finds there through the same pipeline,
+and moves it to `processed/` or `failed/`. A file must stay unchanged for 2 seconds during a check before it is
+imported, so a file that is still being copied in is left for the next check; temporary download names (`.part`,
+`.crdownload`, `.tmp`, ...) and hidden files are ignored until renamed. Settings: `Ingest__ScanInterval` (default
+`00:01:00`) and `Ingest__SettleTime` (default `00:00:02`). `POST /api/ingest/scan` checks the folders right away.
+Imported date, amount, currency, description and original foreign amount are read-only;
 Display name, note and Owner can be edited.
 
 Two safety checks run on every import:
