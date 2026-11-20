@@ -192,7 +192,117 @@ public class MatchingTests : ApiTestBase
         await Assert.That((await GetAsync(anna, atm.Id)).Type).IsEqualTo("expense");
     }
 
+    [Test]
+    public async Task A_member_can_link_two_transactions_as_a_transfer_and_unlink_them()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var groceries = await CategoryIdAsync(anna, "Food › Groceries");
+        // A week apart: too far for automatic matching.
+        var outgoing = await AddAsync(anna, checking.Id, -500m, "2026-11-01", "TO SAVINGS", categoryId: groceries);
+        var incoming = await AddAsync(anna, savings.Id, 500m, "2026-11-08", "FROM CHECKING");
+
+        var linkRes = await anna.PostAsJsonAsync($"/api/transactions/{outgoing.Id}/link", new { transactionId = incoming.Id });
+
+        await Assert.That(linkRes.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var linked = (await linkRes.Content.ReadFromJsonAsync<Transaction>())!;
+        await Assert.That(linked.Type).IsEqualTo("transfer");
+        await Assert.That(linked.Category).IsNull();
+        await Assert.That(linked.Link!.TransactionId).IsEqualTo(incoming.Id);
+        await Assert.That((await GetAsync(anna, incoming.Id)).Link!.TransactionId).IsEqualTo(outgoing.Id);
+
+        var unlinkRes = await anna.DeleteAsync($"/api/transactions/{incoming.Id}/link");
+
+        await Assert.That(unlinkRes.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var unlinked = (await unlinkRes.Content.ReadFromJsonAsync<Transaction>())!;
+        await Assert.That(unlinked.Type).IsEqualTo("income");
+        await Assert.That(unlinked.Link).IsNull();
+        await Assert.That((await GetAsync(anna, outgoing.Id)).Type).IsEqualTo("expense");
+        await Assert.That((await UncategorisedAsync(anna)).Select(t => t.Id)).IsEquivalentTo([outgoing.Id, incoming.Id]);
+    }
+
+    [Test]
+    public async Task Unlinking_a_contribution_takes_away_the_contribution_categories_matching_gave_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var personal = await CreateAccountAsync(anna, "Anna's account", await MeAsync(anna));
+        var household = await CreateAccountAsync(anna, "Household", Family);
+        var sent = await AddAsync(anna, personal.Id, -80m, "2026-11-10", "Dinner");
+        var received = await AddAsync(anna, household.Id, 80m, "2026-11-10", "Refund");
+        await Assert.That(received.Link!.Kind).IsEqualTo("contribution");
+
+        var res = await anna.DeleteAsync($"/api/transactions/{sent.Id}/link");
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var list = await ListAsync(anna);
+        await Assert.That(list.All(t => t.Link is null && t.Category is null)).IsTrue();
+        await Assert.That(list.Select(t => t.Type)).IsEquivalentTo(["expense", "income"]);
+    }
+
+    [Test]
+    public async Task Linking_needs_two_unlinked_transactions_the_member_can_see_on_different_accounts_with_opposite_signs()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var bobs = await CreateAccountAsync(bob, "Bob's account", await MeAsync(bob));
+        var a = await AddAsync(anna, checking.Id, -10m, "2026-11-01", "A");
+        var sameAccount = await AddAsync(anna, checking.Id, 10m, "2026-11-11", "Same account");
+        var sameSign = await AddAsync(anna, savings.Id, -11m, "2026-11-11", "Same sign");
+        var hidden = await AddAsync(bob, bobs.Id, 10m, "2026-11-11", "Bob's");
+        var pairedOut = await AddAsync(anna, checking.Id, -30m, "2026-11-20", "Paired out");
+        await AddAsync(anna, savings.Id, 30m, "2026-11-20", "Paired in");
+
+        foreach (var other in new[] { sameAccount.Id, sameSign.Id, hidden.Id, pairedOut.Id, Guid.NewGuid() })
+            await AssertValidationErrorAsync(
+                await anna.PostAsJsonAsync($"/api/transactions/{a.Id}/link", new { transactionId = other }), "transactionId");
+        await Assert.That((await bob.PostAsJsonAsync($"/api/transactions/{a.Id}/link", new { transactionId = hidden.Id })).StatusCode)
+            .IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That((await bob.DeleteAsync($"/api/transactions/{pairedOut.Id}/link")).StatusCode)
+            .IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task A_transfer_refuses_a_category()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var outgoing = await AddAsync(anna, checking.Id, -500m, "2026-11-18", "TO SAVINGS");
+        await AddAsync(anna, savings.Id, 500m, "2026-11-18", "FROM CHECKING");
+
+        var res = await anna.PatchAsJsonAsync($"/api/transactions/{outgoing.Id}",
+            new { categoryId = await CategoryIdAsync(anna, "Food › Groceries") });
+
+        await AssertValidationErrorAsync(res, "categoryId");
+    }
+
+    [Test]
+    public async Task Deleting_a_manual_leg_makes_the_other_leg_income_or_expense_again()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var outgoing = await AddAsync(anna, checking.Id, -500m, "2026-11-18", "TO SAVINGS");
+        var incoming = await AddAsync(anna, savings.Id, 500m, "2026-11-18", "FROM CHECKING");
+
+        await Assert.That((await anna.DeleteAsync($"/api/transactions/{incoming.Id}")).StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+
+        var left = await GetAsync(anna, outgoing.Id);
+        await Assert.That(left.Type).IsEqualTo("expense");
+        await Assert.That(left.Link).IsNull();
+    }
+
     // ---- helpers ----
+
+    private static async Task<Guid> CategoryIdAsync(HttpClient client, string path) =>
+        (await client.GetFromJsonAsync<List<CategoryRef>>("/api/categories"))!.Single(c => c.Path == path).Id;
 
     /// Waits until the exchange-rate job has stored rates for the visible Transactions (their CHF value is known).
     private static async Task RatesSyncedAsync(HttpClient client)

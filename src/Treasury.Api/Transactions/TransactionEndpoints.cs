@@ -207,7 +207,7 @@ public static class TransactionEndpoints
         });
     }
 
-    private static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
+    internal static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Transactions.VisibleTo(viewer).Include(t => t.Account).Include(t => t.SourceFile).SingleOrDefaultAsync(t => t.Id == id);
 
     /// The requested Owner: the Family or any active Member; null (with an `owner` error) otherwise.

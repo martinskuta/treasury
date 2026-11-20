@@ -48,6 +48,7 @@ api.MapHealth();
 api.MapAuth();
 api.MapAccounts();
 api.MapTransactions();
+api.MapMatching();
 api.MapImports();
 api.MapOwners();
 api.MapMembers();
