@@ -12,6 +12,7 @@ import { MonthlyOverviewPage } from './pages/MonthlyOverviewPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { RulesPage } from './pages/RulesPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { TagReportPage } from './pages/TagReportPage'
 import { TagsPage } from './pages/TagsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 import { UncategorisedPage } from './pages/UncategorisedPage'
@@ -27,6 +28,8 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
               <Route path="overview" element={<MonthlyOverviewPage />} />
+              <Route path="reports/tag" element={<TagReportPage />} />
+              <Route path="reports/tag/:tagId" element={<TagReportPage />} />
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="uncategorised" element={<UncategorisedPage />} />
               <Route path="accounts" element={<AccountsPage />} />

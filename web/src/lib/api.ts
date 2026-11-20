@@ -483,3 +483,34 @@ export type MonthlyReport = {
 
 export const getMonthlyReport = (month: string, owner: ReportOwner, signal?: AbortSignal) =>
   apiFetch<MonthlyReport>(`/api/reports/monthly?month=${encodeURIComponent(month)}&owner=${owner}`, { signal })
+
+/** `from`/`to` = the period counted (inclusive; null = open-ended, both null = all time). */
+export type TagReport = {
+  tag: { id: string; name: string; dateFrom: string | null; dateTo: string | null }
+  owner: ReportOwner
+  from: string | null
+  to: string | null
+  currency: 'CHF'
+  income: ReportSection
+  expense: ReportSection
+  net: number
+}
+
+/**
+ * The period of a Tag report: 'default' = the Tag's date range (all time when it has none), 'all' = all time,
+ * or explicit bounds (yyyy-MM-dd, either may be empty).
+ */
+export type TagReportPeriod = 'default' | 'all' | { from: string; to: string }
+
+export function getTagReport(tagId: string, owner: ReportOwner, period: TagReportPeriod, signal?: AbortSignal) {
+  const query = new URLSearchParams({ owner })
+  if (period === 'all') query.set('allTime', 'true')
+  else if (period !== 'default') {
+    if (period.from) query.set('from', period.from)
+    if (period.to) query.set('to', period.to)
+  }
+  return apiFetch<TagReport>(`/api/reports/tag/${tagId}?${query}`, { signal })
+}
+
+/** Link to the Tag report screen (used by the Tags list and Transaction Tag chips). */
+export const tagReportPath = (tagId: string) => `/reports/tag/${tagId}`

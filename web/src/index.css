@@ -761,3 +761,23 @@ h1 {
 .rule-list .category-main {
   flex-wrap: wrap;
 }
+
+/* Tag report (#19): Tag picker + period controls reuse report-controls; chips link to the report. */
+.report-controls .field {
+  margin: 0;
+  min-width: 160px;
+}
+
+.tag-report-period {
+  justify-content: flex-start;
+  align-items: flex-end;
+}
+
+a.tag-chip {
+  text-decoration: none;
+}
+
+a.tag-chip:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
