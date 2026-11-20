@@ -7,6 +7,7 @@ using Treasury.Api.Data;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 using Treasury.Api.Members;
+using Treasury.Api.Reports;
 using Treasury.Api.Storage;
 using Treasury.Api.Transactions;
 
@@ -47,6 +48,7 @@ api.MapTransactions();
 api.MapOwners();
 api.MapMembers();
 api.MapCategories();
+api.MapReports();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 
 // Production: the React build is copied into wwwroot by the AppHost (PublishWithContainerFiles).
