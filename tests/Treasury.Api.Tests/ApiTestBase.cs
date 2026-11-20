@@ -1,9 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Treasury.Api.Auth;
 
 namespace Treasury.Api.Tests;
 
@@ -35,21 +32,28 @@ public abstract class ApiTestBase : IAsyncDisposable
 
     public const string MemberPassword = "Member-Pa55word";
 
-    /// Creates a (non-Admin) Member and returns a new client logged in as them.
-    /// TODO(#4): create the Member through the Admin's member endpoint once it exists, instead of UserManager.
+    /// Adds a (non-Admin) Member through the Admin's POST /api/admin/members (password MemberPassword) and
+    /// returns a new client logged in as them. Doesn't touch Client's session.
     protected async Task<HttpClient> LoginAsNewMemberAsync(string userName)
     {
-        using (var scope = App.Services.CreateScope())
-        {
-            var members = scope.ServiceProvider.GetRequiredService<UserManager<Member>>();
-            var created = await members.CreateAsync(new Member(userName), MemberPassword);
-            if (!created.Succeeded)
-                throw new InvalidOperationException(string.Join("; ", created.Errors.Select(e => e.Description)));
-        }
+        await AddMemberAsync(userName);
         var client = NewClient();
         await LoginAsync(client, userName, MemberPassword);
         return client;
     }
+
+    /// Adds a (non-Admin) Member with MemberPassword as the Admin (in a separate session) and returns their id.
+    protected async Task<Guid> AddMemberAsync(string userName)
+    {
+        using var admin = NewClient();
+        await LoginAsync(admin, TreasuryApiFactory.AdminUserName, TreasuryApiFactory.AdminPassword);
+        var res = await admin.PostAsJsonAsync("/api/admin/members", new { userName, password = MemberPassword });
+        if (res.StatusCode != HttpStatusCode.Created)
+            throw new InvalidOperationException($"Adding Member {userName} failed: {(int)res.StatusCode}");
+        return (await res.Content.ReadFromJsonAsync<CreatedMember>())!.Id;
+    }
+
+    private record CreatedMember(Guid Id);
 
     /// Logs the given client in through POST /api/auth/login and fails the test if that doesn't succeed.
     protected static async Task LoginAsync(HttpClient client, string userName, string password)
@@ -63,11 +67,7 @@ public abstract class ApiTestBase : IAsyncDisposable
     {
         Client?.Dispose();
         if (App is not null) await App.DisposeAsync();
-        // Release this test's idle pooled connections now instead of after the pool's idle timeout.
-        if (ConnectionString is not null)
-        {
-            await using var conn = new NpgsqlConnection(ConnectionString);
-            NpgsqlConnection.ClearPool(conn);
-        }
+        // Release this test's idle pooled connections so parallel tests don't exhaust max_connections.
+        if (ConnectionString is not null) NpgsqlConnection.ClearPool(new NpgsqlConnection(ConnectionString));
     }
 }

@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120002013_ExchangeRates";
+    public override string LastMigrationId => "20261120002319_ExchangeRates";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -238,6 +238,9 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("ConcurrencyStamp")
                     .IsConcurrencyToken()
                     .HasColumnType("text");
+
+                b.Property<DateTimeOffset?>("DeactivatedAt")
+                    .HasColumnType("timestamp with time zone");
 
                 b.Property<string>("Email")
                     .HasMaxLength(256)

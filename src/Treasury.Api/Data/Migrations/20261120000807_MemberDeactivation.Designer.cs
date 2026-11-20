@@ -12,8 +12,8 @@ using Treasury.Api.Data;
 namespace Treasury.Api.Data.Migrations;
 
 [DbContext(typeof(TreasuryDbContext))]
-[Migration("20261120002013_ExchangeRates")]
-partial class _20261120002013_ExchangeRates
+[Migration("20261120000807_MemberDeactivation")]
+partial class _20261120000807_MemberDeactivation
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -237,6 +237,9 @@ partial class _20261120002013_ExchangeRates
                     .IsConcurrencyToken()
                     .HasColumnType("text");
 
+                b.Property<DateTimeOffset?>("DeactivatedAt")
+                    .HasColumnType("timestamp with time zone");
+
                 b.Property<string>("Email")
                     .HasMaxLength(256)
                     .HasColumnType("character varying(256)");
@@ -287,24 +290,6 @@ partial class _20261120002013_ExchangeRates
                     .HasDatabaseName("UserNameIndex");
 
                 b.ToTable("AspNetUsers");
-            });
-
-        modelBuilder.Entity("Treasury.Api.ExchangeRates.ExchangeRate", b =>
-            {
-                b.Property<DateOnly>("Date")
-                    .HasColumnType("date");
-
-                b.Property<string>("Currency")
-                    .HasMaxLength(3)
-                    .HasColumnType("character varying(3)");
-
-                b.Property<decimal>("PerEur")
-                    .HasPrecision(19, 6)
-                    .HasColumnType("numeric(19,6)");
-
-                b.HasKey("Date", "Currency");
-
-                b.ToTable("ExchangeRates");
             });
 
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>

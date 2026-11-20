@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Treasury.Api.Data.Migrations;
 
 /// <inheritdoc />
-public partial class _20261120002013_ExchangeRates : Migration
+public partial class _20261120002319_ExchangeRates : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

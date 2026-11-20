@@ -389,6 +389,53 @@ public class TransactionTests : ApiTestBase
     }
 
     [Test]
+    public async Task Deactivated_members_are_not_offered_as_owners()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var bobId = await AddMemberAsync("bob");
+        await DeactivateAsync(bobId);
+
+        var owners = (await anna.GetFromJsonAsync<List<OwnerDto>>("/api/owners"))!;
+
+        await Assert.That(owners.Select(o => o.Name)).IsEquivalentTo(["Family", "admin", "anna"]);
+    }
+
+    [Test]
+    public async Task A_deactivated_member_cannot_be_chosen_as_a_transactions_owner()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var bobId = await AddMemberAsync("bob");
+        await DeactivateAsync(bobId);
+        var wallet = await CreateAccountAsync(anna, "Cash", await MeAsync(anna));
+        var t = await AddAsync(anna, wallet.Id, -5m);
+        var bob = new { kind = "member", memberId = bobId };
+
+        var created = await anna.PostAsJsonAsync("/api/transactions",
+            new { accountId = wallet.Id, date = "2026-11-18", amount = -7m, description = "Coffee", owner = bob });
+        var patched = await anna.PatchAsJsonAsync($"/api/transactions/{t.Id}", new { owner = bob });
+
+        await AssertValidationErrorAsync(created, "owner");
+        await AssertValidationErrorAsync(patched, "owner");
+        var list = await ListAsync(anna);
+        await Assert.That(list.Select(x => x.Id)).IsEquivalentTo([t.Id]);
+        await Assert.That(list[0].Owner.MemberId).IsEqualTo(await MemberIdAsync(anna));
+    }
+
+    [Test]
+    public async Task An_admin_cannot_see_another_members_personal_transactions()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var card = await CreateAccountAsync(anna, "Anna card", await MeAsync(anna));
+        var t = await AddAsync(anna, card.Id, -30m, description: "Anna's book");
+        await LoginAsAdminAsync();
+
+        await Assert.That(await ListAsync(Client)).IsEmpty();
+        await Assert.That((await Client.GetAsync($"/api/transactions/{t.Id}")).StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That((await Client.PatchAsJsonAsync($"/api/transactions/{t.Id}", new { note = "peek" })).StatusCode)
+            .IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
     public async Task Transactions_require_login()
     {
         await Assert.That((await Client.GetAsync("/api/transactions")).StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
@@ -405,6 +452,17 @@ public class TransactionTests : ApiTestBase
     }
 
     private static readonly object Family = new { kind = "family" };
+
+    /// Deactivates a Member as the Admin (in a separate session), keeping their Accounts with them.
+    private async Task DeactivateAsync(Guid memberId)
+    {
+        using var admin = NewClient();
+        await LoginAsync(admin, TreasuryApiFactory.AdminUserName, TreasuryApiFactory.AdminPassword);
+        var res = await admin.PostAsJsonAsync($"/api/admin/members/{memberId}/deactivate",
+            new { handover = Array.Empty<object>() });
+        if (res.StatusCode != HttpStatusCode.NoContent)
+            throw new InvalidOperationException($"Deactivation failed: {(int)res.StatusCode}");
+    }
 
     private static async Task<Guid> MemberIdAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<Me>("/api/auth/me"))!.Id;

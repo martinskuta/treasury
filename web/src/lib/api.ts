@@ -192,3 +192,31 @@ export const updateTransaction = (id: string, changes: TransactionChanges) =>
   apiFetch<Transaction>(`/api/transactions/${id}`, { method: 'PATCH', body: changes })
 
 export const deleteTransaction = (id: string) => apiFetch<void>(`/api/transactions/${id}`, { method: 'DELETE' })
+
+// ---- Members (Admin only: /api/admin/members) ----
+
+/** A Member as the Admin sees them in member management. */
+export type MemberSummary = { id: string; userName: string; isAdmin: boolean; isActive: boolean }
+
+/** One of a Member's Accounts, just enough to choose who gets it on deactivation. */
+export type HandoverAccount = { id: string; name: string; currency: Currency }
+
+export type Handover = { accountId: string; owner: OwnerRef }
+
+export const listMembers = (signal?: AbortSignal) => apiFetch<MemberSummary[]>('/api/admin/members', { signal })
+
+export const addMember = (userName: string, password: string) =>
+  apiFetch<MemberSummary>('/api/admin/members', { method: 'POST', body: { userName, password } })
+
+export const resetMemberPassword = (id: string, newPassword: string) =>
+  apiFetch<void>(`/api/admin/members/${id}/password`, { method: 'POST', body: { newPassword } })
+
+export const setMemberAdmin = (id: string, isAdmin: boolean) =>
+  apiFetch<MemberSummary>(`/api/admin/members/${id}/admin`, { method: 'PUT', body: { isAdmin } })
+
+export const listMemberAccountsForHandover = (id: string, signal?: AbortSignal) =>
+  apiFetch<HandoverAccount[]>(`/api/admin/members/${id}/accounts`, { signal })
+
+/** Accounts not listed in `handover` stay with the deactivated Member. */
+export const deactivateMember = (id: string, handover: Handover[]) =>
+  apiFetch<void>(`/api/admin/members/${id}/deactivate`, { method: 'POST', body: { handover } })
