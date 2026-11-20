@@ -6,7 +6,8 @@ builder.AddDockerComposeEnvironment("compose")
 
 var postgres = builder.AddPostgres("postgres")
     .WithDataVolume("treasury-pgdata")
-    .WithLifetime(ContainerLifetime.Persistent); // run mode: survives AppHost restarts
+    .WithLifetime(ContainerLifetime.Persistent) // run mode: survives AppHost restarts
+    .PublishAsDockerComposeService((_, service) => service.Restart = "unless-stopped"); // back after a host reboot
 var db = postgres.AddDatabase("treasurydb");     // => ConnectionStrings__treasurydb in the API
 
 // First Admin, created by the API on first startup (no Members yet). Run mode: set
