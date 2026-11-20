@@ -63,7 +63,9 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             // Undoing an import (#10) = deleting its Source file, which takes its Transactions with it.
             t.HasOne(x => x.SourceFile).WithMany().HasForeignKey(x => x.SourceFileId).OnDelete(DeleteBehavior.Cascade);
             t.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+            // Duplicate detection (#9) looks rows up by Account + date (facts key) or Account + reference.
             t.HasIndex(x => new { x.AccountId, x.Date });
+            t.HasIndex(x => new { x.AccountId, x.Reference }).HasFilter("\"Reference\" IS NOT NULL");
             // Owner: null = the Family (same storage as Account.Owner).
             t.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
             // Null = Uncategorised. A used Category can only be removed after moving or uncategorising its Transactions.
