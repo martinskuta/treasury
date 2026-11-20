@@ -13,11 +13,11 @@ public static class TransactionQueries
         query.Where(t => t.OwnerMemberId == null || t.OwnerMemberId == viewerId
             || t.Account.OwnerMemberId == null || t.Account.OwnerMemberId == viewerId);
 
-    /// Only Transactions that count as Income or Expense, i.e. not Transfers. THE hook for "Transfers never count":
-    /// the Uncategorised queue and every report (#18 monthly overview, #19 Tag report) go through it.
-    /// TODO(#16): exclude Transfers here once they exist (e.g. `t.TransferId == null`). Today every Transaction is
-    /// Income or Expense, so this is the identity filter.
-    public static IQueryable<Transaction> CountsAsIncomeOrExpense(this IQueryable<Transaction> query) => query;
+    /// Only Transactions that count as Income or Expense, i.e. not Transfers (SQL form of
+    /// <see cref="Transaction.IsTransfer"/>). THE hook for "Transfers never count": the Uncategorised queue and every
+    /// report (#18 monthly overview, #19 Tag report) go through it. Contribution legs DO count.
+    public static IQueryable<Transaction> CountsAsIncomeOrExpense(this IQueryable<Transaction> query) =>
+        query.Where(t => t.LinkedTransactionId == null || t.LinkKind != LinkKind.Transfer);
 
     /// Income and Expense without a Category (GLOSSARY: Uncategorised). Compose with <see cref="VisibleTo"/>.
     /// Transfers have no Category but are not Uncategorised; <see cref="CountsAsIncomeOrExpense"/> leaves them out.

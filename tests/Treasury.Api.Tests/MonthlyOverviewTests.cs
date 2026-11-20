@@ -142,6 +142,26 @@ public class MonthlyOverviewTests : ApiTestBase
     }
 
     [Test]
+    public async Task Transfers_count_neither_as_income_nor_as_expense()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        await AddAsync(anna, checking, 5000m, "2026-11-01");
+        await AddAsync(anna, checking, -60m, "2026-11-02");
+        await AddAsync(anna, checking, -1000m, "2026-11-10"); // to savings ...
+        await AddAsync(anna, savings, 1000m, "2026-11-11");   // ... matched as a Transfer
+
+        var report = await MonthlyAsync(anna, "2026-11", "me");
+
+        await Assert.That(report.Income.Total).IsEqualTo(5000m);
+        await Assert.That(report.Expense.Total).IsEqualTo(60m);
+        await Assert.That(report.Expense.Uncategorised).IsEqualTo(60m);
+        await Assert.That(report.Net).IsEqualTo(4940m);
+    }
+
+    [Test]
     public async Task Contributions_appear_under_their_categories_and_can_be_left_out_of_real_spending()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
