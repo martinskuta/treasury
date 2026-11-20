@@ -14,27 +14,46 @@ namespace Treasury.Api.Tags;
 /// that they depend on (e.g. a removal made in the same request) first.
 public static class Tagging
 {
-    public static async Task AddByHandAsync(TreasuryDbContext db, Guid transactionId, IReadOnlyCollection<Guid> tagIds)
+    public static Task AddByHandAsync(TreasuryDbContext db, Guid transactionId, IReadOnlyCollection<Guid> tagIds) =>
+        AddByHandAsync(db, [transactionId], tagIds);
+
+    public static Task RemoveByHandAsync(TreasuryDbContext db, Guid transactionId, IReadOnlyCollection<Guid> tagIds) =>
+        RemoveByHandAsync(db, [transactionId], tagIds);
+
+    /// Adds each Tag by hand to each of the Transactions (bulk edit, #17): Manual links, removals deleted.
+    public static async Task AddByHandAsync(TreasuryDbContext db, IReadOnlyCollection<Guid> transactionIds,
+        IReadOnlyCollection<Guid> tagIds)
     {
-        if (tagIds.Count == 0) return;
+        if (tagIds.Count == 0 || transactionIds.Count == 0) return;
         db.TransactionTagRemovals.RemoveRange(await db.TransactionTagRemovals
-            .Where(r => r.TransactionId == transactionId && tagIds.Contains(r.TagId)).ToListAsync());
-        var existing = await db.TransactionTags
-            .Where(l => l.TransactionId == transactionId && l.Source == TransactionTagSource.Manual && tagIds.Contains(l.TagId))
-            .Select(l => l.TagId).ToListAsync();
-        db.TransactionTags.AddRange(tagIds.Except(existing).Select(tagId =>
-            new TransactionTag { TransactionId = transactionId, TagId = tagId, Source = TransactionTagSource.Manual }));
+            .Where(r => transactionIds.Contains(r.TransactionId) && tagIds.Contains(r.TagId)).ToListAsync());
+        var existing = (await db.TransactionTags
+                .Where(l => transactionIds.Contains(l.TransactionId) && l.Source == TransactionTagSource.Manual && tagIds.Contains(l.TagId))
+                .Select(l => new { l.TransactionId, l.TagId }).ToListAsync())
+            .Select(l => (l.TransactionId, l.TagId)).ToHashSet();
+        db.TransactionTags.AddRange(
+            from transactionId in transactionIds.Distinct()
+            from tagId in tagIds.Distinct()
+            where !existing.Contains((transactionId, tagId))
+            select new TransactionTag { TransactionId = transactionId, TagId = tagId, Source = TransactionTagSource.Manual });
     }
 
-    public static async Task RemoveByHandAsync(TreasuryDbContext db, Guid transactionId, IReadOnlyCollection<Guid> tagIds)
+    /// Removes each Tag by hand from each of the Transactions: every link of the Tag goes, and the removal sticks.
+    public static async Task RemoveByHandAsync(TreasuryDbContext db, IReadOnlyCollection<Guid> transactionIds,
+        IReadOnlyCollection<Guid> tagIds)
     {
-        if (tagIds.Count == 0) return;
+        if (tagIds.Count == 0 || transactionIds.Count == 0) return;
         db.TransactionTags.RemoveRange(await db.TransactionTags
-            .Where(l => l.TransactionId == transactionId && tagIds.Contains(l.TagId)).ToListAsync());
-        var removed = await db.TransactionTagRemovals
-            .Where(r => r.TransactionId == transactionId && tagIds.Contains(r.TagId)).Select(r => r.TagId).ToListAsync();
-        db.TransactionTagRemovals.AddRange(tagIds.Except(removed).Select(tagId =>
-            new TransactionTagRemoval { TransactionId = transactionId, TagId = tagId }));
+            .Where(l => transactionIds.Contains(l.TransactionId) && tagIds.Contains(l.TagId)).ToListAsync());
+        var removed = (await db.TransactionTagRemovals
+                .Where(r => transactionIds.Contains(r.TransactionId) && tagIds.Contains(r.TagId))
+                .Select(r => new { r.TransactionId, r.TagId }).ToListAsync())
+            .Select(r => (r.TransactionId, r.TagId)).ToHashSet();
+        db.TransactionTagRemovals.AddRange(
+            from transactionId in transactionIds.Distinct()
+            from tagId in tagIds.Distinct()
+            where !removed.Contains((transactionId, tagId))
+            select new TransactionTagRemoval { TransactionId = transactionId, TagId = tagId });
     }
 
     /// Adds links of an automatic source (e.g. <see cref="TransactionTagSource.Rule"/>) unless a Member removed that

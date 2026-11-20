@@ -735,17 +735,141 @@ h1 {
   margin-top: 8px;
 }
 
+/* Filter bar: search on top, the other filters in two columns on a phone (folded under a summary), a flowing grid
+   from tablet width on. */
 .transaction-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  align-items: flex-end;
   margin-bottom: 12px;
 }
 
 .transaction-filters .field {
+  margin: 0;
+  min-width: 0;
+}
+
+.transaction-filters .field input,
+.transaction-filters .field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.transaction-search {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.transaction-search .field {
+  flex: 1 1 auto;
+}
+
+.transaction-filter-details {
+  margin-top: 8px;
+}
+
+.transaction-filter-details summary {
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.transaction-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  align-items: end;
+  margin-top: 8px;
+}
+
+.transaction-filters-clear {
+  justify-self: start;
+  padding: 8px 0;
+}
+
+@media (min-width: 768px) {
+  .transaction-filter-grid {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+}
+
+.transaction-list-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.transaction-list-header .checkbox-field {
   margin-top: 0;
-  min-width: 200px;
+}
+
+/* Big enough to hit with a thumb. */
+.transaction-select {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  align-self: center;
+}
+
+.transaction-row.selected {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* Bulk edit stays in reach at the bottom of the screen while scrolling the list. */
+.bulk-edit {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  max-width: none;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 -4px 12px rgb(0 0 0 / 12%);
+}
+
+.bulk-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.bulk-edit-tags {
+  margin-top: 12px;
+}
+
+.bulk-edit-tags summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-edit .form-error ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+
+@media (min-width: 768px) {
+  .bulk-edit {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+  }
+
+  .bulk-edit > .bulk-edit-header,
+  .bulk-edit > .bulk-edit-tags,
+  .bulk-edit > .form-error,
+  .bulk-edit > .form-actions {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Rules (#15): the offer after a manual Category correction, and the priority list. */

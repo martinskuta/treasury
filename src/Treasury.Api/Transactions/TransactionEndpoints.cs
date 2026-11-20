@@ -25,6 +25,15 @@ public static class TransactionEndpoints
         OwnerRequest? Owner, Guid? CategoryId, bool? Uncategorise, string? DisplayName, Guid[]? AddTagIds,
         Guid[]? RemoveTagIds);
 
+    public const int MaxBulkEdit = 500;
+
+    /// Bulk edit: the Transactions to change and the change (each part optional, same meaning as in PATCH).
+    public record BulkEditRequest(Guid[]? TransactionIds, OwnerRequest? Owner, Guid? CategoryId, bool? Uncategorise,
+        Guid[]? AddTagIds, Guid[]? RemoveTagIds);
+
+    /// Validation-problem key for a Transaction of a bulk edit that can't take the change.
+    public static string BulkErrorKey(Guid transactionId) => $"transactions[{transactionId}]";
+
     /// Category null = Uncategorised. ManuallySet lists the classification fields a Member set by hand
     /// ("owner", "category", "tags", "displayName"). Tags lists each Tag with the sources that put it there
     /// ("manual", "dateRange", "rule").
@@ -52,13 +61,17 @@ public static class TransactionEndpoints
     {
         var transactions = api.MapGroup("/transactions");
 
-        // Optional filters: ?tagId= (Transactions carrying that Tag).
-        transactions.MapGet("/", async (Guid? tagId, ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
+        // Filters, sorting and paging: see TransactionListRequest. One page as a JSON array; the number of matching
+        // Transactions across all pages is in the X-Total-Count header.
+        transactions.MapGet("/", async ([AsParameters] TransactionListRequest request, ClaimsPrincipal user,
+            HttpResponse response, TreasuryDbContext db, ChfConverter chf) =>
         {
-            var query = db.Transactions.VisibleTo(user.MemberId());
-            if (tagId is { } tag) query = query.TaggedWith(tag);
-            var list = await query.Include(t => t.Account).Include(t => t.SourceFile)
-                .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
+            var (query, errors) = await TransactionList.FilterAsync(db, user.MemberId(), request);
+            if (query is null) return Results.ValidationProblem(errors);
+            var total = await query.CountAsync();
+            var list = await TransactionList.SortAndPage(query, request)
+                .Include(t => t.Account).Include(t => t.SourceFile).ToListAsync();
+            response.Headers[TransactionList.TotalCountHeader] = total.ToString(System.Globalization.CultureInfo.InvariantCulture);
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
 
@@ -93,9 +106,9 @@ public static class TransactionEndpoints
             var description = request.Description?.Trim();
             ValidateDescription(description, errors);
             var note = NormalizeNote(request.Note, errors);
-            var owner = request.Owner is null ? null : await ResolveOwnerAsync(db, request.Owner, errors);
+            var owner = request.Owner is null ? null : await TransactionClassification.ResolveOwnerAsync(db, request.Owner, errors);
             await ValidateCategoryAsync(db, request.CategoryId, errors);
-            var tagIds = await ValidateTagsAsync(db, request.TagIds, "tagIds", errors);
+            var tagIds = await TransactionClassification.ValidateTagsAsync(db, request.TagIds, "tagIds", errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
@@ -153,20 +166,13 @@ public static class TransactionEndpoints
             var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
             if (displayName?.Length > MaxDisplayNameLength)
                 errors["displayName"] = [$"Use at most {MaxDisplayNameLength} characters."];
-            var owner = request.Owner is null ? null : await ResolveOwnerAsync(db, request.Owner, errors);
-            if (request.CategoryId is not null && request.Uncategorise == true)
-                errors["categoryId"] = ["Either choose a Category or make the Transaction Uncategorised."];
-            else if (request.CategoryId is not null && transaction.IsTransfer)
-                errors["categoryId"] = ["A Transfer has no Category. Unlink it first to make it an Income or Expense."];
-            else await ValidateCategoryAsync(db, request.CategoryId, errors);
-            var addTagIds = await ValidateTagsAsync(db, request.AddTagIds, "addTagIds", errors);
-            var removeTagIds = await ValidateTagsAsync(db, request.RemoveTagIds, "removeTagIds", errors);
-            if (addTagIds.Intersect(removeTagIds).Any())
-                errors["removeTagIds"] = ["A Tag can't be added and removed at the same time."];
+            var change = await TransactionClassification.ParseAsync(db, request.Owner, request.CategoryId,
+                request.Uncategorise, request.AddTagIds, request.RemoveTagIds, errors);
+            if (!errors.ContainsKey("categoryId") && TransactionClassification.Refusal(transaction, change) is { } refusal)
+                errors["categoryId"] = [refusal];
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
             var redated = request.Date is { } newDate && newDate != transaction.Date;
-            var reowned = owner is { } o && o != transaction.Owner;
 
             if (request.Date is { } date) transaction.Date = date;
             if (request.Amount is { } amount) transaction.Amount = amount;
@@ -177,45 +183,14 @@ public static class TransactionEndpoints
                 transaction.DisplayName = displayName;
                 transaction.ManuallySet |= ManuallySetFields.DisplayName;
             }
-            if (owner is { } newOwner)
-            {
-                transaction.Owner = newOwner;
-                transaction.ManuallySet |= ManuallySetFields.Owner;
-            }
-            if (request.CategoryId is { } categoryId)
-            {
-                transaction.CategoryId = categoryId;
-                transaction.ManuallySet |= ManuallySetFields.Category;
-            }
-            else if (request.Uncategorise == true)
-            {
-                // Back in the Uncategorised queue, where Rules may categorise it again (#15): not a manual Category.
-                transaction.CategoryId = null;
-                transaction.ManuallySet &= ~ManuallySetFields.Category;
-            }
-            if (addTagIds.Count > 0 || removeTagIds.Count > 0) transaction.ManuallySet |= ManuallySetFields.Tags;
+            var reowned = TransactionClassification.ApplyFields(transaction, change);
 
             // New date or amount: the old pair may no longer fit, and a new one may (#16).
             var rematch = request.Date is not null || request.Amount is not null;
             if (rematch) await matcher.UnlinkAsync(transaction);
 
-            // Steps read what the previous ones saved: date-range Tags follow the new date/Owner, then the Member's
-            // own Tag changes (a removal also takes off a date-range link added just now).
-            await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
-            {
-                await using var tx = await db.Database.BeginTransactionAsync();
-                await db.SaveChangesAsync();
-                if (redated || reowned)
-                {
-                    await Tagging.ApplyDateRangesAsync(db, [transaction]);
-                    await db.SaveChangesAsync();
-                }
-                await Tagging.RemoveByHandAsync(db, transaction.Id, removeTagIds);
-                await db.SaveChangesAsync();
-                await Tagging.AddByHandAsync(db, transaction.Id, addTagIds);
-                await db.SaveChangesAsync();
-                await tx.CommitAsync();
-            });
+            // Date-range Tags follow the new date/Owner, then the Member's own Tag changes.
+            await TransactionClassification.SaveAsync(db, [transaction], redated || reowned ? [transaction] : [], change);
             if (rematch)
             {
                 await matcher.MatchAsync([transaction]);
@@ -223,6 +198,39 @@ public static class TransactionEndpoints
             }
             if (request.Date is not null) await rates.RequestIfNotCoveredAsync(db, transaction.Date);
             return Results.Ok((await ToResponsesAsync(db, chf, [transaction]))[0]);
+        });
+
+        // Bulk edit: the same Owner / Category / Tag change on several Transactions, with exactly the rules of PATCH
+        // (TransactionClassification). All or nothing: if any Transaction can't take the change (not visible, or a
+        // Transfer given a Category), nothing is changed and the 400 lists each refused id under `transactions[<id>]`.
+        transactions.MapPost("/bulk-edit", async (BulkEditRequest request, ClaimsPrincipal user, TreasuryDbContext db,
+            ChfConverter chf) =>
+        {
+            var viewer = user.MemberId();
+            var errors = new Dictionary<string, string[]>();
+            var ids = (request.TransactionIds ?? []).Distinct().ToList();
+            if (ids.Count == 0) errors["transactionIds"] = ["Select at least one Transaction."];
+            else if (ids.Count > MaxBulkEdit) errors["transactionIds"] = [$"Select at most {MaxBulkEdit} Transactions."];
+            var change = await TransactionClassification.ParseAsync(db, request.Owner, request.CategoryId,
+                request.Uncategorise, request.AddTagIds, request.RemoveTagIds, errors);
+            if (change.IsEmpty && !errors.Keys.Any(k => k is "owner" or "categoryId" or "addTagIds" or "removeTagIds"))
+                errors["change"] = ["Choose an Owner, a Category or Tags to change."];
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+            var found = await db.Transactions.VisibleTo(viewer).Where(t => ids.Contains(t.Id))
+                .Include(t => t.Account).Include(t => t.SourceFile).ToDictionaryAsync(t => t.Id);
+            foreach (var id in ids)
+            {
+                // Unknown and invisible Transactions get the same answer (no existence leak).
+                if (!found.TryGetValue(id, out var t)) errors[BulkErrorKey(id)] = ["This Transaction doesn't exist."];
+                else if (TransactionClassification.Refusal(t, change) is { } refusal) errors[BulkErrorKey(id)] = [refusal];
+            }
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+            var list = ids.Select(id => found[id]).ToList();
+            var reowned = list.Where(t => TransactionClassification.ApplyFields(t, change)).ToList();
+            await TransactionClassification.SaveAsync(db, list, reowned, change);
+            return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
 
         // Manual Transactions only (imported ones go away by undoing their import), by Members who manage the Account.
@@ -249,31 +257,11 @@ public static class TransactionEndpoints
     internal static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Transactions.VisibleTo(viewer).Include(t => t.Account).Include(t => t.SourceFile).SingleOrDefaultAsync(t => t.Id == id);
 
-    /// The requested Owner: the Family or any active Member; null (with an `owner` error) otherwise.
-    private static async Task<Owner?> ResolveOwnerAsync(TreasuryDbContext db, OwnerRequest request,
-        Dictionary<string, string[]> errors)
-    {
-        var owner = request.ToOwner();
-        if (owner is { MemberId: { } memberId } && !await db.Users.AnyAsync(m => m.Id == memberId && m.DeactivatedAt == null)) owner = null;
-        if (owner is null) errors["owner"] = ["Choose the Family or a Member as the Owner."];
-        return owner;
-    }
-
     private static async Task ValidateCategoryAsync(TreasuryDbContext db, Guid? categoryId,
         Dictionary<string, string[]> errors)
     {
         if (categoryId is { } id && !await db.Categories.AnyAsync(c => c.Id == id))
             errors["categoryId"] = ["Choose an existing Category."];
-    }
-
-    /// The distinct requested Tag ids; an unknown one adds an error under <paramref name="field"/>.
-    private static async Task<List<Guid>> ValidateTagsAsync(TreasuryDbContext db, Guid[]? tagIds, string field,
-        Dictionary<string, string[]> errors)
-    {
-        var ids = (tagIds ?? []).Distinct().ToList();
-        if (ids.Count > 0 && await db.Tags.CountAsync(t => ids.Contains(t.Id)) != ids.Count)
-            errors[field] = ["Choose existing Tags."];
-        return ids;
     }
 
     private static void ValidateAmount(decimal? amount, Dictionary<string, string[]> errors)

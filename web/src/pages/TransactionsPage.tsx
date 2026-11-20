@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
 import { RuleOffer } from '../components/RuleOffer'
 import { SelectField } from '../components/SelectField'
 import {
   ApiError,
+  bulkEditTransactions,
+  bulkErrorKey,
   createTransaction,
   deleteTransaction,
   listAccounts,
@@ -19,6 +21,7 @@ import {
   unlinkTransaction,
   updateTransaction,
   type Account,
+  type BulkEdit,
   type Category,
   type Owner,
   type OwnerRef,
@@ -26,7 +29,9 @@ import {
   type TagRef,
   type Transaction,
   type TransactionChanges,
+  type TransactionFilter,
   type TransactionLink,
+  type TransactionSort,
 } from '../lib/api'
 import { formatAmount, formatDate } from '../lib/format'
 
@@ -53,45 +58,108 @@ const today = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-/** The Transactions the Member can see (theirs, the Family's and everything in their Accounts); add, edit, delete. */
+const PAGE_SIZE = 50
+
+const SORTS: { value: TransactionSort; label: string }[] = [
+  { value: 'date-desc', label: 'Newest first' },
+  { value: 'date-asc', label: 'Oldest first' },
+  { value: 'amount-asc', label: 'Largest Expense first' },
+  { value: 'amount-desc', label: 'Largest Income first' },
+]
+
+/** URL query keys of the filters (sort and page are kept apart: changing a filter goes back to page 1). */
+const FILTER_KEYS = ['q', 'account', 'owner', 'category', 'tag', 'from', 'to'] as const
+
+/**
+ * The list request for the URL's query string: ?q=&account=&owner=family|<memberId>&category=<id>|uncategorised
+ * &tag=&from=&to=&sort=&page=. Filters live in the URL so Back works and a filtered list can be bookmarked or shared.
+ */
+function filterFromParams(params: URLSearchParams): TransactionFilter {
+  const get = (key: string) => params.get(key) || undefined
+  const category = get('category')
+  const sort = SORTS.find(s => s.value === params.get('sort'))?.value
+  const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1)
+  return {
+    q: get('q'),
+    accountId: get('account'),
+    owner: get('owner'),
+    categoryId: category === 'uncategorised' ? undefined : category,
+    uncategorised: category === 'uncategorised' || undefined,
+    tagId: get('tag'),
+    from: get('from'),
+    to: get('to'),
+    sort,
+    offset: (page - 1) * PAGE_SIZE,
+    limit: PAGE_SIZE,
+  }
+}
+
+/**
+ * The Transactions the Member can see (theirs, the Family's and everything in their Accounts), filtered and paged;
+ * add, edit, delete, and change Category / Tags / Owner of several selected Transactions at once.
+ */
 export function TransactionsPage() {
-  const [transactions, setTransactions] = useState<Transaction[] | null>(null)
+  const [params, setParams] = useSearchParams()
+  const paramKey = params.toString()
+  const [page, setPage] = useState<{ key: string; items: Transaction[]; total: number } | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [tags, setTags] = useState<Tag[]>([])
-  const [tagFilter, setTagFilter] = useState('')
   const [loadError, setLoadError] = useState(false)
   const [adding, setAdding] = useState(false)
+  // Selection belongs to one list (filters + page): changing them drops it.
+  const [selection, setSelection] = useState<{ key: string; ids: string[] }>({ key: '', ids: [] })
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null)
 
   const load = useCallback(
     (signal?: AbortSignal) =>
       Promise.all([
-        listTransactions(signal, { tagId: tagFilter || undefined }),
+        listTransactions(signal, filterFromParams(new URLSearchParams(paramKey))),
         listAccounts(signal),
         listOwners(signal),
         listCategories(signal),
         listTags(signal),
       ])
         .then(([t, a, o, c, g]) => {
-          setTransactions(t)
+          setPage({ key: paramKey, ...t })
           setAccounts(a)
           setOwners(o)
           setCategories(c)
           setTags(g)
+          setLoadError(false)
         })
         .catch(() => {
           if (!signal?.aborted) setLoadError(true)
         }),
-    [tagFilter],
+    [paramKey],
   )
 
-  // Reloads when the Tag filter changes (load depends on it).
+  // Reloads whenever the URL's filters, sort or page change (load depends on them).
   useEffect(() => {
     const controller = new AbortController()
     void load(controller.signal)
     return () => controller.abort()
   }, [load])
+
+  const transactions = page?.items ?? null
+  const selectedIds = selection.key === paramKey ? selection.ids : []
+  const setSelected = (ids: string[]) => setSelection({ key: paramKey, ids })
+  const filtered = FILTER_KEYS.some(k => params.get(k))
+  const pageNumber = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1)
+  const pageCount = page ? Math.max(1, Math.ceil(page.total / PAGE_SIZE)) : 1
+
+  /** Sets (or with '' removes) URL parameters; any filter change goes back to the first page. */
+  const update = (changes: Record<string, string>) => {
+    const next = new URLSearchParams(params)
+    for (const [key, value] of Object.entries(changes)) {
+      if (value) next.set(key, value)
+      else next.delete(key)
+    }
+    if (!('page' in changes)) next.delete('page')
+    setParams(next)
+    setBulkMessage(null)
+  }
 
   // The Accounts listed are exactly the ones the Member can manage (own + Family).
   const manageable = new Set(accounts.map(a => a.id))
@@ -125,41 +193,328 @@ export function TransactionsPage() {
           </button>
         </p>
       )}
-      {tags.length > 0 && (
-        <div className="transaction-filters">
-          <SelectField label="Tag" name="tagFilter" value={tagFilter} onChange={e => setTagFilter(e.target.value)}>
-            <option value="">Any</option>
-            {tags.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name}
+      <FilterBar
+        params={params}
+        accounts={accounts}
+        owners={owners}
+        categories={categories}
+        tags={tags}
+        filtered={filtered}
+        onChange={update}
+        onClear={() => update(Object.fromEntries(FILTER_KEYS.map(k => [k, ''])))}
+      />
+      {bulkMessage && (
+        <p className="status status-good" role="status">
+          {bulkMessage}
+        </p>
+      )}
+      {transactions !== null && page !== null && (
+        <section className="card">
+          {transactions.length === 0 ? (
+            <p>{filtered ? 'No Transactions match these filters.' : 'No Transactions yet.'}</p>
+          ) : (
+            <>
+              <div className="transaction-list-header">
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={transactions.every(t => selectedIds.includes(t.id))}
+                    onChange={e => setSelected(e.target.checked ? transactions.map(t => t.id) : [])}
+                  />{' '}
+                  Select all on this page
+                </label>
+                <span className="account-meta">
+                  {page.total} {page.total === 1 ? 'Transaction' : 'Transactions'}
+                </span>
+              </div>
+              <ul className="transaction-list">
+                {transactions.map(t => (
+                  <TransactionRow
+                    key={t.id}
+                    transaction={t}
+                    all={transactions}
+                    owners={owners}
+                    categories={categories}
+                    tags={tags}
+                    canEditFacts={t.origin === 'manual' && manageable.has(t.accountId)}
+                    selected={selectedIds.includes(t.id)}
+                    onSelect={checked =>
+                      setSelected(checked ? [...selectedIds, t.id] : selectedIds.filter(id => id !== t.id))
+                    }
+                    onChanged={() => void load()}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
+          {pageCount > 1 && (
+            <nav className="pager" aria-label="Pages">
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={pageNumber <= 1}
+                onClick={() => update({ page: pageNumber - 1 > 1 ? String(pageNumber - 1) : '' })}
+              >
+                Previous
+              </button>
+              <span>
+                Page {pageNumber} of {pageCount}
+              </span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={pageNumber >= pageCount}
+                onClick={() => update({ page: String(pageNumber + 1) })}
+              >
+                Next
+              </button>
+            </nav>
+          )}
+        </section>
+      )}
+      {selectedIds.length > 0 && transactions !== null && (
+        <BulkEditPanel
+          selected={transactions.filter(t => selectedIds.includes(t.id))}
+          owners={owners}
+          categories={categories}
+          tags={tags}
+          onClear={() => setSelected([])}
+          onDone={count => {
+            setSelected([])
+            setBulkMessage(`Changed ${count} ${count === 1 ? 'Transaction' : 'Transactions'}.`)
+            void load()
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+/** Search box plus Account, Owner, Category, Tag, date range and sort; every change goes into the URL. */
+function FilterBar({
+  params,
+  accounts,
+  owners,
+  categories,
+  tags,
+  filtered,
+  onChange,
+  onClear,
+}: {
+  params: URLSearchParams
+  accounts: Account[]
+  owners: Owner[]
+  categories: Category[]
+  tags: Tag[]
+  filtered: boolean
+  onChange: (changes: Record<string, string>) => void
+  onClear: () => void
+}) {
+  const value = (key: string) => params.get(key) ?? ''
+  const q = value('q')
+  const active = FILTER_KEYS.filter(k => k !== 'q' && params.get(k)).length
+  // On a phone the filters fold away under the search box unless some are applied; on wider screens they show.
+  const [open, setOpen] = useState(() => active > 0 || window.matchMedia('(min-width: 768px)').matches)
+
+  function search(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const text = new FormData(e.currentTarget).get('q')
+    onChange({ q: typeof text === 'string' ? text.trim() : '' })
+  }
+
+  return (
+    <section className="transaction-filters" aria-label="Filters">
+      {/* Keyed by the URL's text so Clear / Back show what is applied; Enter applies the search. */}
+      <form key={q} className="transaction-search" role="search" onSubmit={search}>
+        <FormField label="Search" name="q" type="search" defaultValue={q} placeholder="Description, note, …" />
+        <button type="submit" className="button-secondary">
+          Search
+        </button>
+      </form>
+      <details className="transaction-filter-details" open={open} onToggle={e => setOpen(e.currentTarget.open)}>
+        <summary>Filters{active > 0 ? ` · ${active} applied` : ''}</summary>
+        <div className="transaction-filter-grid">
+          <SelectField label="Account" name="account" value={value('account')} onChange={e => onChange({ account: e.target.value })}>
+            <option value="">All Accounts</option>
+            {accounts.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </SelectField>
+          <SelectField label="Owner" name="owner" value={value('owner')} onChange={e => onChange({ owner: e.target.value })}>
+            <option value="">Any Owner</option>
+            <OwnerOptions owners={owners} />
+          </SelectField>
+          <SelectField
+            label="Category"
+            name="category"
+            value={value('category')}
+            onChange={e => onChange({ category: e.target.value })}
+          >
+            <option value="">Any Category</option>
+            <option value="uncategorised">Uncategorised</option>
+            <CategoryOptions categories={categories} />
+          </SelectField>
+          {tags.length > 0 && (
+            <SelectField label="Tag" name="tag" value={value('tag')} onChange={e => onChange({ tag: e.target.value })}>
+              <option value="">Any Tag</option>
+              {tags.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </SelectField>
+          )}
+          <FormField label="From" name="from" type="date" value={value('from')} onChange={e => onChange({ from: e.target.value })} />
+          <FormField label="To" name="to" type="date" value={value('to')} onChange={e => onChange({ to: e.target.value })} />
+          <SelectField label="Sort" name="sort" value={value('sort') || 'date-desc'} onChange={e => onChange({ sort: e.target.value === 'date-desc' ? '' : e.target.value })}>
+            {SORTS.map(s => (
+              <option key={s.value} value={s.value}>
+                {s.label}
               </option>
             ))}
           </SelectField>
         </div>
+      </details>
+      {filtered && (
+        <button type="button" className="button-link transaction-filters-clear" onClick={onClear}>
+          Clear filters
+        </button>
       )}
-      {transactions !== null && (
-        <section className="card">
-          {transactions.length === 0 ? (
-            <p>{tagFilter ? 'No Transactions with this Tag.' : 'No Transactions yet.'}</p>
-          ) : (
-            <ul className="transaction-list">
-              {transactions.map(t => (
-                <TransactionRow
-                  key={t.id}
-                  transaction={t}
-                  all={transactions}
-                  owners={owners}
-                  categories={categories}
-                  tags={tags}
-                  canEditFacts={t.origin === 'manual' && manageable.has(t.accountId)}
-                  onChanged={() => void load()}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
+    </section>
+  )
+}
+
+/**
+ * Changes Category, Owner and/or Tags of the selected Transactions in one action (recorded as manual edits, exactly
+ * like editing each one). All or nothing: when one of them can't take the change, nothing changes and it is named.
+ */
+function BulkEditPanel({
+  selected,
+  owners,
+  categories,
+  tags,
+  onClear,
+  onDone,
+}: {
+  selected: Transaction[]
+  owners: Owner[]
+  categories: Category[]
+  tags: Tag[]
+  onClear: () => void
+  onDone: (count: number) => void
+}) {
+  // "" = keep as it is.
+  const [categoryId, setCategoryId] = useState('')
+  const [owner, setOwner] = useState('')
+  const [addTagIds, setAddTagIds] = useState<string[]>([])
+  const [removeTagIds, setRemoveTagIds] = useState<string[]>([])
+  const [errors, setErrors] = useState<Errors>({})
+  const [busy, setBusy] = useState(false)
+
+  const nothingChosen = !categoryId && !owner && addTagIds.length === 0 && removeTagIds.length === 0
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    const edit: BulkEdit = { transactionIds: selected.map(t => t.id) }
+    if (categoryId === 'uncategorised') edit.uncategorise = true
+    else if (categoryId) edit.categoryId = categoryId
+    if (owner) edit.owner = ownerRefFromValue(owner)
+    if (addTagIds.length > 0) edit.addTagIds = addTagIds
+    if (removeTagIds.length > 0) edit.removeTagIds = removeTagIds
+    setBusy(true)
+    setErrors({})
+    try {
+      const changed = await bulkEditTransactions(edit)
+      onDone(changed.length)
+    } catch (err) {
+      setErrors(toErrors(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const refused = selected
+    .map(t => ({ t, messages: errors[bulkErrorKey(t.id)] }))
+    .filter(r => r.messages !== undefined)
+  const generalError = errors.form ?? errors.transactionIds ?? errors.change
+
+  return (
+    <form className="card form bulk-edit" onSubmit={submit} aria-label="Change selected Transactions">
+      <div className="bulk-edit-header">
+        <strong>
+          {selected.length} selected
+        </strong>
+        <button type="button" className="button-link" onClick={onClear}>
+          Clear selection
+        </button>
+      </div>
+      <SelectField
+        label="Category"
+        name="bulkCategory"
+        value={categoryId}
+        errors={errors.categoryId}
+        onChange={e => setCategoryId(e.target.value)}
+      >
+        <option value="">Keep as it is</option>
+        <option value="uncategorised">Uncategorised</option>
+        <CategoryOptions categories={categories} />
+      </SelectField>
+      <SelectField label="Owner" name="bulkOwner" value={owner} errors={errors.owner} onChange={e => setOwner(e.target.value)}>
+        <option value="">Keep as it is</option>
+        <OwnerOptions owners={owners} />
+      </SelectField>
+      {tags.length > 0 && (
+        <details className="bulk-edit-tags" open={addTagIds.length + removeTagIds.length > 0}>
+          <summary>Tags</summary>
+          <TagPicker
+            legend="Add Tags"
+            tags={tags}
+            selected={addTagIds}
+            errors={errors.addTagIds}
+            onChange={ids => {
+              setAddTagIds(ids)
+              setRemoveTagIds(removeTagIds.filter(id => !ids.includes(id)))
+            }}
+            hint="Added by hand to every selected Transaction."
+          />
+          <TagPicker
+            legend="Remove Tags"
+            tags={tags}
+            selected={removeTagIds}
+            errors={errors.removeTagIds}
+            onChange={ids => {
+              setRemoveTagIds(ids)
+              setAddTagIds(addTagIds.filter(id => !ids.includes(id)))
+            }}
+            hint="Removed for good: date ranges won’t add them back."
+          />
+        </details>
       )}
-    </>
+      {refused.length > 0 && (
+        <div className="form-error" role="alert">
+          Nothing was changed. These can’t take the change:
+          <ul>
+            {refused.map(({ t, messages }) => (
+              <li key={t.id}>
+                {formatDate(t.date)} {t.displayName ?? t.description}: {messages![0]}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {generalError && (
+        <p className="form-error" role="alert">
+          {generalError[0]}
+        </p>
+      )}
+      <div className="form-actions">
+        <button type="submit" className="button-primary" disabled={busy || nothingChosen}>
+          Apply to {selected.length}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -170,6 +525,8 @@ function TransactionRow({
   categories,
   tags,
   canEditFacts,
+  selected,
+  onSelect,
   onChanged,
 }: {
   transaction: Transaction
@@ -178,6 +535,8 @@ function TransactionRow({
   categories: Category[]
   tags: Tag[]
   canEditFacts: boolean
+  selected: boolean
+  onSelect: (selected: boolean) => void
   onChanged: () => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -226,7 +585,14 @@ function TransactionRow({
     )
 
   return (
-    <li className="transaction-row">
+    <li className={`transaction-row${selected ? ' selected' : ''}`}>
+      <input
+        type="checkbox"
+        className="transaction-select"
+        checked={selected}
+        aria-label={`Select ${t.displayName ?? t.description}`}
+        onChange={e => onSelect(e.target.checked)}
+      />
       <div className="transaction-date">{formatDate(t.date)}</div>
       <div className="transaction-main">
         <strong>{t.displayName ?? t.description}</strong>
@@ -748,6 +1114,7 @@ function CategoryField(props: {
 
 /** Tag checkboxes. */
 function TagPicker(props: {
+  legend?: string
   tags: Tag[]
   selected: string[]
   errors: string[] | undefined
@@ -757,7 +1124,7 @@ function TagPicker(props: {
   if (props.tags.length === 0) return null
   return (
     <fieldset className="checkbox-group">
-      <legend>Tags</legend>
+      <legend>{props.legend ?? 'Tags'}</legend>
       <span className="account-meta">{props.hint}</span>
       {props.tags.map(tag => (
         <label key={tag.id} className="checkbox-field">
