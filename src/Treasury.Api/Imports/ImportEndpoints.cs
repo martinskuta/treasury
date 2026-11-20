@@ -20,6 +20,7 @@ public static class ImportEndpoints
         builder.Services.AddSingleton<ImportFiles>();
         builder.Services.AddSingleton<ImportLocks>();
         builder.Services.AddScoped<ImportPipeline>();
+        builder.Services.AddScoped<ImportUndo>();
         // Production Integrations (tests register their fake ones on top). Bank-specific ones (#21/#22) go here.
         builder.Services.AddSingleton<IIntegration, GenericCsvIntegration>();
     }
@@ -90,6 +91,19 @@ public static class ImportEndpoints
             return File.Exists(path)
                 ? Results.File(path, "application/octet-stream", file.FileName)
                 : Results.NotFound();
+        });
+
+        // Undo the import (#10): removes the Source file and every Transaction imported from it.
+        api.MapDelete("/source-files/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
+            ImportUndo undo, CancellationToken ct) =>
+        {
+            var viewer = user.MemberId();
+            var file = await VisibleSourceFiles(db, viewer).Include(f => f.Account).AsNoTracking()
+                .SingleOrDefaultAsync(f => f.Id == id, ct);
+            if (file is null) return Results.NotFound();
+            if (!file.Account.Owner.IsManageableBy(viewer)) return Results.Forbid();
+            await undo.UndoAsync(file, ct);
+            return Results.NoContent();
         });
     }
 

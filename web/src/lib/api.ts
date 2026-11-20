@@ -261,6 +261,9 @@ export const listSourceFiles = (accountId: string, signal?: AbortSignal) =>
 /** Link that downloads the original file. */
 export const sourceFileContentUrl = (id: string) => `/api/source-files/${id}/content`
 
+/** Undo an import: deletes the Source file and every Transaction imported from it. */
+export const deleteSourceFile = (id: string) => apiFetch<void>(`/api/source-files/${id}`, { method: 'DELETE' })
+
 // ---- Categories ----
 
 /** A Category as Transactions carry it; `path` is e.g. "Food › Eating out". */
