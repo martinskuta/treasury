@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Auth;
+using Treasury.Api.Data;
 using Treasury.Api.Ownership;
 
 namespace Treasury.Api.Members;
@@ -72,9 +73,20 @@ public static class MemberEndpoints
             return Results.Ok(new MemberResponse(member.Id, member.UserName!, isAdmin, member.IsActive));
         });
 
+        // Only what the Admin needs to choose a new Owner for each Account on deactivation: no balances,
+        // identifiers or Transactions (the Admin role gives no view into personal finances).
+        members.MapGet("/{id:guid}/accounts", async (Guid id, UserManager<Member> users, TreasuryDbContext db) =>
+        {
+            if (await users.FindByIdAsync(id.ToString()) is null) return Results.NotFound();
+            var accounts = await db.Accounts.Where(a => a.OwnerMemberId == id).OrderBy(a => a.Name)
+                .Select(a => new HandoverAccountResponse(a.Id, a.Name, a.Currency)).ToListAsync();
+            return Results.Ok(accounts);
+        });
+
         // Deactivate, never delete: the Member's data stays, their login and open sessions stop working.
+        // Each listed Account is handed to its new Owner; Accounts not listed stay with the deactivated Member.
         members.MapPost("/{id:guid}/deactivate", async (Guid id, DeactivateRequest request, ClaimsPrincipal user,
-            UserManager<Member> users, TimeProvider clock) =>
+            UserManager<Member> users, TreasuryDbContext db, TimeProvider clock) =>
         {
             var member = await users.FindByIdAsync(id.ToString());
             if (member is null) return Results.NotFound();
@@ -83,8 +95,29 @@ public static class MemberEndpoints
                     { ["member"] = ["You can't deactivate yourself."] });
             if (!member.IsActive) return Results.NoContent();
 
+            var handover = request.Handover ?? [];
+            var accounts = await db.Accounts.Where(a => a.OwnerMemberId == id).ToDictionaryAsync(a => a.Id);
+            var newOwnerIds = handover.Select(h => h.Owner?.ToOwner()?.MemberId).OfType<Guid>().Distinct().ToList();
+            var activeTargets = await db.Users.Where(m => newOwnerIds.Contains(m.Id) && m.Id != id && m.DeactivatedAt == null)
+                .Select(m => m.Id).ToListAsync();
+
+            var errors = new List<string>();
+            if (handover.Select(h => h.AccountId).Distinct().Count() != handover.Count)
+                errors.Add("Each Account can be handed over only once.");
+            foreach (var item in handover)
+            {
+                if (!accounts.TryGetValue(item.AccountId, out var account))
+                    errors.Add("Only the Member's own Accounts can be handed over.");
+                else if (item.Owner?.ToOwner() is not { } owner || owner.MemberId is { } to && !activeTargets.Contains(to))
+                    errors.Add($"Hand \"{account.Name}\" to the Family or another active Member.");
+            }
+            if (errors.Count > 0)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["handover"] = [.. errors.Distinct()] });
+
+            foreach (var item in handover) accounts[item.AccountId].Owner = item.Owner!.ToOwner()!.Value;
             member.DeactivatedAt = clock.GetUtcNow();
-            await users.UpdateAsync(member);
+            // UserManager's store shares this request's DbContext, so this one save stores the handover, the
+            // deactivation and the new security stamp (which ends the Member's sessions) together.
             await users.UpdateSecurityStampAsync(member);
             return Results.NoContent();
         });
@@ -95,6 +128,8 @@ public static class MemberEndpoints
     public record ResetPasswordRequest(string? NewPassword);
 
     public record SetAdminRequest(bool? IsAdmin);
+
+    public record HandoverAccountResponse(Guid Id, string Name, string Currency);
 
     public record DeactivateRequest(IReadOnlyList<HandoverRequest>? Handover);
 

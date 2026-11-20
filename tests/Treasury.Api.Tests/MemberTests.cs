@@ -182,6 +182,127 @@ public class MemberTests : ApiTestBase
         await Assert.That((await Client.GetAsync("/api/auth/me")).StatusCode).IsEqualTo(HttpStatusCode.OK);
     }
 
+    [Test]
+    public async Task When_deactivating_the_admin_hands_each_account_to_the_family_or_another_member()
+    {
+        var bobId = await AddMemberAsync("bob");
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MyIdAsync(anna);
+        var salary = await CreatePersonalAccountAsync(anna, annaId, "Salary");
+        var savings = await CreatePersonalAccountAsync(anna, annaId, "Savings");
+        await LoginAsAdminAsync();
+
+        var res = await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new
+        {
+            handover = new object[]
+            {
+                new { accountId = salary, owner = new { kind = "family" } },
+                new { accountId = savings, owner = new { kind = "member", memberId = bobId } },
+            },
+        });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        var family = await Client.GetFromJsonAsync<AccountRow>($"/api/accounts/{salary}");
+        await Assert.That(family!.Owner.Kind).IsEqualTo("family");
+        using var bob = NewClient();
+        await LoginAsync(bob, "bob", MemberPassword);
+        var bobs = await bob.GetFromJsonAsync<AccountRow>($"/api/accounts/{savings}");
+        await Assert.That(bobs!.Owner.MemberId).IsEqualTo(bobId);
+        await Assert.That(bobs.Owner.Name).IsEqualTo("bob");
+        await Assert.That(await HandoverListAsync(annaId)).IsEmpty();
+    }
+
+    [Test]
+    public async Task Accounts_not_handed_over_stay_with_the_deactivated_member()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MyIdAsync(anna);
+        var salary = await CreatePersonalAccountAsync(anna, annaId, "Salary");
+        await LoginAsAdminAsync();
+
+        await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new { handover = Array.Empty<object>() });
+
+        var left = await HandoverListAsync(annaId);
+        await Assert.That(left.Select(a => a.Id)).IsEquivalentTo([salary]);
+    }
+
+    [Test]
+    public async Task The_admin_sees_only_names_of_a_members_accounts_for_handover_not_the_accounts_themselves()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MyIdAsync(anna);
+        var salary = await CreatePersonalAccountAsync(anna, annaId, "Salary");
+        await LoginAsAdminAsync();
+
+        var forHandover = await Client.GetStringAsync($"/api/admin/members/{annaId}/accounts");
+        var list = await HandoverListAsync(annaId);
+
+        await Assert.That(list.Select(a => (a.Id, a.Name, a.Currency))).IsEquivalentTo([(salary, "Salary", "CHF")]);
+        await Assert.That(forHandover).DoesNotContain("balance", StringComparison.OrdinalIgnoreCase);
+        await Assert.That(forHandover).DoesNotContain("identifier", StringComparison.OrdinalIgnoreCase);
+        await Assert.That((await Client.GetAsync($"/api/accounts/{salary}")).StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        var visible = await Client.GetFromJsonAsync<List<AccountRow>>("/api/accounts");
+        await Assert.That(visible!).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_handover_to_an_invalid_owner_or_of_someone_elses_account_is_rejected_and_nothing_changes()
+    {
+        var bobId = await AddMemberAsync("bob");
+        var carlId = await AddMemberAsync("carl");
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MyIdAsync(anna);
+        var salary = await CreatePersonalAccountAsync(anna, annaId, "Salary");
+        var joint = await CreateAccountAsync(anna, "Joint", new { kind = "family" });
+        await LoginAsAdminAsync();
+        await Client.PostAsJsonAsync($"/api/admin/members/{carlId}/deactivate", new { handover = Array.Empty<object>() });
+
+        object[] invalid =
+        [
+            new { accountId = salary, owner = new { kind = "member", memberId = annaId } },        // to herself
+            new { accountId = salary, owner = new { kind = "member", memberId = carlId } },        // to a deactivated Member
+            new { accountId = salary, owner = new { kind = "member", memberId = Guid.NewGuid() } }, // to nobody
+            new { accountId = salary, owner = new { kind = "bank" } },                             // not an Owner
+            new { accountId = joint, owner = new { kind = "member", memberId = bobId } },           // not hers
+            new { accountId = Guid.NewGuid(), owner = new { kind = "family" } },                    // no such Account
+        ];
+        foreach (var item in invalid)
+        {
+            var res = await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new { handover = new[] { item } });
+            await AssertValidationErrorAsync(res, "handover");
+        }
+
+        await Assert.That((await anna.GetAsync("/api/auth/me")).StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var annas = await anna.GetFromJsonAsync<AccountRow>($"/api/accounts/{salary}");
+        await Assert.That(annas!.Owner.MemberId).IsEqualTo(annaId);
+        var familys = await anna.GetFromJsonAsync<AccountRow>($"/api/accounts/{joint}");
+        await Assert.That(familys!.Owner.Kind).IsEqualTo("family");
+    }
+
+    private static async Task<Guid> MyIdAsync(HttpClient client) => (await client.GetFromJsonAsync<Me>("/api/auth/me"))!.Id;
+
+    private static Task<Guid> CreatePersonalAccountAsync(HttpClient client, Guid memberId, string name) =>
+        CreateAccountAsync(client, name, new { kind = "member", memberId });
+
+    private static async Task<Guid> CreateAccountAsync(HttpClient client, string name, object owner)
+    {
+        var res = await client.PostAsJsonAsync("/api/accounts", new
+        {
+            name, owner, integrationKey = "test", currency = "CHF", openingBalance = 100m, openingDate = "2026-01-01",
+        });
+        res.EnsureSuccessStatusCode();
+        return (await res.Content.ReadFromJsonAsync<AccountRow>())!.Id;
+    }
+
+    private async Task<List<HandoverAccount>> HandoverListAsync(Guid memberId) =>
+        (await Client.GetFromJsonAsync<List<HandoverAccount>>($"/api/admin/members/{memberId}/accounts"))!;
+
+    private record HandoverAccount(Guid Id, string Name, string Currency);
+
+    private record OwnerRow(string Kind, Guid? MemberId, string Name);
+
+    private record AccountRow(Guid Id, string Name, OwnerRow Owner);
+
     // {id} is replaced by another Member's id.
     [Test]
     [Arguments("GET", "/api/admin/members")]
@@ -189,6 +310,7 @@ public class MemberTests : ApiTestBase
     [Arguments("POST", "/api/admin/members/{id}/password")]
     [Arguments("PUT", "/api/admin/members/{id}/admin")]
     [Arguments("POST", "/api/admin/members/{id}/deactivate")]
+    [Arguments("GET", "/api/admin/members/{id}/accounts")]
     public async Task Members_without_the_admin_role_cannot_reach_member_management(string method, string path)
     {
         var bobId = await AddMemberAsync("bob");

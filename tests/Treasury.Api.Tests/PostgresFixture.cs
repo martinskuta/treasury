@@ -10,7 +10,10 @@ public sealed class PostgresFixture : IAsyncInitializer, IAsyncDisposable
 {
     public const string TemplateDb = "treasury_template";
 
+    // Tests run in parallel and each one has its own database (= its own connection pool), so allow more
+    // connections than the default 100; ApiTestBase also clears each test's pool when it ends.
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18")
+        .WithCommand("-c", "max_connections=500")
         .Build();
 
     public async Task InitializeAsync()

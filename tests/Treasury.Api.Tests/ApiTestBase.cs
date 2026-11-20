@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Npgsql;
 
 namespace Treasury.Api.Tests;
 
@@ -66,5 +67,7 @@ public abstract class ApiTestBase : IAsyncDisposable
     {
         Client?.Dispose();
         if (App is not null) await App.DisposeAsync();
+        // Release this test's idle pooled connections so parallel tests don't exhaust max_connections.
+        if (ConnectionString is not null) NpgsqlConnection.ClearPool(new NpgsqlConnection(ConnectionString));
     }
 }
