@@ -11,22 +11,29 @@ public static class TransactionEndpoints
 {
     public const int MaxDescriptionLength = 500;
     public const int MaxNoteLength = 2000;
+    public const int MaxDisplayNameLength = 200;
 
     public record CreateTransactionRequest(Guid? AccountId, DateOnly? Date, decimal? Amount, string? Description,
         string? Note, OwnerRequest? Owner, Guid? CategoryId);
 
-    /// Partial update: a missing (null) field stays as it is; an empty note clears the note;
+    /// Partial update: a missing (null) field stays as it is; an empty note or Display name clears it;
     /// `uncategorise: true` makes the Transaction Uncategorised (instead of setting a `categoryId`).
     public record UpdateTransactionRequest(DateOnly? Date, decimal? Amount, string? Description, string? Note,
-        OwnerRequest? Owner, Guid? CategoryId, bool? Uncategorise);
+        OwnerRequest? Owner, Guid? CategoryId, bool? Uncategorise, string? DisplayName);
 
     /// Category null = Uncategorised. ManuallySet lists the classification fields a Member set by hand
-    /// ("owner", "category").
+    /// ("owner", "category", "displayName").
+    /// <param name="Description">The original description (never replaced by the Display name).</param>
+    /// <param name="OriginalAmount">Foreign-currency purchase: the amount in <paramref name="OriginalCurrency"/>.</param>
+    /// <param name="SourceFile">The Source file an imported Transaction came from; null for manual ones.</param>
     public record TransactionResponse(Guid Id, Guid AccountId, string AccountName, DateOnly Date, decimal Amount,
-        string Currency, decimal? ChfAmount, string Type, string Description, string? Note, OwnerResponse Owner,
-        string Origin, CategoryRef? Category, string[] ManuallySet);
+        string Currency, decimal? ChfAmount, string Type, string Description, string? DisplayName,
+        string? Counterparty, string? Reference, decimal? OriginalAmount, string? OriginalCurrency, string? Note,
+        OwnerResponse Owner, string Origin, CategoryRef? Category, string[] ManuallySet, SourceFileRef? SourceFile);
 
     public record CategoryRef(Guid Id, string Name, string Path);
+
+    public record SourceFileRef(Guid Id, string FileName);
 
     /// /api/transactions: the Transactions the current Member can see, and manual Transactions.
     public static void MapTransactions(this RouteGroupBuilder api)
@@ -35,7 +42,7 @@ public static class TransactionEndpoints
 
         transactions.MapGet("/", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
         {
-            var list = await db.Transactions.VisibleTo(user.MemberId()).Include(t => t.Account)
+            var list = await db.Transactions.VisibleTo(user.MemberId()).Include(t => t.Account).Include(t => t.SourceFile)
                 .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
@@ -43,7 +50,7 @@ public static class TransactionEndpoints
         // The Uncategorised queue: visible Income and Expense without a Category, newest first.
         transactions.MapGet("/uncategorised", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
         {
-            var list = await db.Transactions.VisibleTo(user.MemberId()).Uncategorised().Include(t => t.Account)
+            var list = await db.Transactions.VisibleTo(user.MemberId()).Uncategorised().Include(t => t.Account).Include(t => t.SourceFile)
                 .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
@@ -98,7 +105,7 @@ public static class TransactionEndpoints
             return Results.Created($"/api/transactions/{transaction.Id}", (await ToResponsesAsync(db, chf, [transaction]))[0]);
         });
 
-        // Classification (Owner, Category, note) can be changed by anyone who sees the Transaction; the facts (date, amount,
+        // Classification (Owner, Category, note, Display name) can be changed by anyone who sees the Transaction; the facts (date, amount,
         // description) only on manual Transactions, by Members who can manage the Account.
         transactions.MapPatch("/{id:guid}", async (Guid id, UpdateTransactionRequest request, ClaimsPrincipal user,
             TreasuryDbContext db, ChfConverter chf, ExchangeRateSyncSignal rates) =>
@@ -122,6 +129,9 @@ public static class TransactionEndpoints
             var description = request.Description?.Trim();
             if (request.Description is not null) ValidateDescription(description, errors);
             var note = request.Note is null ? transaction.Note : NormalizeNote(request.Note, errors);
+            var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
+            if (displayName?.Length > MaxDisplayNameLength)
+                errors["displayName"] = [$"Use at most {MaxDisplayNameLength} characters."];
             var owner = request.Owner is null ? null : await ResolveOwnerAsync(db, request.Owner, errors);
             if (request.CategoryId is not null && request.Uncategorise == true)
                 errors["categoryId"] = ["Either choose a Category or make the Transaction Uncategorised."];
@@ -132,6 +142,11 @@ public static class TransactionEndpoints
             if (request.Amount is { } amount) transaction.Amount = amount;
             if (description is not null) transaction.Description = description;
             transaction.Note = note;
+            if (request.DisplayName is not null)
+            {
+                transaction.DisplayName = displayName;
+                transaction.ManuallySet |= ManuallySetFields.DisplayName;
+            }
             if (owner is { } newOwner)
             {
                 transaction.Owner = newOwner;
@@ -173,7 +188,7 @@ public static class TransactionEndpoints
     }
 
     private static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
-        db.Transactions.VisibleTo(viewer).Include(t => t.Account).SingleOrDefaultAsync(t => t.Id == id);
+        db.Transactions.VisibleTo(viewer).Include(t => t.Account).Include(t => t.SourceFile).SingleOrDefaultAsync(t => t.Id == id);
 
     /// The requested Owner: the Family or any active Member; null (with an `owner` error) otherwise.
     private static async Task<Owner?> ResolveOwnerAsync(TreasuryDbContext db, OwnerRequest request,
@@ -221,9 +236,11 @@ public static class TransactionEndpoints
         var categories = list.Any(t => t.CategoryId is not null) ? await CategoryTree.LoadAsync(db) : new CategoryTree([]);
         return list.Select(t => new TransactionResponse(t.Id, t.AccountId, t.Account.Name, t.Date, t.Amount,
             t.Account.Currency, rates!.ToChf(t.Amount, t.Account.Currency, t.Date),
-            t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.Note,
-            OwnerResponse.From(t.Owner, names), t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
-            ToCategoryRef(categories, t.CategoryId), ManuallySetNames(t.ManuallySet))).ToList();
+            t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.DisplayName,
+            t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
+            t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
+            ToCategoryRef(categories, t.CategoryId), ManuallySetNames(t.ManuallySet),
+            t.SourceFile is null ? null : new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName))).ToList();
     }
 
     private static CategoryRef? ToCategoryRef(CategoryTree tree, Guid? categoryId) =>

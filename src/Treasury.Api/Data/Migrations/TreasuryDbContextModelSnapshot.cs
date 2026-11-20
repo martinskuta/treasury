@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120002749_Categories";
+    public override string LastMigrationId => "20261120003428_Import";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -340,6 +340,48 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("ExchangeRates");
             });
 
+        modelBuilder.Entity("Treasury.Api.Imports.SourceFile", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("AccountId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("ContentHash")
+                    .IsRequired()
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.Property<string>("FileName")
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnType("character varying(255)");
+
+                b.Property<DateTimeOffset>("ImportedAt")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<Guid?>("ImportedByMemberId")
+                    .HasColumnType("uuid");
+
+                b.Property<long>("Size")
+                    .HasColumnType("bigint");
+
+                b.Property<string>("StoredPath")
+                    .IsRequired()
+                    .HasMaxLength(500)
+                    .HasColumnType("character varying(500)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("ImportedByMemberId");
+
+                b.HasIndex("AccountId", "ImportedAt");
+
+                b.ToTable("SourceFiles");
+            });
+
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.Property<Guid>("Id")
@@ -356,6 +398,10 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Property<Guid?>("CategoryId")
                     .HasColumnType("uuid");
 
+                b.Property<string>("Counterparty")
+                    .HasMaxLength(500)
+                    .HasColumnType("character varying(500)");
+
                 b.Property<DateTimeOffset>("CreatedAt")
                     .HasColumnType("timestamp with time zone");
 
@@ -366,6 +412,10 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .IsRequired()
                     .HasMaxLength(500)
                     .HasColumnType("character varying(500)");
+
+                b.Property<string>("DisplayName")
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
 
                 b.Property<int>("ManuallySet")
                     .HasColumnType("integer");
@@ -379,7 +429,22 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(16)
                     .HasColumnType("character varying(16)");
 
+                b.Property<decimal?>("OriginalAmount")
+                    .HasPrecision(19, 4)
+                    .HasColumnType("numeric(19,4)");
+
+                b.Property<string>("OriginalCurrency")
+                    .HasMaxLength(3)
+                    .HasColumnType("character varying(3)");
+
                 b.Property<Guid?>("OwnerMemberId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Reference")
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<Guid?>("SourceFileId")
                     .HasColumnType("uuid");
 
                 b.HasKey("Id");
@@ -387,6 +452,8 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.HasIndex("CategoryId");
 
                 b.HasIndex("OwnerMemberId");
+
+                b.HasIndex("SourceFileId");
 
                 b.HasIndex("AccountId", "Date");
 
@@ -460,6 +527,22 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+        modelBuilder.Entity("Treasury.Api.Imports.SourceFile", b =>
+            {
+                b.HasOne("Treasury.Api.Accounts.Account", "Account")
+                    .WithMany()
+                    .HasForeignKey("AccountId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Treasury.Api.Auth.Member", null)
+                    .WithMany()
+                    .HasForeignKey("ImportedByMemberId")
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                b.Navigation("Account");
+            });
+
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.HasOne("Treasury.Api.Accounts.Account", "Account")
@@ -478,7 +561,14 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("OwnerMemberId")
                     .OnDelete(DeleteBehavior.Restrict);
 
+                b.HasOne("Treasury.Api.Imports.SourceFile", "SourceFile")
+                    .WithMany()
+                    .HasForeignKey("SourceFileId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
                 b.Navigation("Account");
+
+                b.Navigation("SourceFile");
             });
 #pragma warning restore 612, 618
     }

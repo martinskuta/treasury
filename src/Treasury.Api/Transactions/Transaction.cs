@@ -1,4 +1,5 @@
 using Treasury.Api.Accounts;
+using Treasury.Api.Imports;
 using Treasury.Api.Ownership;
 
 namespace Treasury.Api.Transactions;
@@ -12,8 +13,14 @@ public class Transaction : IOwned
 
     public Account Account { get; init; } = null!;
 
-    /// Where the Transaction came from. Imported facts (date, amount, description) are read-only; manual ones aren't.
+    /// Where the Transaction came from. Imported facts (date, amount, description, original amount) are read-only;
+    /// manual ones aren't.
     public TransactionOrigin Origin { get; init; }
+
+    /// The Source file an imported Transaction came from (null for manual ones). Deleting it deletes the Transaction.
+    public Guid? SourceFileId { get; init; }
+
+    public SourceFile? SourceFile { get; init; }
 
     // ---- Facts: editable only for manual Transactions ----
 
@@ -25,6 +32,18 @@ public class Transaction : IOwned
     /// The original description (as entered, or as the bank wrote it). A later Display name doesn't replace it.
     public required string Description { get; set; }
 
+    /// The other party as the bank names it (imported only).
+    public string? Counterparty { get; init; }
+
+    /// The bank's own reference for the movement, when the format has one (imported only; duplicate key, #9).
+    public string? Reference { get; init; }
+
+    /// For a foreign-currency purchase: what was paid in the original currency (same sign as Amount).
+    public decimal? OriginalAmount { get; init; }
+
+    /// ISO code of <see cref="OriginalAmount"/> (any currency, not just the Account currencies).
+    public string? OriginalCurrency { get; init; }
+
     // ---- Classification: editable on every Transaction ----
 
     /// Null = the Family. Defaults to the Account's Owner. Use <see cref="Owner"/> in code.
@@ -35,6 +54,9 @@ public class Transaction : IOwned
         get => new(OwnerMemberId);
         set => OwnerMemberId = value.MemberId;
     }
+
+    /// Friendly name shown instead of the original description, which stays unchanged (GLOSSARY: Display name).
+    public string? DisplayName { get; set; }
 
     public string? Note { get; set; }
 
@@ -71,5 +93,6 @@ public enum ManuallySetFields
     None = 0,
     Owner = 1,
     Category = 2,
-    // Tags = 4, DisplayName = 8 — added by #14 and the Display name ticket.
+    // Tags = 4 — added by #14.
+    DisplayName = 8,
 }

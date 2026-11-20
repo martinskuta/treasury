@@ -1,0 +1,6 @@
+date,amount,description,counterparty,reference,original_amount,original_currency
+2026-11-02,-12.50,COOP-1234 ZURICH HB,Coop,TX-0001,,
+2026-11-03,5000.00,"SALARY NOVEMBER, ACME AG",ACME AG,TX-0002,,
+2026-11-05,-46.20,"TRATTORIA ""DA MARIO"" ROMA",Trattoria da Mario,TX-0003,-48.00,EUR
+
+2026-11-06,-1'250.00,RENT DECEMBER,,,,
