@@ -6,7 +6,9 @@ import { AccountsPage } from './pages/AccountsPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { MembersPage } from './pages/MembersPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 export default function App() {
   return (
@@ -20,6 +22,8 @@ export default function App() {
               <Route index element={<HomePage />} />
               <Route path="accounts" element={<AccountsPage />} />
               <Route path="account/password" element={<ChangePasswordPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/members" element={<MembersPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Route>

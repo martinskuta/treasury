@@ -6,6 +6,7 @@ import { Layout, type NavItem } from './Layout'
 const nav: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Accounts', href: '/accounts' },
+  { label: 'Settings', href: '/settings' },
 ]
 
 /** Layout route for every logged-in screen: shell + Member menu around the matched child route. */
