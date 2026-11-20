@@ -166,7 +166,8 @@ export type Transaction = {
   currency: Currency
   /** The amount in CHF at the rate of its date (= amount for CHF); null until a rate is available. */
   chfAmount: number | null
-  type: 'income' | 'expense'
+  /** A Transfer (a leg of money moved between one Owner's Accounts) is neither Income nor Expense. */
+  type: TransactionType
   /** The original description (as entered, or as the bank wrote it); never replaced by the Display name. */
   description: string
   /** Friendly name shown instead of the description, when set. */
@@ -188,7 +189,13 @@ export type Transaction = {
   manuallySet: ('owner' | 'category' | 'tags' | 'displayName')[]
   /** The Source file an imported Transaction came from. */
   sourceFile: { id: string; fileName: string } | null
+  /** The other leg of a Transfer or Contribution; it may sit in an Account the viewer can't see. */
+  link: TransactionLink | null
 }
+
+export type TransactionType = 'income' | 'expense' | 'transfer'
+
+export type TransactionLink = { kind: 'transfer' | 'contribution'; transactionId: string }
 
 export type NewTransaction = {
   accountId: string
@@ -245,6 +252,14 @@ export const updateTransaction = (id: string, changes: TransactionChanges) =>
   apiFetch<Transaction>(`/api/transactions/${id}`, { method: 'PATCH', body: changes })
 
 export const deleteTransaction = (id: string) => apiFetch<void>(`/api/transactions/${id}`, { method: 'DELETE' })
+
+/** Links two Transactions as a pair: a Transfer (same Owner) or a Contribution (different Owners). */
+export const linkTransactions = (id: string, otherId: string) =>
+  apiFetch<Transaction>(`/api/transactions/${id}/link`, { method: 'POST', body: { transactionId: otherId } })
+
+/** Breaks a pair: both legs become Income or Expense again. */
+export const unlinkTransaction = (id: string) =>
+  apiFetch<Transaction>(`/api/transactions/${id}/link`, { method: 'DELETE' })
 
 // ---- Imports and Source files ----
 

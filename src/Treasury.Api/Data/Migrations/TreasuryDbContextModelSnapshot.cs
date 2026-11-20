@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120005055_Tags";
+    public override string LastMigrationId => "20261120005323_Tags";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -487,6 +487,13 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(200)
                     .HasColumnType("character varying(200)");
 
+                b.Property<string>("LinkKind")
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.Property<Guid?>("LinkedTransactionId")
+                    .HasColumnType("uuid");
+
                 b.Property<int>("ManuallySet")
                     .HasColumnType("integer");
 
@@ -520,6 +527,9 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.HasIndex("CategoryId");
+
+                b.HasIndex("LinkedTransactionId")
+                    .IsUnique();
 
                 b.HasIndex("OwnerMemberId");
 
@@ -658,6 +668,11 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .WithMany()
                     .HasForeignKey("CategoryId")
                     .OnDelete(DeleteBehavior.Restrict);
+
+                b.HasOne("Treasury.Api.Transactions.Transaction", null)
+                    .WithOne()
+                    .HasForeignKey("Treasury.Api.Transactions.Transaction", "LinkedTransactionId")
+                    .OnDelete(DeleteBehavior.SetNull);
 
                 b.HasOne("Treasury.Api.Auth.Member", null)
                     .WithMany()

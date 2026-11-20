@@ -5,6 +5,7 @@ using Treasury.Api.Auth;
 using Treasury.Api.Categories;
 using Treasury.Api.Data;
 using Treasury.Api.Imports;
+using Treasury.Api.Matching;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 using Treasury.Api.Members;
@@ -28,6 +29,7 @@ builder.AddStatementChecks();
 builder.AddIngestScan();
 builder.AddTags();
 builder.AddExchangeRates();
+builder.AddMatching();
 
 var app = builder.Build();
 
@@ -51,6 +53,7 @@ api.MapHealth();
 api.MapAuth();
 api.MapAccounts();
 api.MapTransactions();
+api.MapMatching();
 api.MapImports();
 api.MapIngestScan();
 api.MapOwners();

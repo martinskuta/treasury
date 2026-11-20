@@ -9,9 +9,11 @@ import {
   listAccounts,
   listCategories,
   listOwners,
+  linkTransactions,
   listTags,
   listTransactions,
   sourceFileContentUrl,
+  unlinkTransaction,
   updateTransaction,
   type Account,
   type Category,
@@ -21,6 +23,7 @@ import {
   type TagRef,
   type Transaction,
   type TransactionChanges,
+  type TransactionLink,
 } from '../lib/api'
 import { formatAmount, formatDate } from '../lib/format'
 
@@ -141,6 +144,7 @@ export function TransactionsPage() {
                 <TransactionRow
                   key={t.id}
                   transaction={t}
+                  all={transactions}
                   owners={owners}
                   categories={categories}
                   tags={tags}
@@ -158,6 +162,7 @@ export function TransactionsPage() {
 
 function TransactionRow({
   transaction: t,
+  all,
   owners,
   categories,
   tags,
@@ -165,6 +170,7 @@ function TransactionRow({
   onChanged,
 }: {
   transaction: Transaction
+  all: Transaction[]
   owners: Owner[]
   categories: Category[]
   tags: Tag[]
@@ -172,7 +178,18 @@ function TransactionRow({
   onChanged: () => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [linking, setLinking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  async function unlink() {
+    setError(null)
+    try {
+      await unlinkTransaction(t.id)
+      onChanged()
+    } catch {
+      setError('Couldn’t unlink it.')
+    }
+  }
 
   async function remove() {
     if (!window.confirm(`Delete “${t.description}”?`)) return
@@ -216,7 +233,14 @@ function TransactionRow({
           </div>
         )}
         <div className="account-meta">
-          {t.category?.path ?? 'Uncategorised'} · {t.accountName} · {t.owner.name}
+          {t.type === 'transfer' ? 'Transfer' : (t.category?.path ?? 'Uncategorised')} · {t.accountName} ·{' '}
+          {t.owner.name}
+          {t.link && (
+            <>
+              {' · '}
+              <LinkLabel link={t.link} all={all} />
+            </>
+          )}
           {t.note && <> · {t.note}</>}
           {t.sourceFile && (
             <>
@@ -237,7 +261,29 @@ function TransactionRow({
               Delete
             </button>
           )}
+          {t.link ? (
+            <button type="button" className="button-link" onClick={() => void unlink()}>
+              Unlink
+            </button>
+          ) : (
+            !linking && (
+              <button type="button" className="button-link" onClick={() => setLinking(true)}>
+                Link…
+              </button>
+            )
+          )}
         </div>
+        {linking && !t.link && (
+          <LinkForm
+            transaction={t}
+            all={all}
+            onCancel={() => setLinking(false)}
+            onLinked={() => {
+              setLinking(false)
+              onChanged()
+            }}
+          />
+        )}
         {error && (
           <p className="form-error" role="alert">
             {error}
@@ -275,6 +321,98 @@ function TagChips({ tags }: { tags: TagRef[] }) {
         )
       })}
     </div>
+  )
+}
+
+/** "Transfer with Savings"; the other leg may sit in an Account the viewer can't see. */
+function LinkLabel({ link, all }: { link: TransactionLink; all: Transaction[] }) {
+  const other = all.find(o => o.id === link.transactionId)
+  return (
+    <span className="transaction-link">
+      {link.kind === 'transfer' ? 'Transfer' : 'Contribution'} with {other ? other.accountName : 'another Member’s Account'}
+    </span>
+  )
+}
+
+const daysBetween = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000
+
+/** Possible other legs: unlinked, in another Account, opposite sign; closest date first. */
+const linkCandidates = (t: Transaction, all: Transaction[]) =>
+  all
+    .filter(o => o.id !== t.id && !o.link && o.accountId !== t.accountId && Math.sign(o.amount) === -Math.sign(t.amount))
+    .sort((a, b) => daysBetween(a.date, t.date) - daysBetween(b.date, t.date))
+
+/** Pair this Transaction with another one by hand: a Transfer for the same Owner, a Contribution otherwise. */
+function LinkForm({
+  transaction: t,
+  all,
+  onCancel,
+  onLinked,
+}: {
+  transaction: Transaction
+  all: Transaction[]
+  onCancel: () => void
+  onLinked: () => void
+}) {
+  const candidates = linkCandidates(t, all)
+  const [otherId, setOtherId] = useState(candidates[0]?.id ?? '')
+  const [errors, setErrors] = useState<Errors>({})
+  const [busy, setBusy] = useState(false)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setErrors({})
+    try {
+      await linkTransactions(t.id, otherId)
+      onLinked()
+    } catch (err) {
+      setErrors(toErrors(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (candidates.length === 0)
+    return (
+      <p className="account-meta">
+        No unlinked Transaction with the opposite sign in another Account.{' '}
+        <button type="button" className="button-link" onClick={onCancel}>
+          Close
+        </button>
+      </p>
+    )
+
+  return (
+    <form className="form transaction-link-form" onSubmit={submit}>
+      <SelectField
+        label="Pair with"
+        name="transactionId"
+        value={otherId}
+        errors={errors.transactionId}
+        onChange={e => setOtherId(e.target.value)}
+      >
+        {candidates.map(o => (
+          <option key={o.id} value={o.id}>
+            {formatDate(o.date)} · {o.displayName ?? o.description} · {o.accountName} · {formatAmount(o.amount)}{' '}
+            {o.currency}
+          </option>
+        ))}
+      </SelectField>
+      {errors.form && (
+        <p className="form-error" role="alert">
+          {errors.form[0]}
+        </p>
+      )}
+      <div className="form-actions">
+        <button type="submit" className="button-primary" disabled={busy || !otherId}>
+          Link
+        </button>
+        <button type="button" className="button-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -509,7 +647,11 @@ function EditTransactionForm({
       <SelectField label="Owner" name="owner" value={owner} errors={errors.owner} onChange={e => setOwner(e.target.value)}>
         <OwnerOptions owners={owners} current={t.owner} />
       </SelectField>
-      <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
+      {t.type === 'transfer' ? (
+        <p className="account-meta">A Transfer has no Category. Unlink it to make it an Income or Expense.</p>
+      ) : (
+        <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
+      )}
       <TagPicker
         tags={tags}
         selected={tagIds}

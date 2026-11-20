@@ -57,6 +57,12 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
         {
             t.Ignore(x => x.Owner);
             t.Ignore(x => x.Type);
+            t.Ignore(x => x.IsTransfer);
+            // The other leg of a Transfer/Contribution. Deleting a leg (manual delete, or its Source file with #10's
+            // undo) breaks the link: the other leg's pointer becomes null, so it is no longer a Transfer.
+            t.HasOne<Transaction>().WithOne().HasForeignKey<Transaction>(x => x.LinkedTransactionId)
+                .OnDelete(DeleteBehavior.SetNull);
+            t.Property(x => x.LinkKind).HasConversion<string>().HasMaxLength(16);
             t.Ignore(x => x.FactsEditable);
             t.Property(x => x.Origin).HasConversion<string>().HasMaxLength(16);
             t.Property(x => x.Amount).HasPrecision(19, 4);

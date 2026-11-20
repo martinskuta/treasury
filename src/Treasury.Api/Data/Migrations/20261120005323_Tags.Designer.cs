@@ -12,8 +12,8 @@ using Treasury.Api.Data;
 namespace Treasury.Api.Data.Migrations;
 
 [DbContext(typeof(TreasuryDbContext))]
-[Migration("20261120005055_Tags")]
-partial class _20261120005055_Tags
+[Migration("20261120005323_Tags")]
+partial class _20261120005323_Tags
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -485,6 +485,13 @@ partial class _20261120005055_Tags
                     .HasMaxLength(200)
                     .HasColumnType("character varying(200)");
 
+                b.Property<string>("LinkKind")
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.Property<Guid?>("LinkedTransactionId")
+                    .HasColumnType("uuid");
+
                 b.Property<int>("ManuallySet")
                     .HasColumnType("integer");
 
@@ -518,6 +525,9 @@ partial class _20261120005055_Tags
                 b.HasKey("Id");
 
                 b.HasIndex("CategoryId");
+
+                b.HasIndex("LinkedTransactionId")
+                    .IsUnique();
 
                 b.HasIndex("OwnerMemberId");
 
@@ -656,6 +666,11 @@ partial class _20261120005055_Tags
                     .WithMany()
                     .HasForeignKey("CategoryId")
                     .OnDelete(DeleteBehavior.Restrict);
+
+                b.HasOne("Treasury.Api.Transactions.Transaction", null)
+                    .WithOne()
+                    .HasForeignKey("Treasury.Api.Transactions.Transaction", "LinkedTransactionId")
+                    .OnDelete(DeleteBehavior.SetNull);
 
                 b.HasOne("Treasury.Api.Auth.Member", null)
                     .WithMany()

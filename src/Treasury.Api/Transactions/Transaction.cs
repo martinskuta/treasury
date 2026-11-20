@@ -64,6 +64,13 @@ public class Transaction : IOwned
     /// Null = Uncategorised (for Income and Expense; Transfers never have a Category, #16).
     public Guid? CategoryId { get; set; }
 
+    /// The other leg of a Transfer or Contribution (GLOSSARY), set by matching or by a Member linking two Transactions.
+    /// Both legs point at each other. Deleting one leg (e.g. undoing its import) sets this to null on the other.
+    public Guid? LinkedTransactionId { get; set; }
+
+    /// What the link makes of the pair; only meaningful while <see cref="LinkedTransactionId"/> is set.
+    public LinkKind? LinkKind { get; set; }
+
     /// Classification fields a Member set by hand; Rules (#15) must leave these alone.
     public ManuallySetFields ManuallySet { get; set; }
 
@@ -72,8 +79,13 @@ public class Transaction : IOwned
 
     public DateTimeOffset CreatedAt { get; init; }
 
-    /// Income or Expense from the sign (Transfers come with matching, #8).
-    public TransactionType Type => Amount >= 0 ? TransactionType.Income : TransactionType.Expense;
+    /// A leg of a Transfer: neither Income nor Expense, never has a Category. SQL: TransactionQueries.IsTransfer.
+    public bool IsTransfer => LinkedTransactionId != null && LinkKind == Transactions.LinkKind.Transfer;
+
+    /// Transfer when linked as one, otherwise Income or Expense from the sign (a Contribution leg is an Expense for
+    /// the sender and an Income for the receiver).
+    public TransactionType Type => IsTransfer ? TransactionType.Transfer
+        : Amount >= 0 ? TransactionType.Income : TransactionType.Expense;
 
     public bool FactsEditable => Origin == TransactionOrigin.Manual;
 }
@@ -88,6 +100,17 @@ public enum TransactionType
 {
     Income,
     Expense,
+    Transfer,
+}
+
+/// The kind of a link between two Transactions on different Accounts.
+public enum LinkKind
+{
+    /// Same Owner on both legs: money moved between their own Accounts.
+    Transfer = 1,
+
+    /// Different Owners: an Expense for the sender, an Income for the receiver, with Contribution Categories.
+    Contribution = 2,
 }
 
 /// Which classification fields were set manually (stored as a bit mask, so new fields need no new column).
