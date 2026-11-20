@@ -86,11 +86,61 @@ public class MemberTests : ApiTestBase
         await LoginAsync(anna, "anna", MemberPassword);
     }
 
+    [Test]
+    public async Task An_admin_can_give_and_remove_the_admin_role_effective_in_open_sessions()
+    {
+        var annaId = await AddMemberAsync("anna");
+        using var anna = NewClient();
+        await LoginAsync(anna, "anna", MemberPassword);
+        await LoginAsAdminAsync();
+
+        var give = await Client.PutAsJsonAsync($"/api/admin/members/{annaId}/admin", new { isAdmin = true });
+
+        await Assert.That(give.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await give.Content.ReadFromJsonAsync<MemberRow>())!.IsAdmin).IsTrue();
+        await Assert.That((await anna.GetAsync("/api/admin/members")).StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        var remove = await Client.PutAsJsonAsync($"/api/admin/members/{annaId}/admin", new { isAdmin = false });
+
+        await Assert.That(remove.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await remove.Content.ReadFromJsonAsync<MemberRow>())!.IsAdmin).IsFalse();
+        await Assert.That((await anna.GetAsync("/api/admin/members")).StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await Assert.That((await anna.GetAsync("/api/auth/me")).StatusCode).IsEqualTo(HttpStatusCode.OK);
+    }
+
+    [Test]
+    public async Task The_last_admin_cannot_lose_the_admin_role()
+    {
+        await LoginAsAdminAsync();
+        var adminId = (await Client.GetFromJsonAsync<Me>("/api/auth/me"))!.Id;
+
+        var res = await Client.PutAsJsonAsync($"/api/admin/members/{adminId}/admin", new { isAdmin = false });
+
+        await AssertValidationErrorAsync(res, "isAdmin");
+        var me = await Client.GetFromJsonAsync<Me>("/api/auth/me");
+        await Assert.That(me!.Roles).Contains("Admin");
+    }
+
+    [Test]
+    public async Task An_admin_can_step_down_while_another_admin_remains()
+    {
+        var annaId = await AddMemberAsync("anna");
+        await LoginAsAdminAsync();
+        var adminId = (await Client.GetFromJsonAsync<Me>("/api/auth/me"))!.Id;
+        await Client.PutAsJsonAsync($"/api/admin/members/{annaId}/admin", new { isAdmin = true });
+
+        var res = await Client.PutAsJsonAsync($"/api/admin/members/{adminId}/admin", new { isAdmin = false });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await Client.GetAsync("/api/admin/members")).StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+    }
+
     // {id} is replaced by another Member's id.
     [Test]
     [Arguments("GET", "/api/admin/members")]
     [Arguments("POST", "/api/admin/members")]
     [Arguments("POST", "/api/admin/members/{id}/password")]
+    [Arguments("PUT", "/api/admin/members/{id}/admin")]
     public async Task Members_without_the_admin_role_cannot_reach_member_management(string method, string path)
     {
         var bobId = await AddMemberAsync("bob");

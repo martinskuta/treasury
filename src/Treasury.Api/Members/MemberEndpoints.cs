@@ -48,11 +48,33 @@ public static class MemberEndpoints
             var result = await users.ResetPasswordAsync(member, token, request.NewPassword);
             return result.Succeeded ? Results.NoContent() : IdentityProblem(result, "newPassword");
         });
+
+        // Open sessions pick the change up on their next request (the cookie principal is rebuilt on every
+        // security-stamp check, see AuthSetup).
+        members.MapPut("/{id:guid}/admin", async (Guid id, SetAdminRequest request, UserManager<Member> users) =>
+        {
+            var member = await users.FindByIdAsync(id.ToString());
+            if (member is null) return Results.NotFound();
+            if (request.IsAdmin is not { } isAdmin)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["isAdmin"] = ["Say whether the Member is an Admin."] });
+
+            var admins = await users.GetUsersInRoleAsync(Roles.Admin);
+            var wasAdmin = admins.Any(a => a.Id == id);
+            if (wasAdmin && !isAdmin && admins.Count == 1)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                    { ["isAdmin"] = ["The last Admin can't lose the Admin role. Make another Member an Admin first."] });
+
+            if (isAdmin && !wasAdmin) await users.AddToRoleAsync(member, Roles.Admin);
+            if (!isAdmin && wasAdmin) await users.RemoveFromRoleAsync(member, Roles.Admin);
+            return Results.Ok(new MemberResponse(member.Id, member.UserName!, isAdmin, IsActive: true));
+        });
     }
 
     public record AddMemberRequest(string? UserName, string? Password);
 
     public record ResetPasswordRequest(string? NewPassword);
+
+    public record SetAdminRequest(bool? IsAdmin);
 
     /// Identity errors as a ValidationProblem: user-name errors under "userName", the rest under passwordField.
     private static IResult IdentityProblem(IdentityResult result, string passwordField) =>
