@@ -66,6 +66,22 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
         return null;
     }
 
+    /// Brings the kind of each linked pair among <paramref name="reowned"/> (Transactions whose Owner just changed: by
+    /// hand, by bulk edit or by a Rule) in line with the Owners: same Owner on both legs = Transfer (no Category),
+    /// different Owners = Contribution (built-in Contribution Categories, which also follow the other leg's new
+    /// Owner, unless a Member set the leg's Category by hand). Unlinked Transactions are left alone.
+    public async Task RefreshLinksAsync(IReadOnlyCollection<Transaction> reowned, CancellationToken ct = default)
+    {
+        var linked = reowned.Where(t => t.LinkedTransactionId is not null).ToList();
+        if (linked.Count == 0) return;
+        var tree = await CategoryTree.LoadAsync(db);
+        foreach (var transaction in linked)
+        {
+            var other = await db.Transactions.FindAsync([transaction.LinkedTransactionId!.Value], ct);
+            if (other is not null) Link(transaction, other, KindOf(transaction, other), tree);
+        }
+    }
+
     /// Breaks the link of <paramref name="transaction"/> (no-op when unlinked). Both legs become plain Income or
     /// Expense again; Contribution Categories that matching assigned are removed (back to Uncategorised).
     public async Task UnlinkAsync(Transaction transaction, CancellationToken ct = default)

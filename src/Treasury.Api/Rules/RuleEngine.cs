@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Data;
 using Treasury.Api.Imports;
+using Treasury.Api.Matching;
 using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
 
@@ -11,10 +12,11 @@ namespace Treasury.Api.Rules;
 /// - Category: the first matching Rule that has a Category sets it, unless the Category was set by hand or the
 ///   Transaction is linked (a Transfer has no Category, a Contribution leg carries its built-in one).
 /// - Owner: the first matching Rule that has an Owner sets it, unless the Owner was set by hand or the Rule's Owner
-///   has been deactivated meanwhile. Date-range Tags are then brought up to date (they may depend on the Owner).
+///   has been deactivated meanwhile. Date-range Tags are then brought up to date (they may depend on the Owner), and
+///   a linked pair's kind is re-evaluated (same Owner = Transfer, different = Contribution).
 /// - Tags: every matching Rule adds its Tags, except Tags a Member removed from that Transaction by hand.
 /// Changes tracked entities and saves (it reads Tag links from the database), inside the caller's DB transaction.
-public sealed class RuleEngine(TreasuryDbContext db)
+public sealed class RuleEngine(TreasuryDbContext db, TransactionMatcher matcher)
 {
     public async Task<RuleRunResult> ApplyAsync(IReadOnlyCollection<Transaction> transactions, CancellationToken ct = default)
     {
@@ -62,6 +64,7 @@ public sealed class RuleEngine(TreasuryDbContext db)
             tags.AddRange(matching.SelectMany(r => r.TagLinks).Select(l => (t.Id, l.TagId)));
         }
 
+        await matcher.RefreshLinksAsync(reowned, ct); // a linked leg's new Owner may turn Transfer <-> Contribution
         await db.SaveChangesAsync(ct);
         if (reowned.Count > 0)
         {

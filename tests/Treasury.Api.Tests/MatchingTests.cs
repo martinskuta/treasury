@@ -337,6 +337,78 @@ public class MatchingTests : ApiTestBase
         await Assert.That(left.Category).IsNull();
     }
 
+    [Test]
+    public async Task Changing_the_owner_of_a_transfer_leg_by_hand_turns_the_pair_into_a_contribution_and_back()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var outgoing = await AddAsync(anna, checking.Id, -500m, "2026-11-18", "TO SAVINGS");
+        var incoming = await AddAsync(anna, savings.Id, 500m, "2026-11-18", "FROM CHECKING");
+
+        await PatchOkAsync(anna, incoming.Id, new { owner = Family });
+
+        var sent = await GetAsync(anna, outgoing.Id);
+        var received = await GetAsync(anna, incoming.Id);
+        await Assert.That(sent.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(received.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(sent.Type).IsEqualTo("expense");
+        await Assert.That(sent.Category!.Path).IsEqualTo("Contributions › To Family");
+        await Assert.That(received.Category!.Path).IsEqualTo("Contributions › From Members");
+
+        await PatchOkAsync(anna, incoming.Id, new { owner = me });
+
+        sent = await GetAsync(anna, outgoing.Id);
+        received = await GetAsync(anna, incoming.Id);
+        await Assert.That(sent.Type).IsEqualTo("transfer");
+        await Assert.That(received.Link!.Kind).IsEqualTo("transfer");
+        await Assert.That(sent.Category).IsNull();
+        await Assert.That(received.Category).IsNull();
+    }
+
+    [Test]
+    public async Task Bulk_editing_the_owner_of_a_contribution_leg_to_the_other_legs_owner_makes_it_a_transfer()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var personal = await CreateAccountAsync(anna, "Anna's account", me);
+        var household = await CreateAccountAsync(anna, "Household", Family);
+        await AddAsync(anna, personal.Id, -1500m, "2026-11-01", "TO HOUSEHOLD");
+        var received = await AddAsync(anna, household.Id, 1500m, "2026-11-01", "ANNA MONTHLY");
+        await Assert.That(received.Link!.Kind).IsEqualTo("contribution");
+
+        var res = await anna.PostAsJsonAsync("/api/transactions/bulk-edit", new { transactionIds = new[] { received.Id }, owner = me });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var list = await ListAsync(anna);
+        await Assert.That(list.Select(t => t.Type)).IsEquivalentTo(["transfer", "transfer"]);
+        await Assert.That(list.Select(t => t.Category)).IsEquivalentTo(new CategoryRef?[] { null, null });
+        await Assert.That(await UncategorisedAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_rule_giving_one_leg_of_a_transfer_another_owner_makes_the_pair_a_contribution()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var rule = await anna.PostAsJsonAsync("/api/rules", new { field = "description", match = "contains", text = "FROM CHECKING", owner = Family });
+        await Assert.That(rule.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await UploadOkAsync(anna, checking.Id, new TestStatement().Row("2026-11-16", -500m, "TO SAVINGS"));
+
+        await UploadOkAsync(anna, savings.Id, new TestStatement().Row("2026-11-16", 500m, "FROM CHECKING"));
+
+        var list = await ListAsync(anna);
+        var sent = list.Single(t => t.Description == "TO SAVINGS");
+        var received = list.Single(t => t.Description == "FROM CHECKING");
+        await Assert.That(received.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(sent.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(sent.Category!.Path).IsEqualTo("Contributions › To Family");
+        await Assert.That(received.Category!.Path).IsEqualTo("Contributions › From Members");
+    }
+
     // ---- helpers ----
 
     private static async Task<Guid> CategoryIdAsync(HttpClient client, string path) =>

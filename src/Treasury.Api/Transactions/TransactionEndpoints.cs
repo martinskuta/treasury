@@ -188,6 +188,7 @@ public static class TransactionEndpoints
             // New date or amount: the old pair may no longer fit, and a new one may (#16).
             var rematch = request.Date is not null || request.Amount is not null;
             if (rematch) await matcher.UnlinkAsync(transaction);
+            else if (reowned) await matcher.RefreshLinksAsync([transaction]); // Transfer <-> Contribution
 
             // Date-range Tags follow the new date/Owner, then the Member's own Tag changes.
             await TransactionClassification.SaveAsync(db, [transaction], redated || reowned ? [transaction] : [], change);
@@ -204,7 +205,7 @@ public static class TransactionEndpoints
         // (TransactionClassification). All or nothing: if any Transaction can't take the change (not visible, or a
         // Transfer given a Category), nothing is changed and the 400 lists each refused id under `transactions[<id>]`.
         transactions.MapPost("/bulk-edit", async (BulkEditRequest request, ClaimsPrincipal user, TreasuryDbContext db,
-            ChfConverter chf) =>
+            ChfConverter chf, TransactionMatcher matcher) =>
         {
             var viewer = user.MemberId();
             var errors = new Dictionary<string, string[]>();
@@ -229,6 +230,7 @@ public static class TransactionEndpoints
 
             var list = ids.Select(id => found[id]).ToList();
             var reowned = list.Where(t => TransactionClassification.ApplyFields(t, change)).ToList();
+            await matcher.RefreshLinksAsync(reowned); // Transfer <-> Contribution
             await TransactionClassification.SaveAsync(db, list, reowned, change);
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
