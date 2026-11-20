@@ -138,3 +138,55 @@ export const createAccount = (account: NewAccount) =>
 
 export const renameAccount = (id: string, name: string) =>
   apiFetch<Account>(`/api/accounts/${id}`, { method: 'PATCH', body: { name } })
+
+/** Every Owner something can be assigned to: the Family first, then each Member. */
+export const listOwners = (signal?: AbortSignal) => apiFetch<Owner[]>('/api/owners', { signal })
+
+// ---- Transactions ----
+
+export type Transaction = {
+  id: string
+  accountId: string
+  accountName: string
+  /** ISO date, e.g. "2026-11-20" */
+  date: string
+  /** In the Account's currency; positive = Income, negative = Expense. */
+  amount: number
+  currency: Currency
+  type: 'income' | 'expense'
+  description: string
+  note: string | null
+  owner: Owner
+  /** Imported Transactions keep their date, amount and description read-only. */
+  origin: 'manual' | 'imported'
+}
+
+export type NewTransaction = {
+  accountId: string
+  date: string | null
+  amount: number | null
+  description: string
+  note: string | null
+  /** Omit to use the Account's Owner. */
+  owner?: OwnerRef
+}
+
+/** Partial update: leave a field out to keep it; `note: ''` clears the note. */
+export type TransactionChanges = {
+  date?: string
+  amount?: number
+  description?: string
+  note?: string
+  owner?: OwnerRef
+}
+
+/** The Transactions the current Member can see, newest first. */
+export const listTransactions = (signal?: AbortSignal) => apiFetch<Transaction[]>('/api/transactions', { signal })
+
+export const createTransaction = (transaction: NewTransaction) =>
+  apiFetch<Transaction>('/api/transactions', { method: 'POST', body: transaction })
+
+export const updateTransaction = (id: string, changes: TransactionChanges) =>
+  apiFetch<Transaction>(`/api/transactions/${id}`, { method: 'PATCH', body: changes })
+
+export const deleteTransaction = (id: string) => apiFetch<void>(`/api/transactions/${id}`, { method: 'DELETE' })

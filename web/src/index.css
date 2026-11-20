@@ -346,3 +346,48 @@ h1 {
   margin-bottom: 0;
   flex: 1 1 200px;
 }
+
+/* ---- Transactions ---- */
+.transaction-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.transaction-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.transaction-row:last-child {
+  border-bottom: none;
+}
+
+.transaction-date {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.transaction-main {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.transaction-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.transaction-amount.income {
+  color: var(--good);
+}
+
+.transaction-edit {
+  flex: 1 1 100%;
+  max-width: 420px;
+}
