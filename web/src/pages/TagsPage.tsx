@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { FormField } from '../components/FormField'
 import {
-  ApiError,
   createTag,
   deleteTag,
   listOwners,
@@ -10,20 +9,12 @@ import {
   tagReportPath,
   updateTag,
   type Owner,
-  type OwnerRef,
   type Tag,
   type TagInput,
 } from '../lib/api'
+import { toErrors, type Errors } from '../lib/errors'
+import { ownerRefFromValue, ownerValue } from '../lib/owners'
 import { formatDate } from '../lib/format'
-
-type Errors = Record<string, string[]>
-
-const toErrors = (err: unknown): Errors =>
-  err instanceof ApiError && err.status === 400 ? err.fieldErrors : { form: ['Something went wrong, try again.'] }
-
-/** Checkbox value of an Owner: "family" or the Member id. */
-const ownerKey = (o: Owner) => (o.kind === 'family' ? 'family' : (o.memberId ?? 'family'))
-const ownerRef = (key: string): OwnerRef => (key === 'family' ? { kind: 'family' } : { kind: 'member', memberId: key })
 
 /** "1.7.2026 – 14.7.2026 · Family, anna" or "No date range". */
 function describeRange(tag: Tag) {
@@ -164,12 +155,12 @@ function TagForm({
   const [hasRange, setHasRange] = useState(Boolean(tag?.dateFrom))
   const [dateFrom, setDateFrom] = useState(tag?.dateFrom ?? '')
   const [dateTo, setDateTo] = useState(tag?.dateTo ?? '')
-  const [limited, setLimited] = useState<string[]>(tag?.owners.map(ownerKey) ?? [])
+  const [limited, setLimited] = useState<string[]>(tag?.owners.map(ownerValue) ?? [])
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
   // Owners no longer offered (e.g. deactivated Members) stay listed while the Tag is limited to them.
-  const offered = [...owners, ...(tag?.owners ?? []).filter(o => !owners.some(x => ownerKey(x) === ownerKey(o)))]
+  const offered = [...owners, ...(tag?.owners ?? []).filter(o => !owners.some(x => ownerValue(x) === ownerValue(o)))]
 
   function toggleOwner(key: string, on: boolean) {
     setLimited(on ? [...limited, key] : limited.filter(k => k !== key))
@@ -184,7 +175,7 @@ function TagForm({
         name,
         dateFrom: hasRange ? dateFrom || null : null,
         dateTo: hasRange ? dateTo || null : null,
-        owners: hasRange ? limited.map(ownerRef) : [],
+        owners: hasRange ? limited.map(ownerRefFromValue) : [],
       })
       if (resetOnDone) {
         setName('')
@@ -231,11 +222,11 @@ function TagForm({
           <fieldset className="checkbox-group">
             <legend>Only for these Owners (none ticked = every Owner)</legend>
             {offered.map(o => (
-              <label key={ownerKey(o)} className="checkbox-field">
+              <label key={ownerValue(o)} className="checkbox-field">
                 <input
                   type="checkbox"
-                  checked={limited.includes(ownerKey(o))}
-                  onChange={e => toggleOwner(ownerKey(o), e.target.checked)}
+                  checked={limited.includes(ownerValue(o))}
+                  onChange={e => toggleOwner(ownerValue(o), e.target.checked)}
                 />{' '}
                 {o.name}
               </label>

@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { FormField } from '../components/FormField'
-import { ReportBreakdown, ReportTotals, type ReportSide } from '../components/ReportViews'
+import { ReportBreakdown, ReportOwnerToggle, ReportSideToggle, ReportTotals } from '../components/ReportViews'
 import { SelectField } from '../components/SelectField'
 import {
   ApiError,
   getTagReport,
   listTags,
   tagReportPath,
-  type ReportOwner,
   type Tag,
   type TagReport,
   type TagReportPeriod,
 } from '../lib/api'
 import { formatDate } from '../lib/format'
+import { reportOwnerFromParams, reportSideFromParams } from '../lib/reportParams'
 
 const toPeriod = (allTime: boolean, from: string, to: string): TagReportPeriod =>
   allTime ? 'all' : from || to ? { from, to } : 'default'
@@ -34,8 +34,8 @@ export function TagReportPage() {
   const { tagId } = useParams()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const owner: ReportOwner = params.get('owner') === 'family' ? 'family' : 'me'
-  const side: ReportSide = params.get('side') === 'income' ? 'income' : 'expense'
+  const owner = reportOwnerFromParams(params)
+  const side = reportSideFromParams(params)
   const from = params.get('from') ?? ''
   const to = params.get('to') ?? ''
   const allTime = params.get('period') === 'all'
@@ -116,14 +116,7 @@ export function TagReportPage() {
             </option>
           ))}
         </SelectField>
-        <div className="segmented" role="group" aria-label="Owner">
-          <button type="button" aria-pressed={owner === 'me'} onClick={() => update({ owner: 'me' })}>
-            Mine
-          </button>
-          <button type="button" aria-pressed={owner === 'family'} onClick={() => update({ owner: 'family' })}>
-            Family
-          </button>
-        </div>
+        <ReportOwnerToggle owner={owner} onChange={o => update({ owner: o })} />
       </div>
 
       {!tagId && tags !== null && (
@@ -172,14 +165,7 @@ export function TagReportPage() {
           </p>
           <ReportTotals report={shown} />
           <section className="card">
-            <div className="segmented" role="group" aria-label="Breakdown">
-              <button type="button" aria-pressed={side === 'expense'} onClick={() => update({ side: 'expense' })}>
-                Expenses by Category
-              </button>
-              <button type="button" aria-pressed={side === 'income'} onClick={() => update({ side: 'income' })}>
-                Income by Category
-              </button>
-            </div>
+            <ReportSideToggle side={side} onChange={s => update({ side: s })} />
             <ReportBreakdown
               section={shown[side]}
               emptyText={side === 'expense' ? 'No Expenses with this Tag.' : 'No Income with this Tag.'}

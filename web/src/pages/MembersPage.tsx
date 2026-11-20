@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { FormField } from '../components/FormField'
-import { SelectField } from '../components/SelectField'
+import { OwnerSelect } from '../components/OwnerSelect'
 import {
-  ApiError,
   addMember,
   deactivateMember,
   isAdmin,
@@ -12,14 +11,11 @@ import {
   setMemberAdmin,
   type HandoverAccount,
   type MemberSummary,
-  type OwnerRef,
+  type Owner,
 } from '../lib/api'
+import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
-
-type Errors = Record<string, string[]>
-
-const toErrors = (err: unknown): Errors =>
-  err instanceof ApiError && err.status === 400 ? err.fieldErrors : { form: ['Something went wrong, try again.'] }
+import { ownerRefFromValue } from '../lib/owners'
 
 /** Settings › Members (Admin only): add Members, reset passwords, give/remove the Admin role, deactivate. */
 export function MembersPage() {
@@ -289,7 +285,13 @@ function DeactivateForm({
   const [targets, setTargets] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
-  const others = members.filter(m => m.isActive && m.id !== member.id)
+  // The Family or another active Member.
+  const targetOwners: Owner[] = [
+    { kind: 'family', memberId: null, name: 'Family' },
+    ...members
+      .filter(m => m.isActive && m.id !== member.id)
+      .map(m => ({ kind: 'member' as const, memberId: m.id, name: m.userName })),
+  ]
 
   useEffect(() => {
     const controller = new AbortController()
@@ -312,7 +314,7 @@ function DeactivateForm({
       .filter(([, target]) => target !== KEEP)
       .map(([accountId, target]) => ({
         accountId,
-        owner: (target === FAMILY ? { kind: 'family' } : { kind: 'member', memberId: target }) satisfies OwnerRef,
+        owner: ownerRefFromValue(target),
       }))
     try {
       await deactivateMember(member.id, handover)
@@ -331,21 +333,15 @@ function DeactivateForm({
       {accounts === null && !errors.form && <p>Loading Accounts…</p>}
       {accounts !== null && accounts.length === 0 && <p>{member.userName} owns no Accounts.</p>}
       {accounts?.map(a => (
-        <SelectField
+        <OwnerSelect
           key={a.id}
           label={`Hand “${a.name}” (${a.currency}) to`}
           name={`handover-${a.id}`}
+          owners={targetOwners}
           value={targets[a.id] ?? FAMILY}
-          onChange={e => setTargets(t => ({ ...t, [a.id]: e.target.value }))}
-        >
-          <option value={FAMILY}>Family</option>
-          {others.map(m => (
-            <option key={m.id} value={m.id}>
-              {m.userName}
-            </option>
-          ))}
-          <option value={KEEP}>Nobody (keep with {member.userName})</option>
-        </SelectField>
+          after={<option value={KEEP}>Nobody (keep with {member.userName})</option>}
+          onChange={value => setTargets(t => ({ ...t, [a.id]: value }))}
+        />
       ))}
       {(errors.handover ?? errors.member ?? errors.form)?.map(message => (
         <p key={message} className="form-error" role="alert">

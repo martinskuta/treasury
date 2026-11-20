@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { FormField } from '../components/FormField'
-import { ApiError, changePassword } from '../lib/api'
-
-type Errors = Record<string, string[]>
+import { changePassword } from '../lib/api'
+import { toErrors, type Errors } from '../lib/errors'
 
 export function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -28,7 +27,7 @@ export function ChangePasswordPage() {
       setNewPassword('')
       setConfirm('')
     } catch (err) {
-      setErrors(err instanceof ApiError && err.status === 400 ? err.fieldErrors : { form: ['Something went wrong, try again.'] })
+      setErrors(toErrors(err))
     } finally {
       setBusy(false)
     }

@@ -18,13 +18,9 @@ import {
   type Integration,
   type SourceFile,
 } from '../lib/api'
+import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
 import { formatAmount, formatDate } from '../lib/format'
-
-type Errors = Record<string, string[]>
-
-const toErrors = (err: unknown): Errors =>
-  err instanceof ApiError && err.status === 400 ? err.fieldErrors : { form: ['Something went wrong, try again.'] }
 
 /** The Accounts the Member can see (their own and the Family's) with balances; create and rename. */
 export function AccountsPage() {

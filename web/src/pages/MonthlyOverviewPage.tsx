@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { ReportBreakdown, ReportTotals, type ReportSide } from '../components/ReportViews'
-import { getMonthlyReport, type MonthlyReport, type ReportOwner } from '../lib/api'
+import { ReportBreakdown, ReportOwnerToggle, ReportSideToggle, ReportTotals } from '../components/ReportViews'
+import { getMonthlyReport, type MonthlyReport } from '../lib/api'
+import { reportOwnerFromParams, reportSideFromParams } from '../lib/reportParams'
 
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -31,8 +32,8 @@ function monthLabel(month: string): string {
 export function MonthlyOverviewPage() {
   const [params, setParams] = useSearchParams()
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : currentMonth()
-  const owner: ReportOwner = params.get('owner') === 'family' ? 'family' : 'me'
-  const side: ReportSide = params.get('side') === 'income' ? 'income' : 'expense'
+  const owner = reportOwnerFromParams(params)
+  const side = reportSideFromParams(params)
 
   const [report, setReport] = useState<MonthlyReport | null>(null)
   // The month|owner whose load failed (derived per request, so switching month clears the error).
@@ -64,14 +65,7 @@ export function MonthlyOverviewPage() {
     <>
       <h1>Monthly overview</h1>
       <div className="report-controls">
-        <div className="segmented" role="group" aria-label="Owner">
-          <button type="button" aria-pressed={owner === 'me'} onClick={() => update({ owner: 'me' })}>
-            Mine
-          </button>
-          <button type="button" aria-pressed={owner === 'family'} onClick={() => update({ owner: 'family' })}>
-            Family
-          </button>
-        </div>
+        <ReportOwnerToggle owner={owner} onChange={o => update({ owner: o })} />
         <div className="month-switcher">
           <button
             type="button"
@@ -99,14 +93,7 @@ export function MonthlyOverviewPage() {
         <>
           <ReportTotals report={shown} />
           <section className="card">
-            <div className="segmented" role="group" aria-label="Breakdown">
-              <button type="button" aria-pressed={side === 'expense'} onClick={() => update({ side: 'expense' })}>
-                Expenses by Category
-              </button>
-              <button type="button" aria-pressed={side === 'income'} onClick={() => update({ side: 'income' })}>
-                Income by Category
-              </button>
-            </div>
+            <ReportSideToggle side={side} onChange={s => update({ side: s })} />
             <ReportBreakdown
               section={shown[side]}
               emptyText={side === 'expense' ? 'No Expenses this month.' : 'No Income this month.'}
