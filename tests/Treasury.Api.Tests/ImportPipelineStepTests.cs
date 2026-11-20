@@ -90,7 +90,7 @@ public class ImportPipelineStepTests : ApiTestBase
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         await Assert.That(await admin.GetFromJsonAsync<List<Transaction>>("/api/transactions")).IsEmpty();
         await Assert.That(await admin.GetFromJsonAsync<List<object>>($"/api/accounts/{account}/source-files")).IsEmpty();
-        var failed = Directory.GetFiles(Path.Combine(app.IngestRoot, "pipeline", "failed")).Select(Path.GetFileName);
+        var failed = Directory.GetFiles(Path.Combine(app.IngestRoot, "pipeline", "failed")).Select(f => Path.GetFileName(f)!);
         await Assert.That(failed).IsEquivalentTo(["statement.txt", "statement.txt.error.txt"]);
         await Assert.That(await File.ReadAllTextAsync(Path.Combine(app.IngestRoot, "pipeline", "failed", "statement.txt.error.txt")))
             .Contains("closing balance");

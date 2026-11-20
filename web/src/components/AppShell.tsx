@@ -7,6 +7,7 @@ const nav: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Transactions', href: '/transactions' },
   { label: 'Accounts', href: '/accounts' },
+  { label: 'Settings', href: '/settings' },
 ]
 
 /** Layout route for every logged-in screen: shell + Member menu around the matched child route. */

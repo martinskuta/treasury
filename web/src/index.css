@@ -423,7 +423,60 @@ h1 {
   color: var(--good);
 }
 
+.transaction-chf {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
 .transaction-edit {
   flex: 1 1 100%;
+  max-width: 420px;
+}
+
+/* ---- Settings / Members ---- */
+.settings-links {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.settings-links li {
+  margin: 6px 0;
+}
+
+.member-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.member-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.member-row:last-child {
+  border-bottom: none;
+}
+
+.member-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.member-meta {
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
+.member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.member-panel {
+  margin-top: 10px;
   max-width: 420px;
 }

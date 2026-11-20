@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Accounts;
 using Treasury.Api.Data;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Integrations;
 using Treasury.Api.Transactions;
 
@@ -18,7 +19,8 @@ namespace Treasury.Api.Imports;
 ///  5. Match     — IImportStep stage: Transfers and Contributions (#16)
 ///  6. Classify  — IImportStep stage: date-range Tags (#14), then Rules (#15)
 ///  7. Verify    — IImportStep stage: closing balance (#11), adds <see cref="ImportContext.Warnings"/>
-///  8. commit, then move the file to the Account's processed/ folder
+///  8. commit, then move the file to the Account's processed/ folder and ask for an exchange-rate backfill (#12)
+///     when the earliest imported date has no stored rate yet
 ///
 /// Any step may throw <see cref="ImportFailedException"/> (readers throw <see cref="StatementFormatException"/>):
 /// nothing is imported (the DB transaction rolls back), and the file goes to failed/ with an error note next to it.
@@ -29,6 +31,7 @@ public sealed class ImportPipeline(
     ImportFiles files,
     ImportLocks locks,
     IEnumerable<IImportStep> steps,
+    ExchangeRateSyncSignal rateSync,
     TimeProvider clock,
     ILogger<ImportPipeline> logger)
 {
@@ -92,20 +95,44 @@ public sealed class ImportPipeline(
                 await tx.CommitAsync(ct);
             });
 
-            var placedAt = files.PlaceProcessed(account, content, file.DroppedAtPath);
-            logger.LogInformation("Imported {Count} Transactions from {File} into Account {Account}",
-                context.Transactions.Count, content.FileName, account.Slug);
-            return ImportResult.Success(stored, context.Transactions.Count, context.SkippedCount, context.Warnings, placedAt);
+            // Committed: from here on the import stands, whatever happens to the file move or the rate request.
+            return await AfterCommitAsync(account, content, file, context, stored);
         }
         catch (Exception e) when (e is ImportFailedException or StatementFormatException)
         {
             return Fail(account, content, file, keptCopy, e.Message);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            db.ChangeTracker.Clear();
+            if (keptCopy is not null) files.DeleteKept(keptCopy);
+            throw;
+        }
+        catch (Exception e)
         {
             logger.LogError(e, "Import of {File} into Account {Account} failed unexpectedly", content.FileName, account.Slug);
             return Fail(account, content, file, keptCopy, $"Unexpected error while importing: {e.Message}");
         }
+    }
+
+    private async Task<ImportResult> AfterCommitAsync(Account account, SourceFileContent content, IncomingFile file,
+        ImportContext context, SourceFile stored)
+    {
+        var placedAt = "";
+        try
+        {
+            placedAt = files.PlaceProcessed(account, content, file.DroppedAtPath);
+            // Old Transactions may need exchange rates from before every stored one: ask for a backfill now (#12).
+            if (context.Transactions.Count > 0)
+                await rateSync.RequestIfNotCoveredAsync(db, context.Transactions.Min(t => t.Date), CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Imported {File} into Account {Account}, but finishing up failed", content.FileName, account.Slug);
+        }
+        logger.LogInformation("Imported {Count} Transactions from {File} into Account {Account}",
+            context.Transactions.Count, content.FileName, account.Slug);
+        return ImportResult.Success(stored, context.Transactions.Count, context.SkippedCount, context.Warnings, placedAt);
     }
 
     private ImportResult Fail(Account account, SourceFileContent content, IncomingFile file, string? keptCopy, string reason)

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
 using Treasury.Api.Imports;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Transactions;
 
 namespace Treasury.Api.Data;
@@ -22,6 +23,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
     public DbSet<Transaction> Transactions => Set<Transaction>();
 
     public DbSet<SourceFile> SourceFiles => Set<SourceFile>();
+
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -71,6 +74,13 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             f.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
             f.HasIndex(x => new { x.AccountId, x.ImportedAt });
             f.HasOne<Member>().WithMany().HasForeignKey(x => x.ImportedByMemberId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<ExchangeRate>(r =>
+        {
+            r.HasKey(x => new { x.Date, x.Currency });
+            r.Property(x => x.Currency).HasMaxLength(3);
+            r.Property(x => x.PerEur).HasPrecision(19, 6);
         });
     }
 }

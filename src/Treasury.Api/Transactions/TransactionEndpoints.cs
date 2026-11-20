@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Data;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 
 namespace Treasury.Api.Transactions;
@@ -22,9 +23,9 @@ public static class TransactionEndpoints
     /// <param name="OriginalAmount">Foreign-currency purchase: the amount in <paramref name="OriginalCurrency"/>.</param>
     /// <param name="SourceFile">The Source file an imported Transaction came from; null for manual ones.</param>
     public record TransactionResponse(Guid Id, Guid AccountId, string AccountName, DateOnly Date, decimal Amount,
-        string Currency, string Type, string Description, string? DisplayName, string? Counterparty, string? Reference,
-        decimal? OriginalAmount, string? OriginalCurrency, string? Note, OwnerResponse Owner, string Origin,
-        SourceFileRef? SourceFile);
+        string Currency, decimal? ChfAmount, string Type, string Description, string? DisplayName,
+        string? Counterparty, string? Reference, decimal? OriginalAmount, string? OriginalCurrency, string? Note,
+        OwnerResponse Owner, string Origin, SourceFileRef? SourceFile);
 
     public record SourceFileRef(Guid Id, string FileName);
 
@@ -33,21 +34,22 @@ public static class TransactionEndpoints
     {
         var transactions = api.MapGroup("/transactions");
 
-        transactions.MapGet("/", async (ClaimsPrincipal user, TreasuryDbContext db) =>
+        transactions.MapGet("/", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
         {
             var list = await db.Transactions.VisibleTo(user.MemberId()).Include(t => t.Account).Include(t => t.SourceFile)
                 .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
-            return Results.Ok(await ToResponsesAsync(db, list));
+            return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
 
-        transactions.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db) =>
+        transactions.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
+            ChfConverter chf) =>
         {
             var transaction = await FindVisibleAsync(db, id, user.MemberId());
-            return transaction is null ? Results.NotFound() : Results.Ok((await ToResponsesAsync(db, [transaction]))[0]);
+            return transaction is null ? Results.NotFound() : Results.Ok((await ToResponsesAsync(db, chf, [transaction]))[0]);
         });
 
         transactions.MapPost("/", async (CreateTransactionRequest request, ClaimsPrincipal user, TreasuryDbContext db,
-            TimeProvider clock) =>
+            TimeProvider clock, ChfConverter chf, ExchangeRateSyncSignal rates) =>
         {
             var viewer = user.MemberId();
             var errors = new Dictionary<string, string[]>();
@@ -81,14 +83,15 @@ public static class TransactionEndpoints
             };
             db.Transactions.Add(transaction);
             await db.SaveChangesAsync();
+            await rates.RequestIfNotCoveredAsync(db, transaction.Date);
 
-            return Results.Created($"/api/transactions/{transaction.Id}", (await ToResponsesAsync(db, [transaction]))[0]);
+            return Results.Created($"/api/transactions/{transaction.Id}", (await ToResponsesAsync(db, chf, [transaction]))[0]);
         });
 
         // Classification (Owner, note, Display name) can be changed by anyone who sees the Transaction; the facts (date, amount,
         // description) only on manual Transactions, by Members who can manage the Account.
         transactions.MapPatch("/{id:guid}", async (Guid id, UpdateTransactionRequest request, ClaimsPrincipal user,
-            TreasuryDbContext db) =>
+            TreasuryDbContext db, ChfConverter chf, ExchangeRateSyncSignal rates) =>
         {
             var viewer = user.MemberId();
             var transaction = await FindVisibleAsync(db, id, viewer);
@@ -130,7 +133,8 @@ public static class TransactionEndpoints
                 transaction.ManuallySet |= ManuallySetFields.Owner;
             }
             await db.SaveChangesAsync();
-            return Results.Ok((await ToResponsesAsync(db, [transaction]))[0]);
+            if (request.Date is not null) await rates.RequestIfNotCoveredAsync(db, transaction.Date);
+            return Results.Ok((await ToResponsesAsync(db, chf, [transaction]))[0]);
         });
 
         // Manual Transactions only (imported ones go away by undoing their import), by Members who manage the Account.
@@ -155,12 +159,12 @@ public static class TransactionEndpoints
     private static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Transactions.VisibleTo(viewer).Include(t => t.Account).Include(t => t.SourceFile).SingleOrDefaultAsync(t => t.Id == id);
 
-    /// The requested Owner: the Family or any existing Member; null (with an `owner` error) otherwise.
+    /// The requested Owner: the Family or any active Member; null (with an `owner` error) otherwise.
     private static async Task<Owner?> ResolveOwnerAsync(TreasuryDbContext db, OwnerRequest request,
         Dictionary<string, string[]> errors)
     {
         var owner = request.ToOwner();
-        if (owner is { MemberId: { } memberId } && !await db.Users.AnyAsync(m => m.Id == memberId)) owner = null;
+        if (owner is { MemberId: { } memberId } && !await db.Users.AnyAsync(m => m.Id == memberId && m.DeactivatedAt == null)) owner = null;
         if (owner is null) errors["owner"] = ["Choose the Family or a Member as the Owner."];
         return owner;
     }
@@ -186,11 +190,14 @@ public static class TransactionEndpoints
         return trimmed;
     }
 
-    private static async Task<List<TransactionResponse>> ToResponsesAsync(TreasuryDbContext db, IReadOnlyList<Transaction> list)
+    private static async Task<List<TransactionResponse>> ToResponsesAsync(TreasuryDbContext db, ChfConverter chf,
+        IReadOnlyList<Transaction> list)
     {
         var names = await db.MemberNamesAsync(list.Select(t => t.OwnerMemberId));
+        var rates = list.Count == 0 ? null : await chf.LoadAsync(list.Min(t => t.Date), list.Max(t => t.Date));
         return list.Select(t => new TransactionResponse(t.Id, t.AccountId, t.Account.Name, t.Date, t.Amount,
-            t.Account.Currency, t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.DisplayName,
+            t.Account.Currency, rates!.ToChf(t.Amount, t.Account.Currency, t.Date),
+            t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.DisplayName,
             t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
             t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
             t.SourceFile is null ? null : new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName))).ToList();

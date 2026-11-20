@@ -141,7 +141,7 @@ public class ImportTests : ApiTestBase
         await UploadOkAsync(anna, account.Id, "export.txt", new TestStatement().Row("2026-11-18", -1m, "A"));
         await UploadOkAsync(anna, account.Id, "export.txt", new TestStatement().Row("2026-11-19", -2m, "B"));
 
-        var processed = Directory.GetFiles(Path.Combine(App.IngestRoot, account.Slug, "processed")).Select(Path.GetFileName);
+        var processed = Directory.GetFiles(Path.Combine(App.IngestRoot, account.Slug, "processed")).Select(f => Path.GetFileName(f)!);
         await Assert.That(processed).IsEquivalentTo(["export.txt", "export (2).txt"]);
     }
 
@@ -315,7 +315,37 @@ public class ImportTests : ApiTestBase
         await Assert.That(t.Amount).IsEqualTo(-3.20m);
     }
 
+    [Test]
+    public async Task Importing_old_transactions_backfills_the_exchange_rates_they_need()
+    {
+        App.ExchangeRates.Publish("2026-11-18", chf: 0.9266m);
+        App.ExchangeRates.Publish("2025-06-02", chf: 0.9400m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var euros = await CreateAccountAsync(anna, "Euro card", await MeAsync(anna), currency: "EUR");
+        await UploadOkAsync(anna, euros.Id, "recent.txt", new TestStatement().Row("2026-11-18", -100m, "Recent", currency: "EUR"));
+        await EventuallyAsync(anna, l => l.Single().ChfAmount is not null);
+
+        await UploadOkAsync(anna, euros.Id, "old.txt", new TestStatement()
+            .Row("2025-06-04", -10m, "Later old one", currency: "EUR")
+            .Row("2025-06-03", -50m, "Old one", currency: "EUR"));
+
+        var list = await EventuallyAsync(anna, l => l.All(t => t.ChfAmount is not null));
+        await Assert.That(list.Single(t => t.Description == "Old one").ChfAmount).IsEqualTo(-47.00m);
+    }
+
     // ---- helpers ----
+
+    private static async Task<List<Transaction>> EventuallyAsync(HttpClient client, Func<List<Transaction>, bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            var list = await ListAsync(client);
+            if (done(list)) return list;
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Condition not met.");
+            await Task.Delay(25);
+        }
+    }
 
     private static async Task<ImportResult> UploadOkAsync(HttpClient client, Guid accountId, string fileName, object content)
     {
@@ -374,7 +404,7 @@ public class ImportTests : ApiTestBase
 
     private record ImportResult(SourceFile SourceFile, int ImportedCount);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Currency, string Type,
+    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Currency, decimal? ChfAmount, string Type,
         string Description, string? DisplayName, string? Counterparty, string? Reference, decimal? OriginalAmount,
         string? OriginalCurrency, string? Note, OwnerDto Owner, string Origin, SourceFileRef? SourceFile);
 }
