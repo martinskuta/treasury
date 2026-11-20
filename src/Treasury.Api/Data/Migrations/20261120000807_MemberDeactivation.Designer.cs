@@ -12,8 +12,8 @@ using Treasury.Api.Data;
 namespace Treasury.Api.Data.Migrations;
 
 [DbContext(typeof(TreasuryDbContext))]
-[Migration("20261120001845_Categories")]
-partial class _20261120001845_Categories
+[Migration("20261120000807_MemberDeactivation")]
+partial class _20261120000807_MemberDeactivation
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -237,6 +237,9 @@ partial class _20261120001845_Categories
                     .IsConcurrencyToken()
                     .HasColumnType("text");
 
+                b.Property<DateTimeOffset?>("DeactivatedAt")
+                    .HasColumnType("timestamp with time zone");
+
                 b.Property<string>("Email")
                     .HasMaxLength(256)
                     .HasColumnType("character varying(256)");
@@ -289,34 +292,6 @@ partial class _20261120001845_Categories
                 b.ToTable("AspNetUsers");
             });
 
-        modelBuilder.Entity("Treasury.Api.Categories.Category", b =>
-            {
-                b.Property<Guid>("Id")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("uuid");
-
-                b.Property<string>("BuiltInKey")
-                    .HasMaxLength(64)
-                    .HasColumnType("character varying(64)");
-
-                b.Property<string>("Name")
-                    .IsRequired()
-                    .HasMaxLength(100)
-                    .HasColumnType("character varying(100)");
-
-                b.Property<Guid?>("ParentId")
-                    .HasColumnType("uuid");
-
-                b.HasKey("Id");
-
-                b.HasIndex("BuiltInKey")
-                    .IsUnique();
-
-                b.HasIndex("ParentId");
-
-                b.ToTable("Categories");
-            });
-
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.Property<Guid>("Id")
@@ -329,9 +304,6 @@ partial class _20261120001845_Categories
                 b.Property<decimal>("Amount")
                     .HasPrecision(19, 4)
                     .HasColumnType("numeric(19,4)");
-
-                b.Property<Guid?>("CategoryId")
-                    .HasColumnType("uuid");
 
                 b.Property<DateTimeOffset>("CreatedAt")
                     .HasColumnType("timestamp with time zone");
@@ -360,8 +332,6 @@ partial class _20261120001845_Categories
                     .HasColumnType("uuid");
 
                 b.HasKey("Id");
-
-                b.HasIndex("CategoryId");
 
                 b.HasIndex("OwnerMemberId");
 
@@ -429,14 +399,6 @@ partial class _20261120001845_Categories
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
-        modelBuilder.Entity("Treasury.Api.Categories.Category", b =>
-            {
-                b.HasOne("Treasury.Api.Categories.Category", null)
-                    .WithMany()
-                    .HasForeignKey("ParentId")
-                    .OnDelete(DeleteBehavior.Restrict);
-            });
-
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.HasOne("Treasury.Api.Accounts.Account", "Account")
@@ -444,11 +406,6 @@ partial class _20261120001845_Categories
                     .HasForeignKey("AccountId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
-
-                b.HasOne("Treasury.Api.Categories.Category", null)
-                    .WithMany()
-                    .HasForeignKey("CategoryId")
-                    .OnDelete(DeleteBehavior.Restrict);
 
                 b.HasOne("Treasury.Api.Auth.Member", null)
                     .WithMany()

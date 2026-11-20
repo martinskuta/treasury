@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Treasury.Api.Data.Migrations;
 
 /// <inheritdoc />
-public partial class _20261120001845_Categories : Migration
+public partial class _20261120002749_Categories : Migration
 {
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)

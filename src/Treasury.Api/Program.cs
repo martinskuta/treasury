@@ -4,7 +4,9 @@ using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
 using Treasury.Api.Categories;
 using Treasury.Api.Data;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
+using Treasury.Api.Members;
 using Treasury.Api.Storage;
 using Treasury.Api.Transactions;
 
@@ -18,6 +20,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.AddTreasuryAuth();
 builder.AddDataRoot();
 builder.AddAccounts();
+builder.AddExchangeRates();
 
 var app = builder.Build();
 
@@ -42,6 +45,7 @@ api.MapAuth();
 api.MapAccounts();
 api.MapTransactions();
 api.MapOwners();
+api.MapMembers();
 api.MapCategories();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 

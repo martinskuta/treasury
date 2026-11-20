@@ -196,6 +196,11 @@ function TransactionRow({
       </div>
       <div className={`amount transaction-amount ${t.type}`}>
         {formatAmount(t.amount)} {t.currency}
+        {t.currency !== 'CHF' && (
+          <div className="transaction-chf" title="CHF equivalent at the rate of the Transaction's date">
+            {t.chfAmount === null ? 'CHF rate pending' : `≈ ${formatAmount(t.chfAmount)} CHF`}
+          </div>
+        )}
       </div>
     </li>
   )
@@ -379,7 +384,7 @@ function EditTransactionForm({
       )}
       <FormField label="Note (optional)" name="note" value={note} errors={errors.note} onChange={e => setNote(e.target.value)} />
       <SelectField label="Owner" name="owner" value={owner} errors={errors.owner} onChange={e => setOwner(e.target.value)}>
-        <OwnerOptions owners={owners} />
+        <OwnerOptions owners={owners} current={t.owner} />
       </SelectField>
       <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
       {(errors.form ?? errors.transaction) && (
@@ -461,10 +466,12 @@ function CategoryField(props: {
   )
 }
 
-function OwnerOptions({ owners }: { owners: Owner[] }) {
+/** The offered Owners; `current` is added when it isn't offered any more (e.g. a deactivated Member). */
+function OwnerOptions({ owners, current }: { owners: Owner[]; current?: Owner }) {
+  const offered = current && !owners.some(o => ownerValue(o) === ownerValue(current)) ? [...owners, current] : owners
   return (
     <>
-      {owners.map(o => (
+      {offered.map(o => (
         <option key={ownerValue(o)} value={ownerValue(o)}>
           {o.name}
         </option>

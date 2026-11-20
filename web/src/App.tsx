@@ -7,6 +7,7 @@ import { CategoriesPage } from './pages/CategoriesPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
+import { MembersPage } from './pages/MembersPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TransactionsPage } from './pages/TransactionsPage'
@@ -25,9 +26,10 @@ export default function App() {
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="uncategorised" element={<UncategorisedPage />} />
               <Route path="accounts" element={<AccountsPage />} />
-              <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/categories" element={<CategoriesPage />} />
               <Route path="account/password" element={<ChangePasswordPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/members" element={<MembersPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Route>
