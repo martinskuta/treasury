@@ -22,13 +22,11 @@ public static class ReportQueries
     public static bool TryParseOwner(string? value, out ReportOwner owner)
     {
         owner = ReportOwner.Me;
-        if (string.IsNullOrEmpty(value) || value.Equals("me", StringComparison.OrdinalIgnoreCase)) return true;
-        if (!value.Equals("family", StringComparison.OrdinalIgnoreCase)) return false;
-        owner = ReportOwner.Family;
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (ApiEnums.Parse<ReportOwner>(value) is not { } parsed) return false;
+        owner = parsed;
         return true;
     }
-
-    public static string ToApiValue(this ReportOwner owner) => owner == ReportOwner.Family ? "family" : "me";
 
     /// The Transactions a report for <paramref name="viewerId"/> may count: visible to the viewer, Income or
     /// Expense (never Transfers), and owned by the viewer ("me") or by the Family ("family").

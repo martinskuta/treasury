@@ -53,8 +53,6 @@ public static class TransactionEndpoints
     /// Account, or null with AccountHidden when the viewer can't see that Account (GET on the leg may then be 404).
     public record LinkRef(string Kind, Guid TransactionId, string? AccountName, bool AccountHidden);
 
-    public record CategoryRef(Guid Id, string Name, string Path);
-
     public record TagRef(Guid Id, string Name, string[] Sources);
 
     public record SourceFileRef(Guid Id, string FileName);
@@ -116,7 +114,7 @@ public static class TransactionEndpoints
             ValidateDescription(description, errors);
             var note = NormalizeNote(request.Note, errors);
             var owner = request.Owner is null ? null : await TransactionClassification.ResolveOwnerAsync(db, request.Owner, errors);
-            await ValidateCategoryAsync(db, request.CategoryId, errors);
+            await TransactionClassification.ValidateCategoryAsync(db, request.CategoryId, errors);
             var tagIds = await TransactionClassification.ValidateTagsAsync(db, request.TagIds, "tagIds", errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
@@ -269,13 +267,6 @@ public static class TransactionEndpoints
     internal static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Transactions.VisibleTo(viewer).Include(t => t.Account).Include(t => t.SourceFile).SingleOrDefaultAsync(t => t.Id == id);
 
-    private static async Task ValidateCategoryAsync(TreasuryDbContext db, Guid? categoryId,
-        Dictionary<string, string[]> errors)
-    {
-        if (categoryId is { } id && !await db.Categories.AnyAsync(c => c.Id == id))
-            errors["categoryId"] = ["Choose an existing Category."];
-    }
-
     private static void ValidateAmount(decimal? amount, Dictionary<string, string[]> errors)
     {
         if (amount is null) errors["amount"] = ["Enter the amount."];
@@ -317,37 +308,18 @@ public static class TransactionEndpoints
             var accountVisible = t.Account.Owner.IsVisibleTo(viewer);
             return new TransactionResponse(t.Id, accountVisible ? t.AccountId : null, accountVisible ? t.Account.Name : null,
                 !accountVisible, t.Date, t.Amount, t.Account.Currency, rates!.ToChf(t.Amount, t.Account.Currency, t.Date),
-                TypeName(t.Type), t.Description, t.DisplayName,
+                t.Type.ToApi(), t.Description, t.DisplayName,
                 t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
-                t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
-                ToCategoryRef(categories, t.CategoryId), ToTagRefs(tags.GetValueOrDefault(t.Id)), ManuallySetNames(t.ManuallySet),
+                t.Origin.ToApi(), categories.RefOf(t.CategoryId), ToTagRefs(tags.GetValueOrDefault(t.Id)),
+                ApiEnums.FlagNames(t.ManuallySet),
                 accountVisible && t.SourceFile is not null ? new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName) : null,
                 t is { LinkedTransactionId: { } linked, LinkKind: { } kind }
-                    ? new LinkRef(kind == LinkKind.Transfer ? "transfer" : "contribution", linked,
+                    ? new LinkRef(kind.ToApi(), linked,
                         otherLegAccounts.GetValueOrDefault(linked), otherLegAccounts.GetValueOrDefault(linked) is null)
                     : null);
         }).ToList();
     }
 
-    private static string TypeName(TransactionType type) => type switch
-    {
-        TransactionType.Income => "income",
-        TransactionType.Expense => "expense",
-        _ => "transfer",
-    };
-
-    private static CategoryRef? ToCategoryRef(CategoryTree tree, Guid? categoryId) =>
-        categoryId is { } id && tree.Find(id) is { } c ? new(c.Id, c.Name, tree.PathOf(c.Id)) : null;
-
     private static TagRef[] ToTagRefs(List<TagOnTransaction>? tags) =>
-        tags?.Select(t => new TagRef(t.Id, t.Name, t.Sources.Select(CamelCase).ToArray())).ToArray() ?? [];
-
-    private static string CamelCase<T>(T value) where T : struct, Enum =>
-        System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(value.ToString());
-
-    private static string[] ManuallySetNames(ManuallySetFields fields) =>
-        Enum.GetValues<ManuallySetFields>()
-            .Where(f => f != ManuallySetFields.None && fields.HasFlag(f))
-            .Select(f => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(f.ToString()))
-            .ToArray();
+        tags?.Select(t => new TagRef(t.Id, t.Name, t.Sources.Select(s => s.ToApi()).ToArray())).ToArray() ?? [];
 }
