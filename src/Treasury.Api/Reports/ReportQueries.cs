@@ -46,6 +46,15 @@ public static class ReportQueries
     public static IQueryable<Transaction> InPeriod(this IQueryable<Transaction> query, DateOnly from, DateOnly to) =>
         query.Where(t => t.Date >= from && t.Date <= to);
 
+    /// Like <see cref="InPeriod(IQueryable{Transaction}, DateOnly, DateOnly)"/>, open-ended where a bound is null
+    /// (both null = all time).
+    public static IQueryable<Transaction> InPeriod(this IQueryable<Transaction> query, DateOnly? from, DateOnly? to)
+    {
+        if (from is { } f) query = query.Where(t => t.Date >= f);
+        if (to is { } u) query = query.Where(t => t.Date <= u);
+        return query;
+    }
+
     /// Loads the scoped Transactions as CHF rows in one query plus one rate query. Chf is null when no rate on
     /// or before the Transaction's date is stored yet (pending conversion).
     public static async Task<List<ReportRow>> ToReportRowsAsync(this IQueryable<Transaction> query, ChfConverter chf,

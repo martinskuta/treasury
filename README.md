@@ -50,7 +50,9 @@ npm run build
 
 ## Docker Compose deployment
 
-The compose files are generated from the AppHost (ADR-0004), never edited by hand:
+The compose files are generated from the AppHost (ADR-0004), never edited by hand. To install Treasury at home,
+follow [docs/deployment.md](docs/deployment.md) (parameters, data folder, first login, network share, updates) and set
+up backups with [docs/backup.md](docs/backup.md) (pg_dump, data folder, restore).
 
 ```bash
 aspire publish -o deploy    # writes deploy/docker-compose.yaml and deploy/.env
@@ -70,7 +72,7 @@ Ingest folders and kept Source files live in the data folder, the API's `Storage
   `chown -R 1654:1654 data`.
 
 Creating an Account creates `ingest/<account-slug>/` with `processed/` and `failed/` inside (ADR-0002). Back up
-this folder together with the database.
+this folder together with the database ([docs/backup.md](docs/backup.md)).
 
 - `ingest/<account-slug>/processed/`: files imported successfully (uploaded ones are placed here too).
 - `ingest/<account-slug>/failed/`: files that couldn't be imported, each with a `<file>.error.txt` note saying why.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
 import { SelectField } from '../components/SelectField'
@@ -16,6 +16,7 @@ import {
   listTags,
   listTransactions,
   sourceFileContentUrl,
+  tagReportPath,
   unlinkTransaction,
   updateTransaction,
   type Account,
@@ -670,7 +671,7 @@ function TransactionRow({
   )
 }
 
-/** The Tags on a Transaction; automatically applied ones (date range, Rule) are drawn dashed. */
+/** The Tags on a Transaction; automatically applied ones (date range, Rule) are drawn dashed. Each opens its Tag report. */
 function TagChips({ tags }: { tags: TagRef[] }) {
   if (tags.length === 0) return null
   return (
@@ -678,13 +679,14 @@ function TagChips({ tags }: { tags: TagRef[] }) {
       {tags.map(tag => {
         const auto = !tag.sources.includes('manual')
         return (
-          <span
+          <Link
             key={tag.id}
+            to={tagReportPath(tag.id)}
             className={`tag-chip${auto ? ' auto' : ''}`}
-            title={auto ? 'Applied automatically' : 'Added by hand'}
+            title={`${auto ? 'Applied automatically' : 'Added by hand'} · open the Tag report`}
           >
             {tag.name}
-          </span>
+          </Link>
         )
       })}
     </div>
