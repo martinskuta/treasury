@@ -7,7 +7,7 @@ namespace Treasury.Api.Accounts;
 /// date (a Transaction on the opening date is part of the opening balance), whatever the Transactions' Owners.
 ///
 /// The closing-balance warning (#11) is computed here on read, never stored: it compares the Account's most recent
-/// statement closing balance (latest closing date; same date -> latest import) with the calculated balance on that
+/// statement closing balance (latest closing date; same date -> latest import, then the newer v7 Source file id) with the calculated balance on that
 /// date. Closing balances dated before the opening date can't be compared and are ignored. Because it is computed on
 /// read, the warning clears by itself once the balances match again (missing data imported, doubled import undone).
 public static class AccountBalances
@@ -39,7 +39,7 @@ public static class AccountBalances
             .Where(f => ids.Contains(f.AccountId) && f.ClosingBalanceDate != null && f.ClosingBalanceAmount != null
                 && f.ClosingBalanceDate >= f.Account.OpeningDate)
             .GroupBy(f => f.AccountId)
-            .Select(g => g.OrderByDescending(f => f.ClosingBalanceDate).ThenByDescending(f => f.ImportedAt)
+            .Select(g => g.OrderByDescending(f => f.ClosingBalanceDate).ThenByDescending(f => f.ImportedAt).ThenByDescending(f => f.Id)
                 .Select(f => new { f.AccountId, f.Id, f.FileName, Date = f.ClosingBalanceDate!.Value, Amount = f.ClosingBalanceAmount!.Value })
                 .First())
             .ToListAsync();

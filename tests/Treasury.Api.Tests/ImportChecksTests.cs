@@ -180,6 +180,25 @@ public class ImportChecksTests : ApiTestBase
     }
 
     [Test]
+    public async Task Undoing_the_import_that_caused_the_mismatch_clears_the_warning()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB", openingBalance: 100m, openingDate: "2026-09-30");
+        await UploadOkAsync(anna, account.Id, "october.txt", new TestStatement()
+            .Closing("2026-10-31", 90m)
+            .Row("2026-10-05", -10m, "Fee"));
+        var bad = await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
+            .Closing("2026-11-30", 50m)
+            .Row("2026-11-05", -10m, "Fee"));
+        await Assert.That((await GetAccountAsync(anna, account.Id)).BalanceWarning).IsNotNull();
+
+        var undo = await anna.DeleteAsync($"/api/source-files/{bad.SourceFile.Id}");
+
+        await Assert.That(undo.IsSuccessStatusCode).IsTrue();
+        await Assert.That((await GetAccountAsync(anna, account.Id)).BalanceWarning).IsNull();
+    }
+
+    [Test]
     public async Task A_manual_transaction_that_fills_the_gap_clears_the_warning()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
