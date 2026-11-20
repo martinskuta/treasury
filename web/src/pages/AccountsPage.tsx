@@ -170,6 +170,15 @@ function AccountRow({
           {account.owner.name} · {integrationName}
           {account.identifier && <> · {account.identifier}</>} · Ingest folder ingest/{account.slug}/
         </div>
+        {account.balanceWarning && (
+          <p className="status status-bad account-warning" role="alert">
+            Balance mismatch: {account.balanceWarning.sourceFile.fileName} says{' '}
+            {formatAmount(account.balanceWarning.statementBalance)} {account.currency} on{' '}
+            {formatDate(account.balanceWarning.date)}, but the calculated balance on that date is{' '}
+            {formatAmount(account.balanceWarning.calculatedBalance)} {account.currency}. An import may be missing or
+            doubled.
+          </p>
+        )}
         {importing && <ImportPanel account={account} integrationName={integrationName} onImported={onImported} />}
       </div>
       <div className="amount account-balance">

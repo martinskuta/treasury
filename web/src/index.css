@@ -335,6 +335,12 @@ h1 {
   white-space: nowrap;
 }
 
+.account-warning {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
 .account-rename {
   display: flex;
   flex-wrap: wrap;

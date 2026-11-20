@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Data;
 using Treasury.Api.Integrations;
 using Treasury.Api.Ownership;
+using Treasury.Api.Transactions;
 
 namespace Treasury.Api.Accounts;
 
@@ -18,7 +19,12 @@ public static class AccountEndpoints
     public record RenameAccountRequest(string? Name);
 
     public record AccountResponse(Guid Id, string Name, string Slug, OwnerResponse Owner, string IntegrationKey,
-        string Currency, decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance);
+        string Currency, decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance,
+        BalanceWarningResponse? BalanceWarning);
+
+    /// The Account's most recent statement closing balance differs from the calculated balance on that date (#11).
+    public record BalanceWarningResponse(DateOnly Date, decimal StatementBalance, decimal CalculatedBalance,
+        TransactionEndpoints.SourceFileRef SourceFile);
 
     public static void AddAccounts(this WebApplicationBuilder builder)
     {
@@ -36,16 +42,15 @@ public static class AccountEndpoints
             var viewer = ViewerId(user);
             var list = await db.Accounts.OwnedByViewerOrFamily(viewer).OrderBy(a => a.Name).ToListAsync();
             var names = await MemberNamesAsync(db, list);
-            var balances = await BalancesAsync(db, list);
-            return Results.Ok(list.Select(a => ToResponse(a, names, balances)));
+            var balances = await AccountBalances.CurrentAsync(db, list);
+            var mismatches = await AccountBalances.MismatchesAsync(db, list);
+            return Results.Ok(list.Select(a => ToResponse(a, names, balances, mismatches)));
         });
 
         accounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db) =>
         {
             var account = await FindVisibleAsync(db, id, ViewerId(user));
-            return account is null
-                ? Results.NotFound()
-                : Results.Ok(ToResponse(account, await MemberNamesAsync(db, [account]), await BalancesAsync(db, [account])));
+            return account is null ? Results.NotFound() : Results.Ok(await ToResponseAsync(db, account));
         });
 
         accounts.MapPost("/", async (CreateAccountRequest request, ClaimsPrincipal user, TreasuryDbContext db,
@@ -94,7 +99,7 @@ public static class AccountEndpoints
             db.Accounts.Add(account);
             await db.SaveChangesAsync();
 
-            return Results.Created($"/api/accounts/{account.Id}", ToResponse(account, await MemberNamesAsync(db, [account]), new Dictionary<Guid, decimal>()));
+            return Results.Created($"/api/accounts/{account.Id}", await ToResponseAsync(db, account));
         });
 
         accounts.MapPatch("/{id:guid}", async (Guid id, RenameAccountRequest request, ClaimsPrincipal user,
@@ -113,7 +118,7 @@ public static class AccountEndpoints
 
             account.Name = name!;
             await db.SaveChangesAsync();
-            return Results.Ok(ToResponse(account, await MemberNamesAsync(db, [account]), await BalancesAsync(db, [account])));
+            return Results.Ok(await ToResponseAsync(db, account));
         });
 
         api.MapGet("/integrations", (IntegrationRegistry integrations) =>
@@ -144,21 +149,16 @@ public static class AccountEndpoints
     private static Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts) =>
         db.MemberNamesAsync(accounts.Select(a => a.OwnerMemberId));
 
-    /// Sum of each Account's Transactions after its opening date (all of them: whoever sees an Account sees its
-    /// full contents, whatever the Transactions' Owners). Accounts without such Transactions are missing.
-    private static async Task<Dictionary<Guid, decimal>> BalancesAsync(TreasuryDbContext db, IEnumerable<Account> accounts)
-    {
-        var ids = accounts.Select(a => a.Id).ToList();
-        return await db.Transactions
-            .Where(t => ids.Contains(t.AccountId) && t.Date > t.Account.OpeningDate)
-            .GroupBy(t => t.AccountId)
-            .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
-            .ToDictionaryAsync(x => x.AccountId, x => x.Sum);
-    }
+    private static async Task<AccountResponse> ToResponseAsync(TreasuryDbContext db, Account account) =>
+        ToResponse(account, await MemberNamesAsync(db, [account]), await AccountBalances.CurrentAsync(db, [account]),
+            await AccountBalances.MismatchesAsync(db, [account]));
 
     private static AccountResponse ToResponse(Account a, IReadOnlyDictionary<Guid, string> memberNames,
-        IReadOnlyDictionary<Guid, decimal> transactionSums) =>
+        IReadOnlyDictionary<Guid, decimal> balances, IReadOnlyDictionary<Guid, BalanceMismatch> mismatches) =>
         new(a.Id, a.Name, a.Slug, OwnerResponse.From(a.Owner, memberNames), a.IntegrationKey, a.Currency,
-            a.OpeningBalance, a.OpeningDate, a.Identifier,
-            Balance: a.OpeningBalance + transactionSums.GetValueOrDefault(a.Id));
+            a.OpeningBalance, a.OpeningDate, a.Identifier, balances[a.Id],
+            mismatches.TryGetValue(a.Id, out var m)
+                ? new BalanceWarningResponse(m.Date, m.StatementBalance, m.CalculatedBalance,
+                    new TransactionEndpoints.SourceFileRef(m.SourceFileId, m.FileName))
+                : null);
 }

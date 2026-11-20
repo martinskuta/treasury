@@ -12,8 +12,8 @@ using Treasury.Api.Data;
 namespace Treasury.Api.Data.Migrations;
 
 [DbContext(typeof(TreasuryDbContext))]
-[Migration("20261120004631_Matching")]
-partial class _20261120004631_Matching
+[Migration("20261120004924_Matching")]
+partial class _20261120004924_Matching
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -346,6 +346,13 @@ partial class _20261120004631_Matching
 
                 b.Property<Guid>("AccountId")
                     .HasColumnType("uuid");
+
+                b.Property<decimal?>("ClosingBalanceAmount")
+                    .HasPrecision(19, 4)
+                    .HasColumnType("numeric(19,4)");
+
+                b.Property<DateOnly?>("ClosingBalanceDate")
+                    .HasColumnType("date");
 
                 b.Property<string>("ContentHash")
                     .IsRequired()
