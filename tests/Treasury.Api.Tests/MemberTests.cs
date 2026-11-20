@@ -10,9 +10,9 @@ public class MemberTests : ApiTestBase
     {
         await LoginAsAdminAsync();
 
-        var members = await Client.GetFromJsonAsync<List<MemberRow>>("/api/admin/members");
+        var members = (await Client.GetFromJsonAsync<List<MemberRow>>("/api/admin/members"))!;
 
-        await Assert.That(members!.Select(m => m.UserName)).IsEquivalentTo([TreasuryApiFactory.AdminUserName]);
+        await Assert.That(members.Select(m => m.UserName)).IsEquivalentTo([TreasuryApiFactory.AdminUserName]);
         await Assert.That(members[0].IsAdmin).IsTrue();
         await Assert.That(members[0].IsActive).IsTrue();
     }
@@ -327,8 +327,8 @@ public class MemberTests : ApiTestBase
         await Assert.That(asMember.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
         await Assert.That(asNobody.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
         await LoginAsAdminAsync();
-        var members = await Client.GetFromJsonAsync<List<MemberRow>>("/api/admin/members");
-        await Assert.That(members!.Select(m => m.UserName)).IsEquivalentTo(["admin", "anna", "bob"]);
+        var members = (await Client.GetFromJsonAsync<List<MemberRow>>("/api/admin/members"))!;
+        await Assert.That(members.Select(m => m.UserName)).IsEquivalentTo(["admin", "anna", "bob"]);
         await Assert.That(members.Single(m => m.UserName == "bob").IsAdmin).IsFalse();
         await Assert.That(members.Single(m => m.UserName == "bob").IsActive).IsTrue();
     }
