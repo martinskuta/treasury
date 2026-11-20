@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120005323_Tags";
+    public override string LastMigrationId => "20261120010043_Rules";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -389,6 +389,70 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("SourceFiles");
             });
 
+        modelBuilder.Entity("Treasury.Api.Rules.Rule", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("AuthorMemberId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid?>("CategoryId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Field")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.Property<string>("Match")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.Property<Guid?>("OwnerMemberId")
+                    .HasColumnType("uuid");
+
+                b.Property<int>("Priority")
+                    .HasColumnType("integer");
+
+                b.Property<bool>("SetsOwner")
+                    .HasColumnType("boolean");
+
+                b.Property<string>("Text")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("AuthorMemberId");
+
+                b.HasIndex("CategoryId");
+
+                b.HasIndex("OwnerMemberId");
+
+                b.HasIndex("Priority");
+
+                b.ToTable("Rules");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Rules.RuleTag", b =>
+            {
+                b.Property<Guid>("RuleId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("TagId")
+                    .HasColumnType("uuid");
+
+                b.HasKey("RuleId", "TagId");
+
+                b.HasIndex("TagId");
+
+                b.ToTable("RuleTags");
+            });
+
         modelBuilder.Entity("Treasury.Api.Tags.Tag", b =>
             {
                 b.Property<Guid>("Id")
@@ -626,6 +690,40 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Account");
             });
 
+        modelBuilder.Entity("Treasury.Api.Rules.Rule", b =>
+            {
+                b.HasOne("Treasury.Api.Auth.Member", null)
+                    .WithMany()
+                    .HasForeignKey("AuthorMemberId")
+                    .OnDelete(DeleteBehavior.Restrict)
+                    .IsRequired();
+
+                b.HasOne("Treasury.Api.Categories.Category", null)
+                    .WithMany()
+                    .HasForeignKey("CategoryId")
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                b.HasOne("Treasury.Api.Auth.Member", null)
+                    .WithMany()
+                    .HasForeignKey("OwnerMemberId")
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+        modelBuilder.Entity("Treasury.Api.Rules.RuleTag", b =>
+            {
+                b.HasOne("Treasury.Api.Rules.Rule", null)
+                    .WithMany("TagLinks")
+                    .HasForeignKey("RuleId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Treasury.Api.Tags.Tag", null)
+                    .WithMany()
+                    .HasForeignKey("TagId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("Treasury.Api.Tags.TransactionTag", b =>
             {
                 b.HasOne("Treasury.Api.Tags.Tag", null)
@@ -687,6 +785,11 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Account");
 
                 b.Navigation("SourceFile");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Rules.Rule", b =>
+            {
+                b.Navigation("TagLinks");
             });
 
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>

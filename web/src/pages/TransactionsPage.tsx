@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
+import { RuleOffer } from '../components/RuleOffer'
 import { SelectField } from '../components/SelectField'
 import {
   ApiError,
@@ -179,6 +180,7 @@ function TransactionRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [linking, setLinking] = useState(false)
+  const [offerRule, setOfferRule] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function unlink() {
@@ -212,7 +214,8 @@ function TransactionRow({
           tags={tags}
           canEditFacts={canEditFacts}
           onCancel={() => setEditing(false)}
-          onSaved={() => {
+          onSaved={categorySet => {
+            setOfferRule(categorySet)
             setEditing(false)
             onChanged()
           }}
@@ -252,6 +255,7 @@ function TransactionRow({
           )}
         </div>
         <TagChips tags={t.tags} />
+        {offerRule && <RuleOffer transactionId={t.id} onDismiss={() => setOfferRule(false)} />}
         <div className="transaction-actions">
           <button type="button" className="button-link" onClick={() => setEditing(true)}>
             Edit
@@ -554,7 +558,8 @@ function EditTransactionForm({
   tags: Tag[]
   canEditFacts: boolean
   onCancel: () => void
-  onSaved: () => void
+  /** categorySet: the Member chose a Category by hand (we then offer a Rule built from it). */
+  onSaved: (categorySet: boolean) => void
 }) {
   const [date, setDate] = useState(t.date)
   const [amount, setAmount] = useState(String(t.amount))
@@ -597,7 +602,7 @@ function EditTransactionForm({
     setErrors({})
     try {
       await updateTransaction(t.id, changes)
-      onSaved()
+      onSaved(changes.categoryId !== undefined)
     } catch (err) {
       setErrors(toErrors(err))
     } finally {

@@ -7,6 +7,7 @@ using Treasury.Api.Auth;
 using Treasury.Api.Imports;
 using Treasury.Api.Categories;
 using Treasury.Api.ExchangeRates;
+using Treasury.Api.Rules;
 using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
 
@@ -34,6 +35,10 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
     public DbSet<TransactionTag> TransactionTags => Set<TransactionTag>();
 
     public DbSet<TransactionTagRemoval> TransactionTagRemovals => Set<TransactionTagRemoval>();
+
+    public DbSet<Rule> Rules => Set<Rule>();
+
+    public DbSet<RuleTag> RuleTags => Set<RuleTag>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -131,6 +136,27 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             r.HasOne<Transaction>().WithMany().HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.Cascade);
             r.HasOne<Tag>().WithMany().HasForeignKey(x => x.TagId).OnDelete(DeleteBehavior.Cascade);
             r.HasIndex(x => x.TagId);
+        });
+
+        builder.Entity<Rule>(r =>
+        {
+            r.Ignore(x => x.Owner);
+            r.Property(x => x.Field).HasConversion<string>().HasMaxLength(16);
+            r.Property(x => x.Match).HasConversion<string>().HasMaxLength(16);
+            r.Property(x => x.Text).HasMaxLength(RuleEndpoints.MaxTextLength);
+            r.HasIndex(x => x.Priority);
+            // Removing a Category takes it out of Rules (moving its Transactions moves the Rules too, #13 endpoint).
+            r.HasOne<Category>().WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.SetNull);
+            r.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
+            r.HasOne<Member>().WithMany().HasForeignKey(x => x.AuthorMemberId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<RuleTag>(l =>
+        {
+            l.HasKey(x => new { x.RuleId, x.TagId });
+            l.HasOne<Rule>().WithMany(x => x.TagLinks).HasForeignKey(x => x.RuleId).OnDelete(DeleteBehavior.Cascade);
+            l.HasOne<Tag>().WithMany().HasForeignKey(x => x.TagId).OnDelete(DeleteBehavior.Cascade);
+            l.HasIndex(x => x.TagId);
         });
 
         builder.Entity<ExchangeRate>(r =>
