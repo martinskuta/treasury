@@ -44,6 +44,8 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
             // the fake clock) lies in the real past, which would break every logged-in test 14 days after 2026-11-20.
             services.PostConfigure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme,
                 o => o.TimeProvider = TimeProvider.System);
+            // Same for the security stamp check: it compares "now" with the cookie's (real) issue time.
+            services.PostConfigure<SecurityStampValidatorOptions>(o => o.TimeProvider = TimeProvider.System);
             // services.Replace(ServiceDescriptor.Singleton<IExchangeRateProvider, FakeExchangeRateProvider>());
             foreach (var integration in TestIntegrations.All)
                 services.AddSingleton<IIntegration>(integration);

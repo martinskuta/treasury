@@ -11,11 +11,11 @@ The group of people whose finances Treasury tracks together. An installation of 
 _Avoid_: Household, group, tenant, organization
 
 **Member**:
-An adult who belongs to the Family and whose finances can be tracked individually.
+An adult who belongs to the Family and whose finances can be tracked individually. Members are never deleted; an Admin **deactivates** a Member, which stops their login but keeps their data, and can hand their Accounts to the Family or another Member.
 _Avoid_: User, person, family member
 
 **Admin**:
-A role a Member can hold that lets them manage the other Members' logins (add, remove, reset passwords). The first Member created in an installation is an Admin.
+A role a Member can hold that lets them manage the other Members' logins (add, deactivate, reset passwords, give or remove the Admin role). The first Member created in an installation is an Admin; there is always at least one active Admin. The role gives no view into other Members' personal finances.
 _Avoid_: Superuser, root, administrator account
 
 ### Money
