@@ -165,10 +165,11 @@ public class ImportChecksTests : ApiTestBase
         await UploadOkAsync(anna, account.Id, "october.txt", new TestStatement()
             .Closing("2026-10-31", 90m)
             .Row("2026-10-05", -10m, "Fee"));
-        // A doubled October fee: the November closing balance no longer matches.
+        // An extra October row the bank never booked (not a duplicate: its description differs),
+        // so the November closing balance no longer matches.
         var doubled = await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
             .Closing("2026-11-30", 80m)
-            .Row("2026-10-05", -10m, "Fee")
+            .Row("2026-10-05", -10m, "Fee correction")
             .Row("2026-11-05", -10m, "Fee"));
 
         var warning = (await GetAccountAsync(anna, account.Id)).BalanceWarning;
