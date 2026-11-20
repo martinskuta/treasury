@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
 import { SelectField } from '../components/SelectField'
 import {
@@ -6,10 +7,12 @@ import {
   createTransaction,
   deleteTransaction,
   listAccounts,
+  listCategories,
   listOwners,
   listTransactions,
   updateTransaction,
   type Account,
+  type Category,
   type Owner,
   type OwnerRef,
   type Transaction,
@@ -45,15 +48,17 @@ export function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[] | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loadError, setLoadError] = useState(false)
   const [adding, setAdding] = useState(false)
 
   const load = (signal?: AbortSignal) =>
-    Promise.all([listTransactions(signal), listAccounts(signal), listOwners(signal)])
-      .then(([t, a, o]) => {
+    Promise.all([listTransactions(signal), listAccounts(signal), listOwners(signal), listCategories(signal)])
+      .then(([t, a, o, c]) => {
         setTransactions(t)
         setAccounts(a)
         setOwners(o)
+        setCategories(c)
       })
       .catch(() => {
         if (!signal?.aborted) setLoadError(true)
@@ -77,6 +82,7 @@ export function TransactionsPage() {
         <NewTransactionForm
           accounts={accounts}
           owners={owners}
+          categories={categories}
           onCancel={() => setAdding(false)}
           onCreated={() => {
             setAdding(false)
@@ -106,6 +112,7 @@ export function TransactionsPage() {
                   key={t.id}
                   transaction={t}
                   owners={owners}
+                  categories={categories}
                   canEditFacts={t.origin === 'manual' && manageable.has(t.accountId)}
                   onChanged={() => void load()}
                 />
@@ -121,11 +128,13 @@ export function TransactionsPage() {
 function TransactionRow({
   transaction: t,
   owners,
+  categories,
   canEditFacts,
   onChanged,
 }: {
   transaction: Transaction
   owners: Owner[]
+  categories: Category[]
   canEditFacts: boolean
   onChanged: () => void
 }) {
@@ -149,6 +158,7 @@ function TransactionRow({
         <EditTransactionForm
           transaction={t}
           owners={owners}
+          categories={categories}
           canEditFacts={canEditFacts}
           onCancel={() => setEditing(false)}
           onSaved={() => {
@@ -165,7 +175,7 @@ function TransactionRow({
       <div className="transaction-main">
         <strong>{t.description}</strong>
         <div className="account-meta">
-          {t.accountName} · {t.owner.name}
+          {t.category?.path ?? 'Uncategorised'} · {t.accountName} · {t.owner.name}
           {t.note && <> · {t.note}</>}
         </div>
         <div className="transaction-actions">
@@ -194,11 +204,13 @@ function TransactionRow({
 function NewTransactionForm({
   accounts,
   owners,
+  categories,
   onCancel,
   onCreated,
 }: {
   accounts: Account[]
   owners: Owner[]
+  categories: Category[]
   onCancel: () => void
   onCreated: () => void
 }) {
@@ -208,6 +220,7 @@ function NewTransactionForm({
   const [description, setDescription] = useState('')
   const [note, setNote] = useState('')
   const [owner, setOwner] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
@@ -230,6 +243,7 @@ function NewTransactionForm({
         description,
         note: note.trim() || null,
         owner: owner ? ownerRefFromValue(owner) : undefined,
+        categoryId: categoryId || undefined,
       })
       onCreated()
     } catch (err) {
@@ -271,6 +285,7 @@ function NewTransactionForm({
         <option value="">Account’s Owner{account ? ` (${account.owner.name})` : ''}</option>
         <OwnerOptions owners={owners} />
       </SelectField>
+      <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
       {errors.form && (
         <p className="form-error" role="alert">
           {errors.form[0]}
@@ -291,12 +306,14 @@ function NewTransactionForm({
 function EditTransactionForm({
   transaction: t,
   owners,
+  categories,
   canEditFacts,
   onCancel,
   onSaved,
 }: {
   transaction: Transaction
   owners: Owner[]
+  categories: Category[]
   canEditFacts: boolean
   onCancel: () => void
   onSaved: () => void
@@ -306,6 +323,7 @@ function EditTransactionForm({
   const [description, setDescription] = useState(t.description)
   const [note, setNote] = useState(t.note ?? '')
   const [owner, setOwner] = useState(ownerValue(t.owner))
+  const [categoryId, setCategoryId] = useState(t.category?.id ?? '')
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
@@ -325,6 +343,10 @@ function EditTransactionForm({
     }
     if (note !== (t.note ?? '')) changes.note = note
     if (owner !== ownerValue(t.owner)) changes.owner = ownerRefFromValue(owner)
+    if (categoryId !== (t.category?.id ?? '')) {
+      if (categoryId) changes.categoryId = categoryId
+      else changes.uncategorise = true
+    }
     setBusy(true)
     setErrors({})
     try {
@@ -359,6 +381,7 @@ function EditTransactionForm({
       <SelectField label="Owner" name="owner" value={owner} errors={errors.owner} onChange={e => setOwner(e.target.value)}>
         <OwnerOptions owners={owners} />
       </SelectField>
+      <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
       {(errors.form ?? errors.transaction) && (
         <p className="form-error" role="alert">
           {(errors.form ?? errors.transaction)[0]}
@@ -414,6 +437,27 @@ function FactFields(props: {
         onChange={e => props.onDescription(e.target.value)}
       />
     </>
+  )
+}
+
+/** Category picker; "" = Uncategorised. */
+function CategoryField(props: {
+  categories: Category[]
+  value: string
+  errors: string[] | undefined
+  onChange: (v: string) => void
+}) {
+  return (
+    <SelectField
+      label="Category"
+      name="categoryId"
+      value={props.value}
+      errors={props.errors}
+      onChange={e => props.onChange(e.target.value)}
+    >
+      <option value="">Uncategorised</option>
+      <CategoryOptions categories={props.categories} />
+    </SelectField>
   )
 }
 
