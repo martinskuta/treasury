@@ -118,6 +118,17 @@ export type Account = {
   openingDate: string
   identifier: string | null
   balance: number
+  /** Set when the most recent statement's closing balance differs from the calculated balance on that date. */
+  balanceWarning: BalanceWarning | null
+}
+
+/** Computed on every read: it disappears once the balances match again. */
+export type BalanceWarning = {
+  /** ISO date of the statement's closing balance */
+  date: string
+  statementBalance: number
+  calculatedBalance: number
+  sourceFile: { id: string; fileName: string }
 }
 
 export type NewAccount = {
@@ -277,6 +288,9 @@ export const listSourceFiles = (accountId: string, signal?: AbortSignal) =>
 /** Link that downloads the original file. */
 export const sourceFileContentUrl = (id: string) => `/api/source-files/${id}/content`
 
+/** Undo an import: deletes the Source file and every Transaction imported from it. */
+export const deleteSourceFile = (id: string) => apiFetch<void>(`/api/source-files/${id}`, { method: 'DELETE' })
+
 // ---- Categories ----
 
 /** A Category as Transactions carry it; `path` is e.g. "Food › Eating out". */
@@ -359,3 +373,44 @@ export const listMemberAccountsForHandover = (id: string, signal?: AbortSignal) 
 /** Accounts not listed in `handover` stay with the deactivated Member. */
 export const deactivateMember = (id: string, handover: Handover[]) =>
   apiFetch<void>(`/api/admin/members/${id}/deactivate`, { method: 'POST', body: { handover } })
+
+// ---- Reports (/api/reports) ----
+
+/** Whose figures a report shows: the viewer's own Transactions, or Family-owned ones only. */
+export type ReportOwner = 'me' | 'family'
+
+/** A Category's CHF amount: `total` includes every Category below it, `direct` only what is assigned to it. */
+export type CategoryTotal = {
+  id: string
+  name: string
+  parentId: string | null
+  path: string
+  builtInKey: string | null
+  total: number
+  direct: number
+}
+
+/**
+ * One side (Income or Expense) of a report, as positive CHF amounts. `categories` lists, in tree order, every
+ * Category whose subtree holds amounts (drill in by `parentId`). Amounts without a CHF rate yet are in no total;
+ * `pendingConversion` counts them.
+ */
+export type ReportSection = {
+  total: number
+  pendingConversion: number
+  uncategorised: number
+  contributions: number
+  categories: CategoryTotal[]
+}
+
+export type MonthlyReport = {
+  month: string // yyyy-MM
+  owner: ReportOwner
+  currency: 'CHF'
+  income: ReportSection
+  expense: ReportSection
+  net: number
+}
+
+export const getMonthlyReport = (month: string, owner: ReportOwner, signal?: AbortSignal) =>
+  apiFetch<MonthlyReport>(`/api/reports/monthly?month=${encodeURIComponent(month)}&owner=${owner}`, { signal })

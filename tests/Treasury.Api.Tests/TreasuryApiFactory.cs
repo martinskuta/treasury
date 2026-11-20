@@ -32,17 +32,23 @@ public sealed class TreasuryApiFactory(string connectionString, bool seedAdmin =
     /// Extra test services (e.g. a fake import pipeline step), applied after the standard fakes.
     public Action<IServiceCollection>? ExtraServices { get; init; }
 
+    /// Extra configuration (e.g. ["Ingest:ScanInterval"] = "02:00:00"), applied after the standard settings.
+    public Dictionary<string, string?> Settings { get; } = [];
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         // UseSetting is visible to WebApplication.CreateBuilder config, i.e. before AddNpgsqlDbContext reads it.
         builder.UseSetting("ConnectionStrings:treasurydb", connectionString);
         builder.UseSetting("Storage:DataRoot", DataRoot);
+        // Short wait for "is this dropped file still being written?" (default 2 s), keeps scan tests quick.
+        builder.UseSetting("Ingest:SettleTime", "00:00:00.300");
         if (seedAdmin)
         {
             builder.UseSetting("Admin:UserName", AdminUserName);
             builder.UseSetting("Admin:Password", AdminPassword);
         }
+        foreach (var (key, value) in Settings) builder.UseSetting(key, value);
         builder.ConfigureTestServices(services =>
         {
             services.RemoveAll<TimeProvider>();

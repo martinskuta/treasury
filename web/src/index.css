@@ -335,6 +335,12 @@ h1 {
   white-space: nowrap;
 }
 
+.account-warning {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
 .account-rename {
   display: flex;
   flex-wrap: wrap;
@@ -381,6 +387,11 @@ h1 {
 
 .source-file-list li {
   padding: 2px 0;
+}
+
+.source-file-heading {
+  margin: 12px 0 0;
+  font-size: 0.95rem;
 }
 
 /* ---- Transactions ---- */
@@ -532,6 +543,147 @@ h1 {
   margin-top: 8px;
 }
 
+/* ---- Monthly overview ---- */
+.report-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.report-controls .segmented {
+  margin-bottom: 0;
+}
+
+.segmented button {
+  font: inherit;
+  padding: 6px 14px;
+  color: inherit;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segmented button[aria-pressed='true'] {
+  color: #fff;
+  background: var(--accent);
+}
+
+.month-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-label {
+  min-width: 9.5em;
+  text-align: center;
+  font-weight: 600;
+}
+
+.report-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.report-totals dt {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.report-totals dd {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.report-totals .income {
+  color: var(--good);
+}
+
+.report-totals .expense {
+  color: var(--bad);
+}
+
+.report-note {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.report-pending {
+  color: var(--bad);
+}
+
+.breadcrumb {
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.breakdown-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.breakdown-row.muted .breakdown-name {
+  color: var(--muted);
+}
+
+.breakdown-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.breakdown-name .button-link {
+  font-size: inherit;
+  text-align: left;
+}
+
+.breakdown-share {
+  min-width: 3.5em;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.breakdown-row .amount {
+  white-space: nowrap;
+}
+
+.breakdown-total {
+  border-bottom: none;
+  font-weight: 600;
+}
 /* ---- Tags ---- */
 .tag-list {
   display: flex;

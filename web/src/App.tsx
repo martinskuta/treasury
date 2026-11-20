@@ -8,6 +8,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { MembersPage } from './pages/MembersPage'
+import { MonthlyOverviewPage } from './pages/MonthlyOverviewPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TagsPage } from './pages/TagsPage'
@@ -24,6 +25,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
+              <Route path="overview" element={<MonthlyOverviewPage />} />
               <Route path="transactions" element={<TransactionsPage />} />
               <Route path="uncategorised" element={<UncategorisedPage />} />
               <Route path="accounts" element={<AccountsPage />} />

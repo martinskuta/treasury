@@ -12,8 +12,8 @@ using Treasury.Api.Data;
 namespace Treasury.Api.Data.Migrations;
 
 [DbContext(typeof(TreasuryDbContext))]
-[Migration("20261120004114_Tags")]
-partial class _20261120004114_Tags
+[Migration("20261120005055_Tags")]
+partial class _20261120005055_Tags
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -347,6 +347,13 @@ partial class _20261120004114_Tags
                 b.Property<Guid>("AccountId")
                     .HasColumnType("uuid");
 
+                b.Property<decimal?>("ClosingBalanceAmount")
+                    .HasPrecision(19, 4)
+                    .HasColumnType("numeric(19,4)");
+
+                b.Property<DateOnly?>("ClosingBalanceDate")
+                    .HasColumnType("date");
+
                 b.Property<string>("ContentHash")
                     .IsRequired()
                     .HasMaxLength(64)
@@ -517,6 +524,9 @@ partial class _20261120004114_Tags
                 b.HasIndex("SourceFileId");
 
                 b.HasIndex("AccountId", "Date");
+
+                b.HasIndex("AccountId", "Reference")
+                    .HasFilter("\"Reference\" IS NOT NULL");
 
                 b.ToTable("Transactions");
             });

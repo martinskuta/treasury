@@ -8,6 +8,7 @@ using Treasury.Api.Imports;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 using Treasury.Api.Members;
+using Treasury.Api.Reports;
 using Treasury.Api.Storage;
 using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
@@ -23,6 +24,8 @@ builder.AddTreasuryAuth();
 builder.AddDataRoot();
 builder.AddAccounts();
 builder.AddImports();
+builder.AddStatementChecks();
+builder.AddIngestScan();
 builder.AddTags();
 builder.AddExchangeRates();
 
@@ -49,9 +52,11 @@ api.MapAuth();
 api.MapAccounts();
 api.MapTransactions();
 api.MapImports();
+api.MapIngestScan();
 api.MapOwners();
 api.MapMembers();
 api.MapCategories();
+api.MapReports();
 api.MapTags();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 

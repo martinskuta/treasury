@@ -81,8 +81,25 @@ this folder together with the database.
 ## Importing statements
 
 On the Accounts screen, choose **Import statement** on an Account and upload the bank's export. The Account's
-Integration reads it. Imported date, amount, currency, description and original foreign amount are read-only;
+Integration reads it. Or drop the file into the Account's Ingest folder, `ingest/<account-slug>/`: Treasury checks
+every Ingest folder at startup and then every minute, imports each file it finds there through the same pipeline,
+and moves it to `processed/` or `failed/`. A file must stay unchanged for 2 seconds during a check before it is
+imported, so a file that is still being copied in is left for the next check; temporary download names (`.part`,
+`.crdownload`, `.tmp`, ...) and hidden files are ignored until renamed. Settings: `Ingest__ScanInterval` (default
+`00:01:00`) and `Ingest__SettleTime` (default `00:00:02`). `POST /api/ingest/scan` checks the folders right away.
+Imported date, amount, currency, description and original foreign amount are read-only;
 Display name, note and Owner can be edited.
+
+Two safety checks run on every import:
+
+- **Identifier**: when the Account has an identifier (IBAN or card number) and the statement carries one, they must
+  match, otherwise the file goes to `failed/` and nothing is imported. Spaces, `-` and letter case are ignored
+  (`CH93 0076 2011 6238 5295 7` = `ch9300762011623852957`). Card numbers (digits, optionally masked with `*`, `X`,
+  `•` or `.`) match on their last 4 digits, so an Account identifier `1234` matches `5413 **** **** 1234`.
+  The check is skipped when either side has no identifier.
+- **Closing balance**: when a statement includes a closing balance, it is compared with the Account's calculated
+  balance on that date. The Accounts screen shows a warning while the most recent statement's closing balance
+  doesn't match (a missing or doubled import); it disappears once the balances match again.
 
 ### Generic CSV (`generic-csv`)
 

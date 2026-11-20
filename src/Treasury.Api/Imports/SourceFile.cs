@@ -27,4 +27,11 @@ public class SourceFile
 
     /// The Member who uploaded it; null when it came from the Ingest folder.
     public Guid? ImportedByMemberId { get; init; }
+
+    /// The statement's closing balance date, when the format has one (#11). Kept so the Account's balance warning
+    /// is computed on read and clears by itself once the balances match again.
+    public DateOnly? ClosingBalanceDate { get; set; }
+
+    /// The statement's closing balance (Account currency), together with <see cref="ClosingBalanceDate"/>.
+    public decimal? ClosingBalanceAmount { get; set; }
 }

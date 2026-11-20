@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
 import { SelectField } from '../components/SelectField'
@@ -58,30 +58,34 @@ export function TransactionsPage() {
   const [loadError, setLoadError] = useState(false)
   const [adding, setAdding] = useState(false)
 
-  const load = (signal?: AbortSignal) =>
-    Promise.all([
-      listTransactions(signal, { tagId: tagFilter || undefined }),
-      listAccounts(signal),
-      listOwners(signal),
-      listCategories(signal),
-      listTags(signal),
-    ])
-      .then(([t, a, o, c, g]) => {
-        setTransactions(t)
-        setAccounts(a)
-        setOwners(o)
-        setCategories(c)
-        setTags(g)
-      })
-      .catch(() => {
-        if (!signal?.aborted) setLoadError(true)
-      })
+  const load = useCallback(
+    (signal?: AbortSignal) =>
+      Promise.all([
+        listTransactions(signal, { tagId: tagFilter || undefined }),
+        listAccounts(signal),
+        listOwners(signal),
+        listCategories(signal),
+        listTags(signal),
+      ])
+        .then(([t, a, o, c, g]) => {
+          setTransactions(t)
+          setAccounts(a)
+          setOwners(o)
+          setCategories(c)
+          setTags(g)
+        })
+        .catch(() => {
+          if (!signal?.aborted) setLoadError(true)
+        }),
+    [tagFilter],
+  )
 
+  // Reloads when the Tag filter changes (load depends on it).
   useEffect(() => {
     const controller = new AbortController()
     void load(controller.signal)
     return () => controller.abort()
-  }, [tagFilter]) // reload when the Tag filter changes
+  }, [load])
 
   // The Accounts listed are exactly the ones the Member can manage (own + Family).
   const manageable = new Set(accounts.map(a => a.id))
