@@ -32,7 +32,186 @@ public class MatchingTests : ApiTestBase
         await Assert.That(await UncategorisedAsync(anna)).IsEmpty();
     }
 
+    [Test]
+    public async Task A_currency_exchange_between_own_accounts_is_a_transfer_within_two_percent_and_one_day()
+    {
+        // 1 EUR = 0.966 CHF: +103.50 EUR is 99.98 CHF, against -100 CHF.
+        App.ExchangeRates.Publish("2026-11-17", chf: 0.966m);
+        App.ExchangeRates.Publish("2026-11-18", chf: 0.966m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var revolutChf = await CreateAccountAsync(anna, "Revolut CHF", me);
+        var revolutEur = await CreateAccountAsync(anna, "Revolut EUR", me, currency: "EUR");
+        await UploadOkAsync(anna, revolutEur.Id, new TestStatement().Row("2026-11-18", 103.50m, "EXCHANGED FROM CHF", currency: "EUR"));
+        await RatesSyncedAsync(anna);
+
+        await UploadOkAsync(anna, revolutChf.Id, new TestStatement().Row("2026-11-17", -100m, "EXCHANGED TO EUR"));
+
+        var list = await ListAsync(anna);
+        await Assert.That(list.Select(t => t.Type)).IsEquivalentTo(["transfer", "transfer"]);
+        await Assert.That(list.Single(t => t.Currency == "CHF").Link!.TransactionId)
+            .IsEqualTo(list.Single(t => t.Currency == "EUR").Id);
+    }
+
+    [Test]
+    public async Task A_currency_exchange_off_by_more_than_two_percent_or_one_day_is_not_matched()
+    {
+        App.ExchangeRates.Publish("2026-11-16", chf: 0.966m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var revolutChf = await CreateAccountAsync(anna, "Revolut CHF", me);
+        var revolutEur = await CreateAccountAsync(anna, "Revolut EUR", me, currency: "EUR");
+        await UploadOkAsync(anna, revolutEur.Id, new TestStatement()
+            .Row("2026-11-16", 108m, "OFF BY 4 PERCENT", currency: "EUR") // 104.33 CHF vs 100
+            .Row("2026-11-19", 103.50m, "TWO DAYS LATER", currency: "EUR"));
+        await RatesSyncedAsync(anna);
+
+        await UploadOkAsync(anna, revolutChf.Id, new TestStatement().Row("2026-11-17", -100m, "EXCHANGED TO EUR"));
+
+        await Assert.That((await ListAsync(anna)).Select(t => t.Type)).IsEquivalentTo(["income", "income", "expense"]);
+    }
+
+    [Test]
+    public async Task A_payment_into_a_family_account_is_a_contribution_with_the_contribution_categories()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var personal = await CreateAccountAsync(anna, "Anna's account", await MeAsync(anna));
+        var household = await CreateAccountAsync(anna, "Household", Family);
+        await UploadOkAsync(anna, household.Id, new TestStatement().Row("2026-11-02", 1500m, "ANNA MONTHLY"));
+
+        await UploadOkAsync(anna, personal.Id, new TestStatement().Row("2026-11-01", -1500m, "TO HOUSEHOLD"));
+
+        var list = await ListAsync(anna);
+        var sent = list.Single(t => t.Description == "TO HOUSEHOLD");
+        var received = list.Single(t => t.Description == "ANNA MONTHLY");
+        await Assert.That(sent.Type).IsEqualTo("expense");
+        await Assert.That(received.Type).IsEqualTo("income");
+        await Assert.That(sent.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(received.Link!.TransactionId).IsEqualTo(sent.Id);
+        await Assert.That(sent.Category!.Path).IsEqualTo("Contributions › To Family");
+        await Assert.That(received.Category!.Path).IsEqualTo("Contributions › From Members");
+        await Assert.That(await UncategorisedAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task Money_from_the_family_to_a_member_is_a_contribution_from_the_family()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var personal = await CreateAccountAsync(anna, "Anna's account", await MeAsync(anna));
+        var household = await CreateAccountAsync(anna, "Household", Family);
+
+        await AddAsync(anna, household.Id, -200m, "2026-11-10", "POCKET MONEY ANNA");
+        await AddAsync(anna, personal.Id, 200m, "2026-11-10", "FROM HOUSEHOLD");
+
+        var list = await ListAsync(anna);
+        await Assert.That(list.Single(t => t.Amount < 0).Category!.Path).IsEqualTo("Contributions › To Members");
+        await Assert.That(list.Single(t => t.Amount > 0).Category!.Path).IsEqualTo("Contributions › From Family");
+    }
+
+    [Test]
+    public async Task With_more_than_one_candidate_nothing_is_matched()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var pillar3a = await CreateAccountAsync(anna, "Pillar 3a", me);
+        await UploadOkAsync(anna, savings.Id, new TestStatement().Row("2026-11-17", 500m, "IN SAVINGS"));
+        await UploadOkAsync(anna, pillar3a.Id, new TestStatement().Row("2026-11-18", 500m, "IN PILLAR"));
+
+        await UploadOkAsync(anna, checking.Id, new TestStatement().Row("2026-11-17", -500m, "OUT"));
+
+        await Assert.That((await ListAsync(anna)).Where(t => t.Type == "transfer")).IsEmpty();
+    }
+
+    [Test]
+    public async Task Two_new_rows_competing_for_the_same_counterpart_are_left_unmatched()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        await UploadOkAsync(anna, savings.Id, new TestStatement().Row("2026-11-17", 500m, "IN SAVINGS"));
+
+        await UploadOkAsync(anna, checking.Id, new TestStatement()
+            .Row("2026-11-16", -500m, "OUT ONE").Row("2026-11-18", -500m, "OUT TWO"));
+
+        await Assert.That((await ListAsync(anna)).Where(t => t.Type == "transfer")).IsEmpty();
+    }
+
+    [Test]
+    public async Task Pairs_more_than_three_days_apart_with_other_amounts_or_in_the_same_account_are_not_matched()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        await UploadOkAsync(anna, savings.Id, new TestStatement()
+            .Row("2026-11-14", 100m, "FOUR DAYS EARLIER")
+            .Row("2026-11-18", 99.95m, "OTHER AMOUNT"));
+
+        await UploadOkAsync(anna, checking.Id, new TestStatement()
+            .Row("2026-11-18", -100m, "OUT").Row("2026-11-18", 100m, "SAME ACCOUNT REFUND"));
+
+        await Assert.That((await ListAsync(anna)).Where(t => t.Type == "transfer")).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_manual_transaction_is_matched_when_added_and_when_its_amount_is_corrected()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var cash = await CreateAccountAsync(anna, "Cash", me);
+        await AddAsync(anna, checking.Id, -200m, "2026-11-18", "ATM");
+
+        var typo = await AddAsync(anna, cash.Id, 20m, "2026-11-18", "Cash withdrawn");
+        await Assert.That(typo.Type).IsEqualTo("income");
+        var fixedAmount = await PatchOkAsync(anna, typo.Id, new { amount = 200m });
+
+        await Assert.That(fixedAmount.Type).IsEqualTo("transfer");
+        var cashIn = await AddAsync(anna, checking.Id, -50m, "2026-11-19", "ATM again");
+        var matchedOnAdd = await AddAsync(anna, cash.Id, 50m, "2026-11-19", "Cash withdrawn again");
+        await Assert.That(matchedOnAdd.Link!.TransactionId).IsEqualTo(cashIn.Id);
+    }
+
+    [Test]
+    public async Task Correcting_a_matched_manual_transaction_so_it_no_longer_fits_breaks_the_pair()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var cash = await CreateAccountAsync(anna, "Cash", me);
+        var atm = await AddAsync(anna, checking.Id, -200m, "2026-11-18", "ATM");
+        var cashIn = await AddAsync(anna, cash.Id, 200m, "2026-11-18", "Cash withdrawn");
+
+        var corrected = await PatchOkAsync(anna, cashIn.Id, new { amount = 180m });
+
+        await Assert.That(corrected.Type).IsEqualTo("income");
+        await Assert.That(corrected.Link).IsNull();
+        await Assert.That((await GetAsync(anna, atm.Id)).Type).IsEqualTo("expense");
+    }
+
     // ---- helpers ----
+
+    /// Waits until the exchange-rate job has stored rates for the visible Transactions (their CHF value is known).
+    private static async Task RatesSyncedAsync(HttpClient client)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while ((await ListAsync(client)).Any(t => t.ChfAmount is null))
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Exchange rates were not synced.");
+            await Task.Delay(25);
+        }
+    }
+
+    private static async Task<Transaction> PatchOkAsync(HttpClient client, Guid id, object body)
+    {
+        var res = await client.PatchAsJsonAsync($"/api/transactions/{id}", body);
+        if (res.StatusCode != HttpStatusCode.OK)
+            throw new InvalidOperationException($"Patch failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
+        return (await res.Content.ReadFromJsonAsync<Transaction>())!;
+    }
 
     private static readonly object Family = new { kind = "family" };
 
