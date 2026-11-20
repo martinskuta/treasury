@@ -139,12 +139,12 @@ public static class TransactionEndpoints
     private static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Transactions.VisibleTo(viewer).Include(t => t.Account).SingleOrDefaultAsync(t => t.Id == id);
 
-    /// The requested Owner: the Family or any existing Member; null (with an `owner` error) otherwise.
+    /// The requested Owner: the Family or any active Member; null (with an `owner` error) otherwise.
     private static async Task<Owner?> ResolveOwnerAsync(TreasuryDbContext db, OwnerRequest request,
         Dictionary<string, string[]> errors)
     {
         var owner = request.ToOwner();
-        if (owner is { MemberId: { } memberId } && !await db.Users.AnyAsync(m => m.Id == memberId)) owner = null;
+        if (owner is { MemberId: { } memberId } && !await db.Users.AnyAsync(m => m.Id == memberId && m.DeactivatedAt == null)) owner = null;
         if (owner is null) errors["owner"] = ["Choose the Family or a Member as the Owner."];
         return owner;
     }
