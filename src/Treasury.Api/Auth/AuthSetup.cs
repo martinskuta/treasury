@@ -13,7 +13,12 @@ public static class AuthSetup
         builder.Services.AddIdentityCore<Member>(o => o.User.RequireUniqueEmail = false)
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<TreasuryDbContext>()
-            .AddSignInManager();
+            .AddSignInManager()
+            .AddDefaultTokenProviders(); // password reset by the Admin (token generated and used server-side)
+
+        // Check the security stamp on every request (not every 30 min): a password reset, role change or
+        // deactivation takes effect on the Member's open sessions immediately. One small query per request.
+        builder.Services.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.Zero);
 
         builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
         builder.Services.ConfigureApplicationCookie(o =>

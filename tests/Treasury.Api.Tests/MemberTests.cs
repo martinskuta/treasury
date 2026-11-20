@@ -53,10 +53,44 @@ public class MemberTests : ApiTestBase
         await Assert.That(members!).Count().IsEqualTo(1);
     }
 
+    [Test]
+    public async Task An_admin_can_reset_a_members_password_which_ends_their_sessions()
+    {
+        var annaId = await AddMemberAsync("anna");
+        using var annaSession = NewClient();
+        await LoginAsync(annaSession, "anna", MemberPassword);
+        await LoginAsAdminAsync();
+
+        var res = await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/password", new { newPassword = "Reset-Pa55word" });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        using var anna = NewClient();
+        var oldLogin = await anna.PostAsJsonAsync("/api/auth/login", new { userName = "anna", password = MemberPassword });
+        await Assert.That(oldLogin.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await LoginAsync(anna, "anna", "Reset-Pa55word");
+        await Assert.That((await annaSession.GetAsync("/api/auth/me")).StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+    }
+
+    [Test]
+    public async Task Resetting_to_a_weak_password_is_rejected_and_unknown_members_are_404()
+    {
+        var annaId = await AddMemberAsync("anna");
+        await LoginAsAdminAsync();
+
+        var weak = await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/password", new { newPassword = "short" });
+        var unknown = await Client.PostAsJsonAsync($"/api/admin/members/{Guid.NewGuid()}/password", new { newPassword = "Reset-Pa55word" });
+
+        await AssertValidationErrorAsync(weak, "newPassword");
+        await Assert.That(unknown.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        using var anna = NewClient();
+        await LoginAsync(anna, "anna", MemberPassword);
+    }
+
     // {id} is replaced by another Member's id.
     [Test]
     [Arguments("GET", "/api/admin/members")]
     [Arguments("POST", "/api/admin/members")]
+    [Arguments("POST", "/api/admin/members/{id}/password")]
     public async Task Members_without_the_admin_role_cannot_reach_member_management(string method, string path)
     {
         var bobId = await AddMemberAsync("bob");

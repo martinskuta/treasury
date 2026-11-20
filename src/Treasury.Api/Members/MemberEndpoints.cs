@@ -35,9 +35,24 @@ public static class MemberEndpoints
 
             return Results.Created($"/api/admin/members/{member.Id}", new MemberResponse(member.Id, userName, false, true));
         });
+
+        // A new password also changes the security stamp, which ends the Member's existing sessions.
+        members.MapPost("/{id:guid}/password", async (Guid id, ResetPasswordRequest request, UserManager<Member> users) =>
+        {
+            var member = await users.FindByIdAsync(id.ToString());
+            if (member is null) return Results.NotFound();
+            if (string.IsNullOrEmpty(request.NewPassword))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["newPassword"] = ["Enter a new password."] });
+
+            var token = await users.GeneratePasswordResetTokenAsync(member);
+            var result = await users.ResetPasswordAsync(member, token, request.NewPassword);
+            return result.Succeeded ? Results.NoContent() : IdentityProblem(result, "newPassword");
+        });
     }
 
     public record AddMemberRequest(string? UserName, string? Password);
+
+    public record ResetPasswordRequest(string? NewPassword);
 
     /// Identity errors as a ValidationProblem: user-name errors under "userName", the rest under passwordField.
     private static IResult IdentityProblem(IdentityResult result, string passwordField) =>
