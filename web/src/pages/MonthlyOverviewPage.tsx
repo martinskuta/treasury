@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import {
-  getMonthlyReport,
-  type CategoryTotal,
-  type MonthlyReport,
-  type ReportOwner,
-  type ReportSection,
-} from '../lib/api'
-import { formatAmount } from '../lib/format'
+import { ReportBreakdown, ReportTotals, type ReportSide } from '../components/ReportViews'
+import { getMonthlyReport, type MonthlyReport, type ReportOwner } from '../lib/api'
 
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -30,8 +24,6 @@ function monthLabel(month: string): string {
   return `${monthNames[m - 1]} ${year}`
 }
 
-type Side = 'expense' | 'income'
-
 /**
  * Monthly overview: Income versus Expense in CHF and a breakdown by Category that drills down through the tree.
  * Month, Owner and side live in the URL (?month=2026-11&owner=family&side=income) so Back works and links can be shared.
@@ -40,7 +32,7 @@ export function MonthlyOverviewPage() {
   const [params, setParams] = useSearchParams()
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : currentMonth()
   const owner: ReportOwner = params.get('owner') === 'family' ? 'family' : 'me'
-  const side: Side = params.get('side') === 'income' ? 'income' : 'expense'
+  const side: ReportSide = params.get('side') === 'income' ? 'income' : 'expense'
 
   const [report, setReport] = useState<MonthlyReport | null>(null)
   // The month|owner whose load failed (derived per request, so switching month clears the error).
@@ -105,7 +97,7 @@ export function MonthlyOverviewPage() {
       {shown === null && !loadError && <p>Loading…</p>}
       {shown !== null && (
         <>
-          <Totals report={shown} />
+          <ReportTotals report={shown} />
           <section className="card">
             <div className="segmented" role="group" aria-label="Breakdown">
               <button type="button" aria-pressed={side === 'expense'} onClick={() => update({ side: 'expense' })}>
@@ -115,130 +107,14 @@ export function MonthlyOverviewPage() {
                 Income by Category
               </button>
             </div>
-            <Breakdown section={shown[side]} side={side} drill={drill} onDrill={setDrill} />
+            <ReportBreakdown
+              section={shown[side]}
+              emptyText={side === 'expense' ? 'No Expenses this month.' : 'No Income this month.'}
+              drill={drill}
+              onDrill={setDrill}
+            />
           </section>
         </>
-      )}
-    </>
-  )
-}
-
-function Totals({ report }: { report: MonthlyReport }) {
-  const pending = report.income.pendingConversion + report.expense.pendingConversion
-  return (
-    <section className="card">
-      <dl className="report-totals">
-        <div>
-          <dt>Income</dt>
-          <dd className="amount income">{formatAmount(report.income.total)} CHF</dd>
-        </div>
-        <div>
-          <dt>Expense</dt>
-          <dd className="amount">{formatAmount(report.expense.total)} CHF</dd>
-        </div>
-        <div>
-          <dt>Net</dt>
-          <dd className={`amount ${report.net >= 0 ? 'income' : 'expense'}`}>{formatAmount(report.net)} CHF</dd>
-        </div>
-      </dl>
-      {report.expense.contributions > 0 && (
-        <p className="report-note">
-          Expense without Contributions: {formatAmount(report.expense.total - report.expense.contributions)} CHF
-        </p>
-      )}
-      {pending > 0 && (
-        <p className="report-note report-pending">
-          {pending === 1 ? '1 amount is' : `${pending} amounts are`} pending conversion to CHF and not included in
-          these totals.
-        </p>
-      )}
-    </section>
-  )
-}
-
-function Breakdown({
-  section,
-  side,
-  drill,
-  onDrill,
-}: {
-  section: ReportSection
-  side: Side
-  drill: string | null
-  onDrill: (id: string | null) => void
-}) {
-  const byId = new Map(section.categories.map(c => [c.id, c]))
-  const current = drill === null ? undefined : byId.get(drill)
-  // A drilled-into Category that no longer has amounts (e.g. after switching side) falls back to the top level.
-  const level = current ?? null
-  const children = section.categories.filter(c => c.parentId === (level?.id ?? null))
-  const hasChildren = (c: CategoryTotal) => section.categories.some(x => x.parentId === c.id)
-  const levelTotal = level?.total ?? section.total
-
-  const trail: CategoryTotal[] = []
-  for (let c = current; c; c = c.parentId ? byId.get(c.parentId) : undefined) trail.unshift(c)
-
-  const rows: { key: string; label: string; amount: number; category?: CategoryTotal; muted?: boolean }[] = [
-    ...children.map(c => ({ key: c.id, label: c.name, amount: c.total, category: c })),
-  ]
-  if (level && level.direct > 0 && children.length > 0)
-    rows.push({ key: 'direct', label: `${level.name} (not in a subcategory)`, amount: level.direct, muted: true })
-  if (!level && section.uncategorised > 0)
-    rows.push({ key: 'uncategorised', label: 'Uncategorised', amount: section.uncategorised, muted: true })
-
-  return (
-    <>
-      <nav className="breadcrumb" aria-label="Category path">
-        {trail.length === 0 ? (
-          <span>All Categories</span>
-        ) : (
-          <>
-            <button type="button" className="button-link" onClick={() => onDrill(null)}>
-              All Categories
-            </button>
-            {trail.map((c, i) => (
-              <span key={c.id}>
-                {' › '}
-                {i === trail.length - 1 ? (
-                  <span>{c.name}</span>
-                ) : (
-                  <button type="button" className="button-link" onClick={() => onDrill(c.id)}>
-                    {c.name}
-                  </button>
-                )}
-              </span>
-            ))}
-          </>
-        )}
-      </nav>
-      {rows.length === 0 ? (
-        <p>{side === 'expense' ? 'No Expenses' : 'No Income'} this month.</p>
-      ) : (
-        <ul className="breakdown-list">
-          {rows.map(r => (
-            <li key={r.key} className={`breakdown-row${r.muted ? ' muted' : ''}`}>
-              <span className="breakdown-name">
-                {r.category && hasChildren(r.category) ? (
-                  <button type="button" className="button-link" onClick={() => onDrill(r.category!.id)}>
-                    {r.label} ›
-                  </button>
-                ) : (
-                  r.label
-                )}
-                {r.category?.builtInKey && <span className="category-badge">Contribution</span>}
-              </span>
-              <span className="breakdown-share">
-                {levelTotal > 0 ? `${Math.round((r.amount / levelTotal) * 100)} %` : ''}
-              </span>
-              <span className="amount">{formatAmount(r.amount)} CHF</span>
-            </li>
-          ))}
-          <li className="breakdown-row breakdown-total">
-            <span className="breakdown-name">Total</span>
-            <span className="breakdown-share" />
-            <span className="amount">{formatAmount(levelTotal)} CHF</span>
-          </li>
-        </ul>
       )}
     </>
   )
