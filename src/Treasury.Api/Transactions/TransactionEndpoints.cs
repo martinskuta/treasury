@@ -77,18 +77,36 @@ public static class TransactionEndpoints
             return Results.Created($"/api/transactions/{transaction.Id}", (await ToResponsesAsync(db, [transaction]))[0]);
         });
 
-        // Classification (Owner, note) can be changed by anyone who sees the Transaction.
+        // Classification (Owner, note) can be changed by anyone who sees the Transaction; the facts (date, amount,
+        // description) only on manual Transactions, by Members who can manage the Account.
         transactions.MapPatch("/{id:guid}", async (Guid id, UpdateTransactionRequest request, ClaimsPrincipal user,
             TreasuryDbContext db) =>
         {
-            var transaction = await FindVisibleAsync(db, id, user.MemberId());
+            var viewer = user.MemberId();
+            var transaction = await FindVisibleAsync(db, id, viewer);
             if (transaction is null) return Results.NotFound();
 
             var errors = new Dictionary<string, string[]>();
+            var changesFacts = request.Date is not null || request.Amount is not null || request.Description is not null;
+            if (changesFacts)
+            {
+                if (!transaction.Account.Owner.IsManageableBy(viewer)) return Results.Forbid();
+                if (!transaction.FactsEditable)
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["transaction"] = ["The date, amount and description of an imported Transaction can't be changed."],
+                    });
+                if (request.Amount is not null) ValidateAmount(request.Amount, errors);
+            }
+            var description = request.Description?.Trim();
+            if (request.Description is not null) ValidateDescription(description, errors);
             var note = request.Note is null ? transaction.Note : NormalizeNote(request.Note, errors);
             var owner = request.Owner is null ? null : await ResolveOwnerAsync(db, request.Owner, errors);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
+            if (request.Date is { } date) transaction.Date = date;
+            if (request.Amount is { } amount) transaction.Amount = amount;
+            if (description is not null) transaction.Description = description;
             transaction.Note = note;
             if (owner is { } newOwner)
             {
@@ -97,6 +115,24 @@ public static class TransactionEndpoints
             }
             await db.SaveChangesAsync();
             return Results.Ok((await ToResponsesAsync(db, [transaction]))[0]);
+        });
+
+        // Manual Transactions only (imported ones go away by undoing their import), by Members who manage the Account.
+        transactions.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db) =>
+        {
+            var viewer = user.MemberId();
+            var transaction = await FindVisibleAsync(db, id, viewer);
+            if (transaction is null) return Results.NotFound();
+            if (!transaction.Account.Owner.IsManageableBy(viewer)) return Results.Forbid();
+            if (!transaction.FactsEditable)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["transaction"] = ["An imported Transaction is removed by deleting its Source file."],
+                });
+
+            db.Transactions.Remove(transaction);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
         });
     }
 

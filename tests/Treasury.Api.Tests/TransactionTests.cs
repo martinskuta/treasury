@@ -261,6 +261,139 @@ public class TransactionTests : ApiTestBase
         await AssertValidationErrorAsync(patched, "owner");
     }
 
+    [Test]
+    public async Task A_member_can_edit_a_manual_transaction()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var wallet = await CreateAccountAsync(anna, "Cash", await MeAsync(anna), openingBalance: 100m);
+        var t = await AddAsync(anna, wallet.Id, -10m, date: "2026-11-18", description: "Coffe");
+
+        var edited = await PatchOkAsync(anna, t.Id,
+            new { date = "2026-11-17", amount = 25m, description = "Refund", note = "From Migros" });
+
+        await Assert.That(edited.Date).IsEqualTo(new DateOnly(2026, 11, 17));
+        await Assert.That(edited.Amount).IsEqualTo(25m);
+        await Assert.That(edited.Type).IsEqualTo("income");
+        await Assert.That(edited.Description).IsEqualTo("Refund");
+        await Assert.That(edited.Note).IsEqualTo("From Migros");
+        var reloaded = await anna.GetFromJsonAsync<Transaction>($"/api/transactions/{t.Id}");
+        await Assert.That(reloaded).IsEqualTo(edited);
+        await Assert.That((await GetAccountAsync(anna, wallet.Id)).Balance).IsEqualTo(125m);
+    }
+
+    [Test]
+    public async Task Editing_only_the_note_keeps_everything_else_and_an_empty_note_clears_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var wallet = await CreateAccountAsync(anna, "Cash", await MeAsync(anna));
+        var t = await AddAsync(anna, wallet.Id, -10m, description: "Coffee");
+
+        var withNote = await PatchOkAsync(anna, t.Id, new { note = "With Bob" });
+        var cleared = await PatchOkAsync(anna, t.Id, new { note = "" });
+
+        await Assert.That(withNote with { Note = null }).IsEqualTo(t);
+        await Assert.That(cleared).IsEqualTo(t);
+    }
+
+    [Test]
+    public async Task Invalid_edits_are_rejected_and_change_nothing()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var wallet = await CreateAccountAsync(anna, "Cash", await MeAsync(anna));
+        var t = await AddAsync(anna, wallet.Id, -10m, description: "Coffee");
+
+        await AssertValidationErrorAsync(
+            await anna.PatchAsJsonAsync($"/api/transactions/{t.Id}", new { amount = 0m, note = "x" }), "amount");
+        await AssertValidationErrorAsync(
+            await anna.PatchAsJsonAsync($"/api/transactions/{t.Id}", new { description = " " }), "description");
+
+        await Assert.That(await anna.GetFromJsonAsync<Transaction>($"/api/transactions/{t.Id}")).IsEqualTo(t);
+    }
+
+    [Test]
+    public async Task A_member_can_delete_a_manual_transaction()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var wallet = await CreateAccountAsync(anna, "Cash", await MeAsync(anna), openingBalance: 100m);
+        var keep = await AddAsync(anna, wallet.Id, -10m);
+        var gone = await AddAsync(anna, wallet.Id, -30m);
+
+        var res = await anna.DeleteAsync($"/api/transactions/{gone.Id}");
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That((await ListAsync(anna)).Select(t => t.Id)).IsEquivalentTo([keep.Id]);
+        await Assert.That((await anna.GetAsync($"/api/transactions/{gone.Id}")).StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That((await GetAccountAsync(anna, wallet.Id)).Balance).IsEqualTo(90m);
+    }
+
+    [Test]
+    public async Task Members_who_cannot_see_a_transaction_can_neither_edit_nor_delete_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        var wallet = await CreateAccountAsync(anna, "Cash", await MeAsync(anna));
+        var t = await AddAsync(anna, wallet.Id, -10m);
+
+        var patched = await bob.PatchAsJsonAsync($"/api/transactions/{t.Id}", new { owner = await MeAsync(bob) });
+        var deleted = await bob.DeleteAsync($"/api/transactions/{t.Id}");
+
+        await Assert.That(patched.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(await anna.GetFromJsonAsync<Transaction>($"/api/transactions/{t.Id}")).IsEqualTo(t);
+    }
+
+    [Test]
+    public async Task The_owner_of_a_transaction_in_someone_elses_account_cannot_change_its_facts_or_delete_it()
+    {
+        using var alice = await LoginAsNewMemberAsync("alice");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        var card = await CreateAccountAsync(alice, "Alice card", await MeAsync(alice));
+        var t = await AddAsync(alice, card.Id, -80m, owner: await MeAsync(bob));
+
+        var patched = await bob.PatchAsJsonAsync($"/api/transactions/{t.Id}", new { amount = -1m });
+        var deleted = await bob.DeleteAsync($"/api/transactions/{t.Id}");
+
+        await Assert.That(patched.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+        await Assert.That(await alice.GetFromJsonAsync<Transaction>($"/api/transactions/{t.Id}")).IsEqualTo(t);
+        // ...but can add a note to it, like any classification.
+        await Assert.That((await PatchOkAsync(bob, t.Id, new { note = "My ticket" })).Note).IsEqualTo("My ticket");
+    }
+
+    [Test]
+    public async Task Any_member_can_edit_and_delete_manual_transactions_in_a_family_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        var joint = await CreateAccountAsync(anna, "Joint", Family);
+        var t = await AddAsync(anna, joint.Id, -10m);
+
+        await PatchOkAsync(bob, t.Id, new { amount = -12m });
+        var deleted = await bob.DeleteAsync($"/api/transactions/{t.Id}");
+
+        await Assert.That(deleted.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That(await ListAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task The_owners_a_transaction_can_be_given_are_the_family_and_every_member()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+
+        var owners = (await anna.GetFromJsonAsync<List<OwnerDto>>("/api/owners"))!;
+
+        await Assert.That(owners.Select(o => o.Name)).IsEquivalentTo(["Family", "admin", "anna", "bob"]);
+        await Assert.That(owners[0]).IsEqualTo(new OwnerDto("family", null, "Family"));
+        await Assert.That(owners.Single(o => o.Name == "bob").MemberId).IsEqualTo(await MemberIdAsync(bob));
+    }
+
+    [Test]
+    public async Task Transactions_require_login()
+    {
+        await Assert.That((await Client.GetAsync("/api/transactions")).StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+    }
+
     // ---- helpers ----
 
     private static async Task<Transaction> PatchOkAsync(HttpClient client, Guid id, object body)
