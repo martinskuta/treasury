@@ -338,6 +338,29 @@ public class MatchingTests : ApiTestBase
     }
 
     [Test]
+    public async Task A_currency_exchange_left_unmatched_for_lack_of_a_rate_is_matched_once_the_rate_arrives()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var revolutChf = await CreateAccountAsync(anna, "Revolut CHF", me);
+        var revolutEur = await CreateAccountAsync(anna, "Revolut EUR", me, currency: "EUR");
+        await AddAsync(anna, revolutChf.Id, -100m, "2026-11-17", "EXCHANGED TO EUR");
+        await AddAsync(anna, revolutEur.Id, 103.50m, "2026-11-17", "EXCHANGED FROM CHF");
+        await Assert.That((await ListAsync(anna)).Select(t => t.Type)).IsEquivalentTo(["income", "expense"]);
+
+        App.ExchangeRates.Publish("2026-11-17", chf: 0.966m); // 103.50 EUR = 99.98 CHF
+
+        // The job's next run (an hour per poll, however its timer races the test) stores the rate and re-matches.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while ((await ListAsync(anna)).Any(t => t.Type != "transfer"))
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("The pair was not matched after the rate arrived.");
+            await Task.Delay(25);
+            App.Clock.Advance(TimeSpan.FromHours(1));
+        }
+    }
+
+    [Test]
     public async Task After_undoing_an_import_the_former_leg_is_matched_again_with_its_now_single_candidate()
     {
         using var anna = await LoginAsNewMemberAsync("anna");

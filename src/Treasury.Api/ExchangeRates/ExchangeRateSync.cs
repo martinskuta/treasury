@@ -1,12 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Data;
+using Treasury.Api.Matching;
 
 namespace Treasury.Api.ExchangeRates;
 
 /// Brings the stored rates up to date: the new days since the last stored day, and past days back to the
 /// earliest date any Transaction or opening balance needs. Run by <see cref="ExchangeRateJob"/>.
+/// Newly stored rates make CHF values known, so cross-currency pairs that couldn't be matched without them are
+/// matched again (#16).
 public sealed class ExchangeRateSync(TreasuryDbContext db, IExchangeRateProvider provider, TimeProvider clock,
-    ILogger<ExchangeRateSync> logger)
+    TransactionMatcher matcher, ILogger<ExchangeRateSync> logger)
 {
     /// How far before a needed date a backfill starts, so a weekend or holiday date still gets the previous
     /// business day's rate (ranges contain business days only).
@@ -49,6 +52,20 @@ public sealed class ExchangeRateSync(TreasuryDbContext db, IExchangeRateProvider
         }
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Stored exchange rates for {Count} day(s) between {From} and {To}", days.Count, from, to);
+        await RematchAsync(from, to, ct);
+    }
+
+    /// Unmatched Transactions in non-CHF Accounts dated in the newly covered range get another matching attempt
+    /// (a cross-currency pair always has a non-CHF leg; dates outside the range already had a rate before).
+    private async Task RematchAsync(DateOnly from, DateOnly to, CancellationToken ct)
+    {
+        var open = await db.Transactions.Include(t => t.Account)
+            .Where(t => t.LinkedTransactionId == null && t.Account.Currency != ChfConverter.ReportingCurrency
+                && t.Date >= from && t.Date <= to)
+            .ToListAsync(ct);
+        if (open.Count == 0) return;
+        await matcher.MatchAsync(open, ct);
+        await db.SaveChangesAsync(ct);
     }
 
     private static DateOnly Earliest(DateOnly today, params DateOnly?[] dates) =>
