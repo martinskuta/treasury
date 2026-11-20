@@ -169,6 +169,10 @@ export type Transaction = {
   owner: Owner
   /** Imported Transactions keep their date, amount, description and original amount read-only. */
   origin: 'manual' | 'imported'
+  /** null = Uncategorised. */
+  category: CategoryRef | null
+  /** Classification fields a Member set by hand (Rules leave them alone). */
+  manuallySet: ('owner' | 'category' | 'displayName')[]
   /** The Source file an imported Transaction came from. */
   sourceFile: { id: string; fileName: string } | null
 }
@@ -181,9 +185,14 @@ export type NewTransaction = {
   note: string | null
   /** Omit to use the Account's Owner. */
   owner?: OwnerRef
+  /** Omit to leave it Uncategorised. */
+  categoryId?: string
 }
 
-/** Partial update: leave a field out to keep it; `note: ''` / `displayName: ''` clear them. */
+/**
+ * Partial update: leave a field out to keep it; `note: ''` / `displayName: ''` clear them;
+ * `uncategorise: true` removes the Category.
+ */
 export type TransactionChanges = {
   date?: string
   amount?: number
@@ -191,10 +200,16 @@ export type TransactionChanges = {
   displayName?: string
   note?: string
   owner?: OwnerRef
+  categoryId?: string
+  uncategorise?: true
 }
 
 /** The Transactions the current Member can see, newest first. */
 export const listTransactions = (signal?: AbortSignal) => apiFetch<Transaction[]>('/api/transactions', { signal })
+
+/** The Uncategorised queue: visible Income and Expense without a Category, newest first. */
+export const listUncategorised = (signal?: AbortSignal) =>
+  apiFetch<Transaction[]>('/api/transactions/uncategorised', { signal })
 
 export const createTransaction = (transaction: NewTransaction) =>
   apiFetch<Transaction>('/api/transactions', { method: 'POST', body: transaction })
@@ -245,6 +260,35 @@ export const listSourceFiles = (accountId: string, signal?: AbortSignal) =>
 
 /** Link that downloads the original file. */
 export const sourceFileContentUrl = (id: string) => `/api/source-files/${id}/content`
+
+// ---- Categories ----
+
+/** A Category as Transactions carry it; `path` is e.g. "Food › Eating out". */
+export type CategoryRef = { id: string; name: string; path: string }
+
+/** A node of the shared Category tree. Built-in (Contribution) Categories can't be changed. */
+export type Category = CategoryRef & { parentId: string | null; isBuiltIn: boolean; builtInKey: string | null }
+
+/** The whole tree as a flat list in display order: each Category directly followed by its subtree. */
+export const listCategories = (signal?: AbortSignal) => apiFetch<Category[]>('/api/categories', { signal })
+
+export const createCategory = (name: string, parentId: string | null) =>
+  apiFetch<Category>('/api/categories', { method: 'POST', body: { name, parentId } })
+
+export const renameCategory = (id: string, name: string) =>
+  apiFetch<Category>(`/api/categories/${id}`, { method: 'PATCH', body: { name } })
+
+/** parentId null = move to the top level. */
+export const moveCategory = (id: string, parentId: string | null) =>
+  apiFetch<Category>(`/api/categories/${id}/move`, { method: 'POST', body: { parentId } })
+
+/** What happens to the Transactions that use a removed Category: moved to another one, or Uncategorised. */
+export type RemovedCategoryTransactions = { moveTo: string } | { uncategorise: true }
+
+export const removeCategory = (id: string, transactions: RemovedCategoryTransactions) => {
+  const query = 'moveTo' in transactions ? `moveTo=${encodeURIComponent(transactions.moveTo)}` : 'uncategorise=true'
+  return apiFetch<void>(`/api/categories/${id}?${query}`, { method: 'DELETE' })
+}
 
 // ---- Members (Admin only: /api/admin/members) ----
 

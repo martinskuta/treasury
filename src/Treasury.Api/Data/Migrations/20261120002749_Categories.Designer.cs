@@ -12,8 +12,8 @@ using Treasury.Api.Data;
 namespace Treasury.Api.Data.Migrations;
 
 [DbContext(typeof(TreasuryDbContext))]
-[Migration("20261120003045_Import")]
-partial class _20261120003045_Import
+[Migration("20261120002749_Categories")]
+partial class _20261120002749_Categories
 {
     /// <inheritdoc />
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -292,6 +292,34 @@ partial class _20261120003045_Import
                 b.ToTable("AspNetUsers");
             });
 
+        modelBuilder.Entity("Treasury.Api.Categories.Category", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<string>("BuiltInKey")
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)");
+
+                b.Property<Guid?>("ParentId")
+                    .HasColumnType("uuid");
+
+                b.HasKey("Id");
+
+                b.HasIndex("BuiltInKey")
+                    .IsUnique();
+
+                b.HasIndex("ParentId");
+
+                b.ToTable("Categories");
+            });
+
         modelBuilder.Entity("Treasury.Api.ExchangeRates.ExchangeRate", b =>
             {
                 b.Property<DateOnly>("Date")
@@ -310,48 +338,6 @@ partial class _20261120003045_Import
                 b.ToTable("ExchangeRates");
             });
 
-        modelBuilder.Entity("Treasury.Api.Imports.SourceFile", b =>
-            {
-                b.Property<Guid>("Id")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("uuid");
-
-                b.Property<Guid>("AccountId")
-                    .HasColumnType("uuid");
-
-                b.Property<string>("ContentHash")
-                    .IsRequired()
-                    .HasMaxLength(64)
-                    .HasColumnType("character varying(64)");
-
-                b.Property<string>("FileName")
-                    .IsRequired()
-                    .HasMaxLength(255)
-                    .HasColumnType("character varying(255)");
-
-                b.Property<DateTimeOffset>("ImportedAt")
-                    .HasColumnType("timestamp with time zone");
-
-                b.Property<Guid?>("ImportedByMemberId")
-                    .HasColumnType("uuid");
-
-                b.Property<long>("Size")
-                    .HasColumnType("bigint");
-
-                b.Property<string>("StoredPath")
-                    .IsRequired()
-                    .HasMaxLength(500)
-                    .HasColumnType("character varying(500)");
-
-                b.HasKey("Id");
-
-                b.HasIndex("ImportedByMemberId");
-
-                b.HasIndex("AccountId", "ImportedAt");
-
-                b.ToTable("SourceFiles");
-            });
-
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
             {
                 b.Property<Guid>("Id")
@@ -365,9 +351,8 @@ partial class _20261120003045_Import
                     .HasPrecision(19, 4)
                     .HasColumnType("numeric(19,4)");
 
-                b.Property<string>("Counterparty")
-                    .HasMaxLength(500)
-                    .HasColumnType("character varying(500)");
+                b.Property<Guid?>("CategoryId")
+                    .HasColumnType("uuid");
 
                 b.Property<DateTimeOffset>("CreatedAt")
                     .HasColumnType("timestamp with time zone");
@@ -379,10 +364,6 @@ partial class _20261120003045_Import
                     .IsRequired()
                     .HasMaxLength(500)
                     .HasColumnType("character varying(500)");
-
-                b.Property<string>("DisplayName")
-                    .HasMaxLength(200)
-                    .HasColumnType("character varying(200)");
 
                 b.Property<int>("ManuallySet")
                     .HasColumnType("integer");
@@ -396,29 +377,14 @@ partial class _20261120003045_Import
                     .HasMaxLength(16)
                     .HasColumnType("character varying(16)");
 
-                b.Property<decimal?>("OriginalAmount")
-                    .HasPrecision(19, 4)
-                    .HasColumnType("numeric(19,4)");
-
-                b.Property<string>("OriginalCurrency")
-                    .HasMaxLength(3)
-                    .HasColumnType("character varying(3)");
-
                 b.Property<Guid?>("OwnerMemberId")
-                    .HasColumnType("uuid");
-
-                b.Property<string>("Reference")
-                    .HasMaxLength(200)
-                    .HasColumnType("character varying(200)");
-
-                b.Property<Guid?>("SourceFileId")
                     .HasColumnType("uuid");
 
                 b.HasKey("Id");
 
-                b.HasIndex("OwnerMemberId");
+                b.HasIndex("CategoryId");
 
-                b.HasIndex("SourceFileId");
+                b.HasIndex("OwnerMemberId");
 
                 b.HasIndex("AccountId", "Date");
 
@@ -484,20 +450,12 @@ partial class _20261120003045_Import
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
-        modelBuilder.Entity("Treasury.Api.Imports.SourceFile", b =>
+        modelBuilder.Entity("Treasury.Api.Categories.Category", b =>
             {
-                b.HasOne("Treasury.Api.Accounts.Account", "Account")
+                b.HasOne("Treasury.Api.Categories.Category", null)
                     .WithMany()
-                    .HasForeignKey("AccountId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-
-                b.HasOne("Treasury.Api.Auth.Member", null)
-                    .WithMany()
-                    .HasForeignKey("ImportedByMemberId")
-                    .OnDelete(DeleteBehavior.SetNull);
-
-                b.Navigation("Account");
+                    .HasForeignKey("ParentId")
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
         modelBuilder.Entity("Treasury.Api.Transactions.Transaction", b =>
@@ -508,19 +466,17 @@ partial class _20261120003045_Import
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
 
+                b.HasOne("Treasury.Api.Categories.Category", null)
+                    .WithMany()
+                    .HasForeignKey("CategoryId")
+                    .OnDelete(DeleteBehavior.Restrict);
+
                 b.HasOne("Treasury.Api.Auth.Member", null)
                     .WithMany()
                     .HasForeignKey("OwnerMemberId")
                     .OnDelete(DeleteBehavior.Restrict);
 
-                b.HasOne("Treasury.Api.Imports.SourceFile", "SourceFile")
-                    .WithMany()
-                    .HasForeignKey("SourceFileId")
-                    .OnDelete(DeleteBehavior.Cascade);
-
                 b.Navigation("Account");
-
-                b.Navigation("SourceFile");
             });
 #pragma warning restore 612, 618
     }

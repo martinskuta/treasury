@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
 using Treasury.Api.Imports;
+using Treasury.Api.Categories;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Transactions;
 
@@ -24,6 +25,7 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
 
     public DbSet<SourceFile> SourceFiles => Set<SourceFile>();
 
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -64,6 +66,18 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             t.HasIndex(x => new { x.AccountId, x.Date });
             // Owner: null = the Family (same storage as Account.Owner).
             t.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
+            // Null = Uncategorised. A used Category can only be removed after moving or uncategorising its Transactions.
+            t.HasOne<Category>().WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
+            t.HasIndex(x => x.CategoryId);
+        });
+
+        builder.Entity<Category>(c =>
+        {
+            c.Ignore(x => x.IsBuiltIn);
+            c.Property(x => x.Name).HasMaxLength(CategoryEndpoints.MaxNameLength);
+            c.Property(x => x.BuiltInKey).HasMaxLength(64);
+            c.HasIndex(x => x.BuiltInKey).IsUnique();
+            c.HasOne<Category>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<SourceFile>(f =>

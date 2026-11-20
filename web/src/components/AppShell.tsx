@@ -6,6 +6,7 @@ import { Layout, type NavItem } from './Layout'
 const nav: NavItem[] = [
   { label: 'Home', href: '/' },
   { label: 'Transactions', href: '/transactions' },
+  { label: 'Uncategorised', href: '/uncategorised' },
   { label: 'Accounts', href: '/accounts' },
   { label: 'Settings', href: '/settings' },
 ]

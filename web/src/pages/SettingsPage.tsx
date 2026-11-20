@@ -11,6 +11,9 @@ export function SettingsPage() {
       <section className="card">
         <ul className="settings-links">
           <li>
+            <Link to="/settings/categories">Categories</Link> — the Family’s Category tree
+          </li>
+          <li>
             <Link to="/account/password">Change your password</Link>
           </li>
           {isAdmin(me) && (
