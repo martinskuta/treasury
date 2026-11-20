@@ -18,7 +18,7 @@ public static class RuleEndpoints
 
     /// Active = the author is still an active Member (a deactivated author's Rules don't run until someone edits them).
     public record RuleResponse(Guid Id, int Priority, string Field, string Match, string Text,
-        TransactionEndpoints.CategoryRef? Category, RuleTagRef[] Tags, OwnerResponse? Owner, AuthorRef Author, bool Active);
+        CategoryRef? Category, RuleTagRef[] Tags, OwnerResponse? Owner, AuthorRef Author, bool Active);
 
     public record RuleTagRef(Guid Id, string Name);
 
@@ -112,8 +112,8 @@ public static class RuleEndpoints
             var text = (useCounterparty ? t.Counterparty! : t.Description).Trim();
             if (text.Length > MaxTextLength) text = text[..MaxTextLength];
             return Results.Ok(new RuleDraft(
-                useCounterparty ? "counterparty" : "description",
-                useCounterparty ? "equals" : "contains",
+                (useCounterparty ? RuleField.Counterparty : RuleField.Description).ToApi(),
+                (useCounterparty ? RuleMatch.Equals : RuleMatch.Contains).ToApi(),
                 text, t.CategoryId, [], null));
         });
     }
@@ -130,27 +130,18 @@ public static class RuleEndpoints
     private static async Task<Dictionary<string, string[]>> ApplyRequestAsync(TreasuryDbContext db, Rule rule, RuleRequest request)
     {
         var errors = new Dictionary<string, string[]>();
-        RuleField? field = request.Field switch { "description" => RuleField.Description, "counterparty" => RuleField.Counterparty, _ => null };
+        var field = ApiEnums.Parse<RuleField>(request.Field);
         if (field is null) errors["field"] = ["Choose description or counterparty."];
-        RuleMatch? match = request.Match switch { "contains" => RuleMatch.Contains, "equals" => RuleMatch.Equals, _ => null };
+        var match = ApiEnums.Parse<RuleMatch>(request.Match);
         if (match is null) errors["match"] = ["Choose contains or equals."];
         var text = request.Text?.Trim();
         if (string.IsNullOrEmpty(text)) errors["text"] = ["Enter the text to look for."];
         else if (text.Length > MaxTextLength) errors["text"] = [$"Use at most {MaxTextLength} characters."];
 
-        if (request.CategoryId is { } categoryId && !await db.Categories.AnyAsync(c => c.Id == categoryId))
-            errors["categoryId"] = ["Choose an existing Category."];
-        var tagIds = (request.TagIds ?? []).Distinct().ToList();
-        if (tagIds.Count > 0 && await db.Tags.CountAsync(t => tagIds.Contains(t.Id)) != tagIds.Count)
-            errors["tagIds"] = ["Choose existing Tags."];
-        Owner? owner = null;
-        if (request.Owner is not null)
-        {
-            owner = request.Owner.ToOwner();
-            if (owner is { MemberId: { } memberId } && !await db.Users.AnyAsync(m => m.Id == memberId && m.DeactivatedAt == null))
-                owner = null;
-            if (owner is null) errors["owner"] = ["Choose the Family or a Member as the Owner."];
-        }
+        // Same Category / Tag / Owner rules as classifying a Transaction by hand.
+        await TransactionClassification.ValidateCategoryAsync(db, request.CategoryId, errors);
+        var tagIds = await TransactionClassification.ValidateTagsAsync(db, request.TagIds, "tagIds", errors);
+        var owner = request.Owner is null ? null : await TransactionClassification.ResolveOwnerAsync(db, request.Owner, errors);
         if (request.CategoryId is null && tagIds.Count == 0 && request.Owner is null)
             errors["actions"] = ["Choose a Category, Tags or an Owner for the Rule to assign."];
 
@@ -169,20 +160,17 @@ public static class RuleEndpoints
 
     private static async Task<List<RuleResponse>> ToResponsesAsync(TreasuryDbContext db, IReadOnlyList<Rule> rules)
     {
-        var memberIds = rules.Select(r => (Guid?)r.AuthorMemberId).Concat(rules.Select(r => r.OwnerMemberId)).OfType<Guid>().Distinct().ToList();
-        var members = await db.Users.Where(m => memberIds.Contains(m.Id))
-            .ToDictionaryAsync(m => m.Id, m => new { m.UserName, Active = m.DeactivatedAt == null });
-        var names = members.ToDictionary(m => m.Key, m => m.Value.UserName!);
+        var members = await db.MembersAsync(rules.Select(r => (Guid?)r.AuthorMemberId).Concat(rules.Select(r => r.OwnerMemberId)));
+        var names = members.ToDictionary(m => m.Key, m => m.Value.Name);
         var tagIds = rules.SelectMany(r => r.TagLinks).Select(l => l.TagId).Distinct().ToList();
         var tags = await db.Tags.Where(t => tagIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t.Name);
         var tree = rules.Any(r => r.CategoryId != null) ? await CategoryTree.LoadAsync(db) : new CategoryTree([]);
 
         return rules.Select(r => new RuleResponse(r.Id, r.Priority,
-            r.Field == RuleField.Description ? "description" : "counterparty",
-            r.Match == RuleMatch.Contains ? "contains" : "equals",
+            r.Field.ToApi(),
+            r.Match.ToApi(),
             r.Text,
-            r.CategoryId is { } c && tree.Find(c) is { } category
-                ? new TransactionEndpoints.CategoryRef(category.Id, category.Name, tree.PathOf(category.Id)) : null,
+            tree.RefOf(r.CategoryId),
             r.TagLinks.Where(l => tags.ContainsKey(l.TagId)).Select(l => new RuleTagRef(l.TagId, tags[l.TagId]))
                 .OrderBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase).ToArray(),
             r.Owner is { } owner ? OwnerResponse.From(owner, names) : null,

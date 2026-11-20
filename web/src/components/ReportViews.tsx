@@ -1,8 +1,36 @@
-import type { CategoryTotal, ReportSection } from '../lib/api'
+import type { CategoryTotal, ReportOwner, ReportSection } from '../lib/api'
 import { formatAmount } from '../lib/format'
+import type { ReportSide } from '../lib/reportParams'
 
-/** Which side of a report is broken down by Category. */
-export type ReportSide = 'expense' | 'income'
+export type { ReportSide }
+
+/** "Mine" / "Family" toggle of a report (?owner=). */
+export function ReportOwnerToggle({ owner, onChange }: { owner: ReportOwner; onChange: (owner: ReportOwner) => void }) {
+  return (
+    <div className="segmented" role="group" aria-label="Owner">
+      <button type="button" aria-pressed={owner === 'me'} onClick={() => onChange('me')}>
+        Mine
+      </button>
+      <button type="button" aria-pressed={owner === 'family'} onClick={() => onChange('family')}>
+        Family
+      </button>
+    </div>
+  )
+}
+
+/** "Expenses by Category" / "Income by Category" toggle of a report (?side=). */
+export function ReportSideToggle({ side, onChange }: { side: ReportSide; onChange: (side: ReportSide) => void }) {
+  return (
+    <div className="segmented" role="group" aria-label="Breakdown">
+      <button type="button" aria-pressed={side === 'expense'} onClick={() => onChange('expense')}>
+        Expenses by Category
+      </button>
+      <button type="button" aria-pressed={side === 'income'} onClick={() => onChange('income')}>
+        Income by Category
+      </button>
+    </div>
+  )
+}
 
 /** What every report has at the top: both sides plus Net (MonthlyReport, TagReport). */
 export type ReportFigures = { income: ReportSection; expense: ReportSection; net: number }

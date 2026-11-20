@@ -39,18 +39,19 @@ public static class TransactionEndpoints
     /// ("manual", "dateRange", "rule").
     /// <param name="Description">The original description (never replaced by the Display name).</param>
     /// <param name="OriginalAmount">Foreign-currency purchase: the amount in <paramref name="OriginalCurrency"/>.</param>
+    /// <param name="AccountHidden">The Transaction sits in another Member's personal Account (it is visible because
+    /// the viewer owns it): AccountId, AccountName and SourceFile are then null, so nothing else of that Account
+    /// shows (US37).</param>
     /// <param name="SourceFile">The Source file an imported Transaction came from; null for manual ones.</param>
-    public record TransactionResponse(Guid Id, Guid AccountId, string AccountName, DateOnly Date, decimal Amount,
-        string Currency, decimal? ChfAmount, string Type, string Description, string? DisplayName,
+    public record TransactionResponse(Guid Id, Guid? AccountId, string? AccountName, bool AccountHidden, DateOnly Date,
+        decimal Amount, string Currency, decimal? ChfAmount, string Type, string Description, string? DisplayName,
         string? Counterparty, string? Reference, decimal? OriginalAmount, string? OriginalCurrency, string? Note,
         OwnerResponse Owner, string Origin, CategoryRef? Category, TagRef[] Tags, string[] ManuallySet,
         SourceFileRef? SourceFile, LinkRef? Link);
 
-    /// The other leg of a Transfer or Contribution. Kind "transfer" | "contribution". The other leg may be in an
-    /// Account the viewer can't see (then GET on it is 404).
-    public record LinkRef(string Kind, Guid TransactionId);
-
-    public record CategoryRef(Guid Id, string Name, string Path);
+    /// The other leg of a Transfer or Contribution. Kind "transfer" | "contribution". AccountName is the other leg's
+    /// Account, or null with AccountHidden when the viewer can't see that Account (GET on the leg may then be 404).
+    public record LinkRef(string Kind, Guid TransactionId, string? AccountName, bool AccountHidden);
 
     public record TagRef(Guid Id, string Name, string[] Sources);
 
@@ -72,22 +73,28 @@ public static class TransactionEndpoints
             var list = await TransactionList.SortAndPage(query, request)
                 .Include(t => t.Account).Include(t => t.SourceFile).ToListAsync();
             response.Headers[TransactionList.TotalCountHeader] = total.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            return Results.Ok(await ToResponsesAsync(db, chf, list));
+            return Results.Ok(await ToResponsesAsync(db, chf, user.MemberId(), list));
         });
 
-        // The Uncategorised queue: visible Income and Expense without a Category, newest first.
-        transactions.MapGet("/uncategorised", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
+        // The Uncategorised queue: visible Income and Expense without a Category, newest first. Optional `owner`
+        // filter ("me" | "family" | Member id), as in the list.
+        transactions.MapGet("/uncategorised", async (string? owner, ClaimsPrincipal user, TreasuryDbContext db,
+            ChfConverter chf) =>
         {
-            var list = await db.Transactions.VisibleTo(user.MemberId()).Uncategorised().Include(t => t.Account).Include(t => t.SourceFile)
+            var viewer = user.MemberId();
+            var errors = new Dictionary<string, string[]>();
+            var query = db.Transactions.VisibleTo(viewer).Uncategorised().OwnedAs(owner, viewer, errors);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            var list = await query.Include(t => t.Account).Include(t => t.SourceFile)
                 .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
-            return Results.Ok(await ToResponsesAsync(db, chf, list));
+            return Results.Ok(await ToResponsesAsync(db, chf, user.MemberId(), list));
         });
 
         transactions.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
             ChfConverter chf) =>
         {
             var transaction = await FindVisibleAsync(db, id, user.MemberId());
-            return transaction is null ? Results.NotFound() : Results.Ok((await ToResponsesAsync(db, chf, [transaction]))[0]);
+            return transaction is null ? Results.NotFound() : Results.Ok((await ToResponsesAsync(db, chf, user.MemberId(), [transaction]))[0]);
         });
 
         transactions.MapPost("/", async (CreateTransactionRequest request, ClaimsPrincipal user, TreasuryDbContext db,
@@ -107,7 +114,7 @@ public static class TransactionEndpoints
             ValidateDescription(description, errors);
             var note = NormalizeNote(request.Note, errors);
             var owner = request.Owner is null ? null : await TransactionClassification.ResolveOwnerAsync(db, request.Owner, errors);
-            await ValidateCategoryAsync(db, request.CategoryId, errors);
+            await TransactionClassification.ValidateCategoryAsync(db, request.CategoryId, errors);
             var tagIds = await TransactionClassification.ValidateTagsAsync(db, request.TagIds, "tagIds", errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
@@ -136,7 +143,7 @@ public static class TransactionEndpoints
             await db.SaveChangesAsync();
             await rates.RequestIfNotCoveredAsync(db, transaction.Date);
 
-            return Results.Created($"/api/transactions/{transaction.Id}", (await ToResponsesAsync(db, chf, [transaction]))[0]);
+            return Results.Created($"/api/transactions/{transaction.Id}", (await ToResponsesAsync(db, chf, user.MemberId(), [transaction]))[0]);
         });
 
         // Classification (Owner, Category, note, Display name) can be changed by anyone who sees the Transaction; the facts (date, amount,
@@ -188,6 +195,7 @@ public static class TransactionEndpoints
             // New date or amount: the old pair may no longer fit, and a new one may (#16).
             var rematch = request.Date is not null || request.Amount is not null;
             if (rematch) await matcher.UnlinkAsync(transaction);
+            else if (reowned) await matcher.RefreshLinksAsync([transaction]); // Transfer <-> Contribution
 
             // Date-range Tags follow the new date/Owner, then the Member's own Tag changes.
             await TransactionClassification.SaveAsync(db, [transaction], redated || reowned ? [transaction] : [], change);
@@ -197,14 +205,14 @@ public static class TransactionEndpoints
                 await db.SaveChangesAsync();
             }
             if (request.Date is not null) await rates.RequestIfNotCoveredAsync(db, transaction.Date);
-            return Results.Ok((await ToResponsesAsync(db, chf, [transaction]))[0]);
+            return Results.Ok((await ToResponsesAsync(db, chf, user.MemberId(), [transaction]))[0]);
         });
 
         // Bulk edit: the same Owner / Category / Tag change on several Transactions, with exactly the rules of PATCH
         // (TransactionClassification). All or nothing: if any Transaction can't take the change (not visible, or a
         // Transfer given a Category), nothing is changed and the 400 lists each refused id under `transactions[<id>]`.
         transactions.MapPost("/bulk-edit", async (BulkEditRequest request, ClaimsPrincipal user, TreasuryDbContext db,
-            ChfConverter chf) =>
+            ChfConverter chf, TransactionMatcher matcher) =>
         {
             var viewer = user.MemberId();
             var errors = new Dictionary<string, string[]>();
@@ -229,13 +237,14 @@ public static class TransactionEndpoints
 
             var list = ids.Select(id => found[id]).ToList();
             var reowned = list.Where(t => TransactionClassification.ApplyFields(t, change)).ToList();
+            await matcher.RefreshLinksAsync(reowned); // Transfer <-> Contribution
             await TransactionClassification.SaveAsync(db, list, reowned, change);
-            return Results.Ok(await ToResponsesAsync(db, chf, list));
+            return Results.Ok(await ToResponsesAsync(db, chf, user.MemberId(), list));
         });
 
         // Manual Transactions only (imported ones go away by undoing their import), by Members who manage the Account.
         transactions.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
-            TransactionMatcher matcher) =>
+            TransactionMatcher matcher, FormerLegs formerLegs) =>
         {
             var viewer = user.MemberId();
             var transaction = await FindVisibleAsync(db, id, viewer);
@@ -247,22 +256,16 @@ public static class TransactionEndpoints
                     ["transaction"] = ["An imported Transaction is removed by deleting its Source file."],
                 });
 
-            await matcher.UnlinkAsync(transaction); // the other leg becomes Income or Expense again
+            var other = await matcher.UnlinkAsync(transaction); // the other leg becomes Income or Expense again
             db.Transactions.Remove(transaction);
             await db.SaveChangesAsync();
+            if (other is not null) await formerLegs.SettleAsync([other.Id]);
             return Results.NoContent();
         });
     }
 
     internal static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Transactions.VisibleTo(viewer).Include(t => t.Account).Include(t => t.SourceFile).SingleOrDefaultAsync(t => t.Id == id);
-
-    private static async Task ValidateCategoryAsync(TreasuryDbContext db, Guid? categoryId,
-        Dictionary<string, string[]> errors)
-    {
-        if (categoryId is { } id && !await db.Categories.AnyAsync(c => c.Id == id))
-            errors["categoryId"] = ["Choose an existing Category."];
-    }
 
     private static void ValidateAmount(decimal? amount, Dictionary<string, string[]> errors)
     {
@@ -285,44 +288,38 @@ public static class TransactionEndpoints
         return trimmed;
     }
 
+    /// Responses as <paramref name="viewer"/> sees them: Transactions (and other legs) in an Account the viewer can't
+    /// see carry no Account or Source file details. Each Transaction needs its Account (and SourceFile) loaded.
     internal static async Task<List<TransactionResponse>> ToResponsesAsync(TreasuryDbContext db, ChfConverter chf,
-        IReadOnlyList<Transaction> list)
+        Guid viewer, IReadOnlyList<Transaction> list)
     {
         var names = await db.MemberNamesAsync(list.Select(t => t.OwnerMemberId));
         var rates = list.Count == 0 ? null : await chf.LoadAsync(list.Min(t => t.Date), list.Max(t => t.Date));
         var categories = list.Any(t => t.CategoryId is not null) ? await CategoryTree.LoadAsync(db) : new CategoryTree([]);
         var tags = await Tagging.LoadAsync(db, list.Select(t => t.Id).ToList());
-        return list.Select(t => new TransactionResponse(t.Id, t.AccountId, t.Account.Name, t.Date, t.Amount,
-            t.Account.Currency, rates!.ToChf(t.Amount, t.Account.Currency, t.Date),
-            TypeName(t.Type), t.Description, t.DisplayName,
-            t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
-            t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
-            ToCategoryRef(categories, t.CategoryId), ToTagRefs(tags.GetValueOrDefault(t.Id)), ManuallySetNames(t.ManuallySet),
-            t.SourceFile is null ? null : new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName),
-            t is { LinkedTransactionId: { } linked, LinkKind: { } kind }
-                ? new LinkRef(kind == LinkKind.Transfer ? "transfer" : "contribution", linked)
-                : null)).ToList();
+        var linkedIds = list.Select(t => t.LinkedTransactionId).OfType<Guid>().ToList();
+        var otherLegAccounts = linkedIds.Count == 0
+            ? []
+            : await db.Transactions.Where(t => linkedIds.Contains(t.Id))
+                .Select(t => new { t.Id, t.Account.Name, t.Account.OwnerMemberId })
+                .ToDictionaryAsync(t => t.Id, t => new Owner(t.OwnerMemberId).IsVisibleTo(viewer) ? t.Name : null);
+        return list.Select(t =>
+        {
+            var accountVisible = t.Account.Owner.IsVisibleTo(viewer);
+            return new TransactionResponse(t.Id, accountVisible ? t.AccountId : null, accountVisible ? t.Account.Name : null,
+                !accountVisible, t.Date, t.Amount, t.Account.Currency, rates!.ToChf(t.Amount, t.Account.Currency, t.Date),
+                t.Type.ToApi(), t.Description, t.DisplayName,
+                t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
+                t.Origin.ToApi(), categories.RefOf(t.CategoryId), ToTagRefs(tags.GetValueOrDefault(t.Id)),
+                ApiEnums.FlagNames(t.ManuallySet),
+                accountVisible && t.SourceFile is not null ? new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName) : null,
+                t is { LinkedTransactionId: { } linked, LinkKind: { } kind }
+                    ? new LinkRef(kind.ToApi(), linked,
+                        otherLegAccounts.GetValueOrDefault(linked), otherLegAccounts.GetValueOrDefault(linked) is null)
+                    : null);
+        }).ToList();
     }
 
-    private static string TypeName(TransactionType type) => type switch
-    {
-        TransactionType.Income => "income",
-        TransactionType.Expense => "expense",
-        _ => "transfer",
-    };
-
-    private static CategoryRef? ToCategoryRef(CategoryTree tree, Guid? categoryId) =>
-        categoryId is { } id && tree.Find(id) is { } c ? new(c.Id, c.Name, tree.PathOf(c.Id)) : null;
-
     private static TagRef[] ToTagRefs(List<TagOnTransaction>? tags) =>
-        tags?.Select(t => new TagRef(t.Id, t.Name, t.Sources.Select(CamelCase).ToArray())).ToArray() ?? [];
-
-    private static string CamelCase<T>(T value) where T : struct, Enum =>
-        System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(value.ToString());
-
-    private static string[] ManuallySetNames(ManuallySetFields fields) =>
-        Enum.GetValues<ManuallySetFields>()
-            .Where(f => f != ManuallySetFields.None && fields.HasFlag(f))
-            .Select(f => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(f.ToString()))
-            .ToArray();
+        tags?.Select(t => new TagRef(t.Id, t.Name, t.Sources.Select(s => s.ToApi()).ToArray())).ToArray() ?? [];
 }

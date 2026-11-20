@@ -32,7 +32,7 @@ public static class MatchingEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["transactionId"] = [error] });
 
             await db.SaveChangesAsync();
-            return Results.Ok((await TransactionEndpoints.ToResponsesAsync(db, chf, [transaction]))[0]);
+            return Results.Ok((await TransactionEndpoints.ToResponsesAsync(db, chf, user.MemberId(), [transaction]))[0]);
         });
 
         // Both legs become plain Income/Expense again. 200 with the updated Transaction (also when it wasn't linked).
@@ -44,7 +44,7 @@ public static class MatchingEndpoints
 
             await matcher.UnlinkAsync(transaction);
             await db.SaveChangesAsync();
-            return Results.Ok((await TransactionEndpoints.ToResponsesAsync(db, chf, [transaction]))[0]);
+            return Results.Ok((await TransactionEndpoints.ToResponsesAsync(db, chf, user.MemberId(), [transaction]))[0]);
         });
     }
 }

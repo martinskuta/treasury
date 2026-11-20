@@ -1,39 +1,81 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { CategoryOptions } from '../components/CategoryOptions'
+import { OwnerSelect } from '../components/OwnerSelect'
 import { RuleOffer } from '../components/RuleOffer'
-import { listCategories, listUncategorised, updateTransaction, type Category, type Transaction } from '../lib/api'
+import { HIDDEN_ACCOUNT } from '../components/transactions/shared'
+import {
+  listCategories,
+  listOwners,
+  listUncategorised,
+  updateTransaction,
+  type Category,
+  type Owner,
+  type Transaction,
+} from '../lib/api'
 import { formatAmount, formatDate } from '../lib/format'
 
-/** The Uncategorised queue: every visible Income and Expense without a Category; picking one categorises it. */
+/**
+ * The Uncategorised queue: every visible Income and Expense without a Category; picking one categorises it.
+ * Filter by the Transaction's Owner in the URL: ?owner=me|family|<memberId> (none = everyone's).
+ */
 export function UncategorisedPage() {
-  const [transactions, setTransactions] = useState<Transaction[] | null>(null)
+  const [params, setParams] = useSearchParams()
+  const owner = params.get('owner') ?? ''
+  const [loaded, setLoaded] = useState<{ owner: string; transactions: Transaction[] } | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [owners, setOwners] = useState<Owner[]>([])
   const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
-    Promise.all([listUncategorised(controller.signal), listCategories(controller.signal)])
-      .then(([t, c]) => {
-        setTransactions(t)
+    Promise.all([
+      listUncategorised(controller.signal, owner || undefined),
+      listCategories(controller.signal),
+      listOwners(controller.signal),
+    ])
+      .then(([t, c, o]) => {
+        setLoaded({ owner, transactions: t })
         setCategories(c)
+        setOwners(o)
+        setLoadError(false)
       })
       .catch(() => {
         if (!controller.signal.aborted) setLoadError(true)
       })
     return () => controller.abort()
-  }, [])
+  }, [owner])
 
-  const done = (id: string) => setTransactions(list => list?.filter(t => t.id !== id) ?? null)
+  const transactions = loaded?.owner === owner ? loaded.transactions : null
+  const done = (id: string) =>
+    setLoaded(l => (l === null ? null : { ...l, transactions: l.transactions.filter(t => t.id !== id) }))
 
   return (
     <>
       <h1>Uncategorised</h1>
+      <div className="report-controls">
+        <OwnerSelect
+          owners={owners}
+          value={owner}
+          before={
+            <>
+              <option value="">Everyone’s</option>
+              <option value="me">Mine</option>
+            </>
+          }
+          onChange={value => setParams(value ? { owner: value } : {})}
+        />
+      </div>
       {loadError && <p className="status status-bad">Couldn’t load the Uncategorised Transactions.</p>}
       {transactions === null && !loadError && <p>Loading…</p>}
       {transactions !== null && (
         <section className="card">
           {transactions.length === 0 ? (
-            <p>Nothing to review: every Income and Expense has a Category.</p>
+            <p>
+              {owner
+                ? 'Nothing to review for this Owner.'
+                : 'Nothing to review: every Income and Expense has a Category.'}
+            </p>
           ) : (
             <ul className="transaction-list">
               {transactions.map(t => (
@@ -95,7 +137,7 @@ function UncategorisedRow({
       <div className="transaction-main">
         <strong>{t.description}</strong>
         <div className="account-meta">
-          {t.accountName} · {t.owner.name}
+          {t.accountName ?? HIDDEN_ACCOUNT} · {t.owner.name}
           {t.note && <> · {t.note}</>}
         </div>
         <select

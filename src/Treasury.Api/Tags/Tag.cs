@@ -38,7 +38,7 @@ public class Tag
 /// One reason a Tag is on a Transaction. A Transaction carries a Tag when at least one link exists; the same
 /// Tag can be linked by several sources at once (by hand, by its date range, by a Rule), so each source can add
 /// and withdraw its own link without clobbering the others.
-public class TransactionTag
+public class TransactionTag : ITransactionTagPair
 {
     public Guid TransactionId { get; init; }
 
@@ -61,9 +61,17 @@ public enum TransactionTagSource
 
 /// A Member removed this Tag from this Transaction by hand: no source may add it again automatically (date range,
 /// Rules). Adding the Tag by hand deletes the removal.
-public class TransactionTagRemoval
+public class TransactionTagRemoval : ITransactionTagPair
 {
     public Guid TransactionId { get; init; }
 
     public Guid TagId { get; init; }
+}
+
+/// A (Transaction, Tag) row: a link or a removal. Lets <see cref="Tagging"/> load either as pairs with one query helper.
+public interface ITransactionTagPair
+{
+    Guid TransactionId { get; }
+
+    Guid TagId { get; }
 }

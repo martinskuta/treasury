@@ -209,7 +209,6 @@ public class MemberTests : ApiTestBase
         var bobs = await bob.GetFromJsonAsync<AccountRow>($"/api/accounts/{savings}");
         await Assert.That(bobs!.Owner.MemberId).IsEqualTo(bobId);
         await Assert.That(bobs.Owner.Name).IsEqualTo("bob");
-        await Assert.That(await HandoverListAsync(annaId)).IsEmpty();
     }
 
     [Test]
@@ -222,8 +221,22 @@ public class MemberTests : ApiTestBase
 
         await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new { handover = Array.Empty<object>() });
 
-        var left = await HandoverListAsync(annaId);
-        await Assert.That(left.Select(a => a.Id)).IsEquivalentTo([salary]);
+        // Not handed to the Family (the Admin would see it then), so still Anna's own.
+        await Assert.That((await Client.GetAsync($"/api/accounts/{salary}")).StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task The_handover_list_is_only_for_active_members()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MyIdAsync(anna);
+        await CreatePersonalAccountAsync(anna, annaId, "Salary");
+        await LoginAsAdminAsync();
+        await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new { handover = Array.Empty<object>() });
+
+        var res = await Client.GetAsync($"/api/admin/members/{annaId}/accounts");
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
     }
 
     [Test]

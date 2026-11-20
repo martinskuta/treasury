@@ -337,6 +337,166 @@ public class MatchingTests : ApiTestBase
         await Assert.That(left.Category).IsNull();
     }
 
+    [Test]
+    public async Task A_currency_exchange_left_unmatched_for_lack_of_a_rate_is_matched_once_the_rate_arrives()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var revolutChf = await CreateAccountAsync(anna, "Revolut CHF", me);
+        var revolutEur = await CreateAccountAsync(anna, "Revolut EUR", me, currency: "EUR");
+        await AddAsync(anna, revolutChf.Id, -100m, "2026-11-17", "EXCHANGED TO EUR");
+        await AddAsync(anna, revolutEur.Id, 103.50m, "2026-11-17", "EXCHANGED FROM CHF");
+        await Assert.That((await ListAsync(anna)).Select(t => t.Type)).IsEquivalentTo(["income", "expense"]);
+
+        App.ExchangeRates.Publish("2026-11-17", chf: 0.966m); // 103.50 EUR = 99.98 CHF
+
+        // The job's next run (an hour per poll, however its timer races the test) stores the rate and re-matches.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while ((await ListAsync(anna)).Any(t => t.Type != "transfer"))
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("The pair was not matched after the rate arrived.");
+            await Task.Delay(25);
+            App.Clock.Advance(TimeSpan.FromHours(1));
+        }
+    }
+
+    [Test]
+    public async Task After_undoing_an_import_the_former_leg_is_matched_again_with_its_now_single_candidate()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var pillar3a = await CreateAccountAsync(anna, "Pillar 3a", me);
+        await UploadOkAsync(anna, checking.Id, new TestStatement().Row("2026-11-16", -500m, "TO SAVINGS"));
+        var wrongImport = await UploadOkAsync(anna, savings.Id, new TestStatement().Row("2026-11-16", 500m, "FROM CHECKING"));
+        await UploadOkAsync(anna, pillar3a.Id, new TestStatement().Row("2026-11-17", 500m, "INTO PILLAR")); // its candidate is taken
+
+        await Assert.That((await anna.DeleteAsync($"/api/source-files/{wrongImport.SourceFile.Id}")).StatusCode)
+            .IsEqualTo(HttpStatusCode.NoContent);
+
+        var list = await ListAsync(anna);
+        var outgoing = list.Single(t => t.Description == "TO SAVINGS");
+        await Assert.That(outgoing.Type).IsEqualTo("transfer");
+        await Assert.That(outgoing.Link!.TransactionId).IsEqualTo(list.Single(t => t.Description == "INTO PILLAR").Id);
+    }
+
+    [Test]
+    public async Task After_undoing_an_import_rules_categorise_the_leg_left_uncategorised()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var personal = await CreateAccountAsync(anna, "Anna's account", await MeAsync(anna));
+        var household = await CreateAccountAsync(anna, "Household", Family);
+        var housing = await CategoryIdAsync(anna, "Housing");
+        var import = await UploadOkAsync(anna, personal.Id, new TestStatement().Row("2026-11-01", -1500m, "TO HOUSEHOLD"));
+        await UploadOkAsync(anna, household.Id, new TestStatement().Row("2026-11-01", 1500m, "ANNA MONTHLY"));
+        await CreateRuleAsync(anna, new { field = "description", match = "contains", text = "ANNA MONTHLY", categoryId = housing });
+
+        await Assert.That((await anna.DeleteAsync($"/api/source-files/{import.SourceFile.Id}")).StatusCode)
+            .IsEqualTo(HttpStatusCode.NoContent);
+
+        var left = (await ListAsync(anna)).Single();
+        await Assert.That(left.Link).IsNull();
+        await Assert.That(left.Category?.Id).IsEqualTo(housing);
+    }
+
+    [Test]
+    public async Task After_deleting_a_manual_leg_the_other_leg_is_matched_again_or_categorised_by_rules()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var pillar3a = await CreateAccountAsync(anna, "Pillar 3a", me);
+        var household = await CreateAccountAsync(anna, "Household", Family);
+        var housing = await CategoryIdAsync(anna, "Housing");
+        await CreateRuleAsync(anna, new { field = "description", match = "contains", text = "TO HOUSEHOLD", categoryId = housing });
+        var outgoing = await AddAsync(anna, checking.Id, -500m, "2026-11-18", "TO SAVINGS");
+        var wrong = await AddAsync(anna, savings.Id, 500m, "2026-11-18", "FROM CHECKING");
+        var pillar = await AddAsync(anna, pillar3a.Id, 500m, "2026-11-19", "INTO PILLAR");
+        var contribution = await AddAsync(anna, checking.Id, -1500m, "2026-11-01", "TO HOUSEHOLD");
+        var received = await AddAsync(anna, household.Id, 1500m, "2026-11-01", "ANNA MONTHLY");
+
+        await Assert.That((await anna.DeleteAsync($"/api/transactions/{wrong.Id}")).StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That((await anna.DeleteAsync($"/api/transactions/{received.Id}")).StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+
+        await Assert.That((await GetAsync(anna, outgoing.Id)).Link!.TransactionId).IsEqualTo(pillar.Id);
+        var left = await GetAsync(anna, contribution.Id);
+        await Assert.That(left.Link).IsNull();
+        await Assert.That(left.Category?.Id).IsEqualTo(housing);
+    }
+
+    [Test]
+    public async Task Changing_the_owner_of_a_transfer_leg_by_hand_turns_the_pair_into_a_contribution_and_back()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        var outgoing = await AddAsync(anna, checking.Id, -500m, "2026-11-18", "TO SAVINGS");
+        var incoming = await AddAsync(anna, savings.Id, 500m, "2026-11-18", "FROM CHECKING");
+
+        await PatchOkAsync(anna, incoming.Id, new { owner = Family });
+
+        var sent = await GetAsync(anna, outgoing.Id);
+        var received = await GetAsync(anna, incoming.Id);
+        await Assert.That(sent.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(received.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(sent.Type).IsEqualTo("expense");
+        await Assert.That(sent.Category!.Path).IsEqualTo("Contributions › To Family");
+        await Assert.That(received.Category!.Path).IsEqualTo("Contributions › From Members");
+
+        await PatchOkAsync(anna, incoming.Id, new { owner = me });
+
+        sent = await GetAsync(anna, outgoing.Id);
+        received = await GetAsync(anna, incoming.Id);
+        await Assert.That(sent.Type).IsEqualTo("transfer");
+        await Assert.That(received.Link!.Kind).IsEqualTo("transfer");
+        await Assert.That(sent.Category).IsNull();
+        await Assert.That(received.Category).IsNull();
+    }
+
+    [Test]
+    public async Task Bulk_editing_the_owner_of_a_contribution_leg_to_the_other_legs_owner_makes_it_a_transfer()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var personal = await CreateAccountAsync(anna, "Anna's account", me);
+        var household = await CreateAccountAsync(anna, "Household", Family);
+        await AddAsync(anna, personal.Id, -1500m, "2026-11-01", "TO HOUSEHOLD");
+        var received = await AddAsync(anna, household.Id, 1500m, "2026-11-01", "ANNA MONTHLY");
+        await Assert.That(received.Link!.Kind).IsEqualTo("contribution");
+
+        var res = await anna.PostAsJsonAsync("/api/transactions/bulk-edit", new { transactionIds = new[] { received.Id }, owner = me });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var list = await ListAsync(anna);
+        await Assert.That(list.Select(t => t.Type)).IsEquivalentTo(["transfer", "transfer"]);
+        await Assert.That(list.Select(t => t.Category)).IsEquivalentTo(new CategoryRef?[] { null, null });
+        await Assert.That(await UncategorisedAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_rule_giving_one_leg_of_a_transfer_another_owner_makes_the_pair_a_contribution()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        await CreateRuleAsync(anna, new { field = "description", match = "contains", text = "FROM CHECKING", owner = Family });
+        await UploadOkAsync(anna, checking.Id, new TestStatement().Row("2026-11-16", -500m, "TO SAVINGS"));
+
+        await UploadOkAsync(anna, savings.Id, new TestStatement().Row("2026-11-16", 500m, "FROM CHECKING"));
+
+        var list = await ListAsync(anna);
+        var sent = list.Single(t => t.Description == "TO SAVINGS");
+        var received = list.Single(t => t.Description == "FROM CHECKING");
+        await Assert.That(received.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(sent.Link!.Kind).IsEqualTo("contribution");
+        await Assert.That(sent.Category!.Path).IsEqualTo("Contributions › To Family");
+        await Assert.That(received.Category!.Path).IsEqualTo("Contributions › From Members");
+    }
+
     // ---- helpers ----
 
     private static async Task<Guid> CategoryIdAsync(HttpClient client, string path) =>
@@ -351,6 +511,13 @@ public class MatchingTests : ApiTestBase
             if (DateTime.UtcNow > deadline) throw new TimeoutException("Exchange rates were not synced.");
             await Task.Delay(25);
         }
+    }
+
+    private static async Task CreateRuleAsync(HttpClient client, object body)
+    {
+        var res = await client.PostAsJsonAsync("/api/rules", body);
+        if (res.StatusCode != HttpStatusCode.Created)
+            throw new InvalidOperationException($"Create rule failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
     }
 
     private static async Task<Transaction> PatchOkAsync(HttpClient client, Guid id, object body)
@@ -430,6 +597,6 @@ public class MatchingTests : ApiTestBase
 
     private record LinkDto(string Kind, Guid? TransactionId);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Currency,
+    private record Transaction(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Currency,
         decimal? ChfAmount, string Type, string Description, CategoryRef? Category, LinkDto? Link);
 }

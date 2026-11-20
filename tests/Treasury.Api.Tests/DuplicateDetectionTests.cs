@@ -129,7 +129,7 @@ public class DuplicateDetectionTests : ApiTestBase
         await Assert.That(result.ImportedCount).IsEqualTo(1);
         await Assert.That(result.SkippedCount).IsEqualTo(1);
         var list = await ListAsync(anna);
-        await Assert.That(list.Select(t => t.Reference)).IsEquivalentTo(["R-1", "R-2", "R-3"]);
+        await Assert.That(list.Select(t => t.Reference ?? "")).IsEquivalentTo(["R-1", "R-2", "R-3"]);
         await Assert.That(list.Single(t => t.Reference == "R-1").Description).IsEqualTo("Coffee");
     }
 
@@ -170,5 +170,5 @@ public class DuplicateDetectionTests : ApiTestBase
 
     private record ImportResult(int ImportedCount, int SkippedCount);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Description, string? Reference);
+    private record Transaction(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Description, string? Reference);
 }

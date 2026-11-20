@@ -157,8 +157,10 @@ export const listOwners = (signal?: AbortSignal) => apiFetch<Owner[]>('/api/owne
 
 export type Transaction = {
   id: string
-  accountId: string
-  accountName: string
+  /** null (with accountHidden) when the Transaction sits in another Member's personal Account (US37). */
+  accountId: string | null
+  accountName: string | null
+  accountHidden: boolean
   /** ISO date, e.g. "2026-11-20" */
   date: string
   /** In the Account's currency; positive = Income, negative = Expense. */
@@ -195,7 +197,13 @@ export type Transaction = {
 
 export type TransactionType = 'income' | 'expense' | 'transfer'
 
-export type TransactionLink = { kind: 'transfer' | 'contribution'; transactionId: string }
+/** The other leg; accountName is null (accountHidden) when it sits in an Account the viewer can't see. */
+export type TransactionLink = {
+  kind: 'transfer' | 'contribution'
+  transactionId: string
+  accountName: string | null
+  accountHidden: boolean
+}
 
 export type NewTransaction = {
   accountId: string
@@ -235,7 +243,7 @@ export type TransactionSort = 'date-desc' | 'date-asc' | 'amount-asc' | 'amount-
 /** Filters for the Transactions list; all optional and combined with AND (never beyond what the Member can see). */
 export type TransactionFilter = {
   accountId?: string
-  /** "family" or a Member id: the Transaction's Owner. */
+  /** "me", "family" or a Member id: the Transaction's Owner. */
   owner?: string
   /** This Category or any of its subcategories. */
   categoryId?: string
@@ -291,9 +299,15 @@ export const bulkEditTransactions = (edit: BulkEdit) =>
 /** fieldErrors key of a Transaction refused by a bulk edit. */
 export const bulkErrorKey = (transactionId: string) => `transactions[${transactionId}]`
 
-/** The Uncategorised queue: visible Income and Expense without a Category, newest first. */
-export const listUncategorised = (signal?: AbortSignal) =>
-  apiFetch<Transaction[]>('/api/transactions/uncategorised', { signal })
+/**
+ * The Uncategorised queue: visible Income and Expense without a Category, newest first; `owner` = "me", "family" or
+ * a Member id (the Transaction's Owner), omitted = everyone's.
+ */
+export const listUncategorised = (signal?: AbortSignal, owner?: string) =>
+  apiFetch<Transaction[]>(
+    `/api/transactions/uncategorised${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`,
+    { signal },
+  )
 
 export const createTransaction = (transaction: NewTransaction) =>
   apiFetch<Transaction>('/api/transactions', { method: 'POST', body: transaction })

@@ -8,7 +8,7 @@ namespace Treasury.Api.Transactions;
 /// Query string of GET /api/transactions. Every filter is optional and they combine with AND; the result always
 /// starts from <see cref="TransactionQueries.VisibleTo"/>, so no filter can reach beyond what the viewer may see.
 /// <param name="AccountId">Transactions in this Account.</param>
-/// <param name="Owner">"family" or a Member id: the Transaction's Owner (not the Account's).</param>
+/// <param name="Owner">"me", "family" or a Member id: the Transaction's Owner (not the Account's).</param>
 /// <param name="CategoryId">This Category or any of its subcategories.</param>
 /// <param name="Uncategorised">true: only Uncategorised Income and Expense (no Transfers). Not together with CategoryId.</param>
 /// <param name="TagId">Transactions carrying this Tag (any source).</param>
@@ -40,14 +40,7 @@ public static class TransactionList
 
         if (request.AccountId is { } accountId) query = query.Where(t => t.AccountId == accountId);
 
-        if (!string.IsNullOrWhiteSpace(request.Owner))
-        {
-            if (request.Owner.Trim().Equals(OwnerKinds.Family, StringComparison.OrdinalIgnoreCase))
-                query = query.Where(t => t.OwnerMemberId == null);
-            else if (Guid.TryParse(request.Owner, out var memberId))
-                query = query.Where(t => t.OwnerMemberId == memberId);
-            else errors["owner"] = ["Use \"family\" or a Member id."];
-        }
+        query = query.OwnedAs(request.Owner, viewerId, errors);
 
         if (request.CategoryId is { } categoryId)
         {
@@ -84,6 +77,23 @@ public static class TransactionList
         if (request.Limit is < 1 or > MaxLimit) errors["limit"] = [$"Use 1 to {MaxLimit}."];
 
         return (errors.Count > 0 ? null : query, errors);
+    }
+
+    /// The `owner` filter value meaning the viewer.
+    public const string Me = "me";
+
+    /// The `owner` filter shared by the list and the Uncategorised queue: "me" (the viewer), "family", or a Member id,
+    /// matched against the Transaction's Owner. Blank = no filter; anything else adds an `owner` error.
+    public static IQueryable<Transaction> OwnedAs(this IQueryable<Transaction> query, string? owner, Guid viewerId,
+        Dictionary<string, string[]> errors)
+    {
+        if (string.IsNullOrWhiteSpace(owner)) return query;
+        var value = owner.Trim();
+        if (value.Equals(Me, StringComparison.OrdinalIgnoreCase)) return query.Where(t => t.OwnerMemberId == viewerId);
+        if (value.Equals(OwnerKinds.Family, StringComparison.OrdinalIgnoreCase)) return query.Where(t => t.OwnerMemberId == null);
+        if (Guid.TryParse(value, out var memberId)) return query.Where(t => t.OwnerMemberId == memberId);
+        errors["owner"] = ["Use \"me\", \"family\" or a Member id."];
+        return query;
     }
 
     /// Sorted (ties: newest created first, then id, so pages are stable) and paged.

@@ -31,8 +31,7 @@ public static class TransactionClassification
         var resolvedOwner = owner is null ? null : await ResolveOwnerAsync(db, owner, errors);
         if (categoryId is not null && uncategorise == true)
             errors["categoryId"] = ["Either choose a Category or make the Transaction Uncategorised."];
-        else if (categoryId is { } id && !await db.Categories.AnyAsync(c => c.Id == id))
-            errors["categoryId"] = ["Choose an existing Category."];
+        else await ValidateCategoryAsync(db, categoryId, errors);
         var add = await ValidateTagsAsync(db, addTagIds, "addTagIds", errors);
         var remove = await ValidateTagsAsync(db, removeTagIds, "removeTagIds", errors);
         if (add.Intersect(remove).Any()) errors["removeTagIds"] = ["A Tag can't be added and removed at the same time."];
@@ -47,6 +46,13 @@ public static class TransactionClassification
         if (owner is { MemberId: { } memberId } && !await db.Users.AnyAsync(m => m.Id == memberId && m.DeactivatedAt == null)) owner = null;
         if (owner is null) errors["owner"] = ["Choose the Family or a Member as the Owner."];
         return owner;
+    }
+
+    /// An unknown Category id adds a `categoryId` error; null is fine (no Category).
+    public static async Task ValidateCategoryAsync(TreasuryDbContext db, Guid? categoryId, Dictionary<string, string[]> errors)
+    {
+        if (categoryId is { } id && !await db.Categories.AnyAsync(c => c.Id == id))
+            errors["categoryId"] = ["Choose an existing Category."];
     }
 
     /// The distinct requested Tag ids; an unknown one adds an error under <paramref name="field"/>.

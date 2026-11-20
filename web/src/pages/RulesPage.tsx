@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
+import { OwnerSelect } from '../components/OwnerSelect'
 import { SelectField } from '../components/SelectField'
 import {
-  ApiError,
   applyRules,
   createRule,
   deleteRule,
@@ -24,17 +24,13 @@ import {
   type RuleMatch,
   type Tag,
 } from '../lib/api'
-
-type Errors = Record<string, string[]>
-
-const toErrors = (err: unknown): Errors =>
-  err instanceof ApiError && err.status === 400 ? err.fieldErrors : { form: ['Something went wrong, try again.'] }
+import { useMe } from '../lib/auth'
+import { toErrors, type Errors } from '../lib/errors'
+import { ownerRefFromValue, ownerValue } from '../lib/owners'
 
 /** Owner <select> value: "" (don't set an Owner), "family" or a Member id. */
-const ownerValue = (owner: Owner | OwnerRef | null) =>
-  owner === null ? '' : owner.kind === 'family' ? 'family' : (owner.memberId ?? 'family')
-const ownerRef = (value: string): OwnerRef | null =>
-  value === '' ? null : value === 'family' ? { kind: 'family' } : { kind: 'member', memberId: value }
+const ruleOwnerValue = (owner: Owner | OwnerRef | null) => (owner === null ? '' : ownerValue(owner))
+const ruleOwnerRef = (value: string): OwnerRef | null => (value === '' ? null : ownerRefFromValue(value))
 
 const emptyRule: RuleInput = { field: 'description', match: 'contains', text: '', categoryId: null, tagIds: [], owner: null }
 
@@ -44,7 +40,7 @@ const toInput = (rule: Rule): RuleInput => ({
   text: rule.text,
   categoryId: rule.category?.id ?? null,
   tagIds: rule.tags.map(t => t.id),
-  owner: rule.owner === null ? null : ownerRef(ownerValue(rule.owner)),
+  owner: rule.owner === null ? null : ownerRefFromValue(ownerValue(rule.owner)),
 })
 
 /** "Description contains “migros” → Food › Groceries · Tags: holiday · Owner: Family". */
@@ -263,6 +259,7 @@ function RuleRow({
             initial={toInput(rule)}
             options={options}
             extraOwner={rule.owner}
+            author={rule.author}
             submitLabel="Save"
             onSubmit={input => updateRule(rule.id, input)}
             onDone={() => {
@@ -281,6 +278,7 @@ function RuleForm({
   initial,
   options,
   extraOwner,
+  author,
   submitLabel,
   onSubmit,
   onDone,
@@ -291,6 +289,8 @@ function RuleForm({
   options: Options
   /** The Rule's current Owner, kept selectable even if no longer offered (deactivated Member). */
   extraOwner?: Owner | null
+  /** The saved Rule's author: saving makes the current Member the author, which changes the Accounts it reaches. */
+  author?: Rule['author']
   submitLabel: string
   onSubmit: (input: RuleInput) => Promise<unknown>
   onDone: () => void
@@ -302,21 +302,17 @@ function RuleForm({
   const [text, setText] = useState(initial.text)
   const [categoryId, setCategoryId] = useState(initial.categoryId ?? '')
   const [tagIds, setTagIds] = useState(initial.tagIds)
-  const [owner, setOwner] = useState(ownerValue(initial.owner))
+  const [owner, setOwner] = useState(ruleOwnerValue(initial.owner))
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
-
-  const owners =
-    extraOwner && !options.owners.some(o => ownerValue(o) === ownerValue(extraOwner))
-      ? [...options.owners, extraOwner]
-      : options.owners
+  const me = useMe()
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setErrors({})
     try {
-      await onSubmit({ field, match, text, categoryId: categoryId || null, tagIds, owner: ownerRef(owner) })
+      await onSubmit({ field, match, text, categoryId: categoryId || null, tagIds, owner: ruleOwnerRef(owner) })
       if (resetOnDone) {
         setField(emptyRule.field)
         setMatch(emptyRule.match)
@@ -388,14 +384,21 @@ function RuleForm({
         ))}
         {errors.tagIds && <p className="form-error">{errors.tagIds[0]}</p>}
       </fieldset>
-      <SelectField label="Set Owner" name="owner" value={owner} errors={errors.owner} onChange={e => setOwner(e.target.value)}>
-        <option value="">Don’t set an Owner</option>
-        {owners.map(o => (
-          <option key={ownerValue(o)} value={ownerValue(o)}>
-            {o.name}
-          </option>
-        ))}
-      </SelectField>
+      <OwnerSelect
+        label="Set Owner"
+        owners={options.owners}
+        current={extraOwner}
+        value={owner}
+        errors={errors.owner}
+        before={<option value="">Don’t set an Owner</option>}
+        onChange={setOwner}
+      />
+      {author && author.id !== me.id && (
+        <p className="account-meta">
+          Saving makes you this Rule’s author: it will then reach your Accounts and the Family’s instead of{' '}
+          {author.name}’s.
+        </p>
+      )}
       {(errors.actions ?? errors.form) && (
         <p className="form-error" role="alert">
           {(errors.actions ?? errors.form)[0]}

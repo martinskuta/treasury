@@ -186,6 +186,6 @@ public class UndoImportTests : ApiTestBase
 
     private record ImportResult(SourceFile SourceFile, int ImportedCount, int SkippedCount);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Description,
+    private record Transaction(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Description,
         OwnerDto Owner, string Origin, SourceFileRef? SourceFile);
 }

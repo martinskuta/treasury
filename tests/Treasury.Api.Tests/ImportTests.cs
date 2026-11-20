@@ -404,7 +404,7 @@ public class ImportTests : ApiTestBase
 
     private record ImportResult(SourceFile SourceFile, int ImportedCount);
 
-    private record Transaction(Guid Id, Guid AccountId, DateOnly Date, decimal Amount, string Currency, decimal? ChfAmount, string Type,
+    private record Transaction(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Currency, decimal? ChfAmount, string Type,
         string Description, string? DisplayName, string? Counterparty, string? Reference, decimal? OriginalAmount,
         string? OriginalCurrency, string? Note, OwnerDto Owner, string Origin, SourceFileRef? SourceFile);
 }

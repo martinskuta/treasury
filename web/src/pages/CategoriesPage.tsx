@@ -3,7 +3,6 @@ import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
 import { SelectField } from '../components/SelectField'
 import {
-  ApiError,
   createCategory,
   listCategories,
   moveCategory,
@@ -11,14 +10,7 @@ import {
   renameCategory,
   type Category,
 } from '../lib/api'
-
-type Errors = Record<string, string[]>
-
-const toErrors = (err: unknown): Errors =>
-  err instanceof ApiError && err.status === 400 ? err.fieldErrors : { form: ['Something went wrong, try again.'] }
-
-/** First message of any field error (for the small inline forms that show one line). */
-const firstError = (errors: Errors) => Object.values(errors)[0]?.[0]
+import { firstError, GENERIC_ERROR, toErrors, type Errors } from '../lib/errors'
 
 /** Depth in the tree (0 = top level), following parentId. */
 function depthOf(c: Category, byId: Map<string, Category>) {
@@ -176,7 +168,7 @@ function CategoryRow({
       setMode('view')
       onChanged()
     } catch (err) {
-      setError(firstError(toErrors(err)) ?? 'Something went wrong, try again.')
+      setError(firstError(toErrors(err)) ?? GENERIC_ERROR)
     } finally {
       setBusy(false)
     }

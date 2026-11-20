@@ -8,7 +8,7 @@ namespace Treasury.Api.Imports;
 /// copy under source-files/. The copy the Member has in ingest/&lt;slug&gt;/processed/ is theirs and stays.
 /// Nothing else remembers the file afterwards (no hash, no rows), so the same file can be imported again.
 public sealed class ImportUndo(TreasuryDbContext db, ImportLocks locks, ImportFiles files, TransactionMatcher matcher,
-    ILogger<ImportUndo> logger)
+    FormerLegs formerLegs, ILogger<ImportUndo> logger)
 {
     /// Deletes the Source file. Permission checks are the caller's job.
     public async Task UndoAsync(SourceFile sourceFile, CancellationToken ct)
@@ -16,6 +16,7 @@ public sealed class ImportUndo(TreasuryDbContext db, ImportLocks locks, ImportFi
         // Same lock as imports: an undo never interleaves with an import into the same Account.
         using var _ = await locks.AcquireAsync(sourceFile.AccountId, ct);
 
+        List<Guid> survivors = [];
         await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             db.ChangeTracker.Clear();
@@ -23,12 +24,16 @@ public sealed class ImportUndo(TreasuryDbContext db, ImportLocks locks, ImportFi
 
             // Break the Transfer/Contribution links of this file's Transactions first: the counterparts in other
             // Accounts stay and become plain Income/Expense again (losing Contribution Categories matching gave them).
-            await matcher.BreakLinksOfSourceFileAsync(sourceFile.Id, ct);
+            survivors = await matcher.BreakLinksOfSourceFileAsync(sourceFile.Id, ct);
             await db.SaveChangesAsync(ct);
             // Transactions go with it: Transaction.SourceFileId is ON DELETE CASCADE.
             await db.SourceFiles.Where(f => f.Id == sourceFile.Id).ExecuteDeleteAsync(ct);
             await tx.CommitAsync(ct);
         });
+
+        // The counterparts may pair up with someone else now, or be categorised by Rules.
+        db.ChangeTracker.Clear();
+        await formerLegs.SettleAsync(survivors, ct);
 
         try
         {

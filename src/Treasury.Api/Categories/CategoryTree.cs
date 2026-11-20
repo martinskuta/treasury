@@ -23,6 +23,10 @@ public sealed class CategoryTree
 
     public Category? Find(Guid id) => _byId.GetValueOrDefault(id);
 
+    /// The Category as API responses show it (id, name, path), or null for null / unknown ids.
+    public CategoryRef? RefOf(Guid? id) =>
+        id is { } categoryId && Find(categoryId) is { } c ? new(c.Id, c.Name, PathOf(c.Id)) : null;
+
     public Category? FindBuiltIn(string key) => _byId.Values.SingleOrDefault(c => c.BuiltInKey == key);
 
     /// Direct children of a Category (or the top-level Categories for null), ordered by name.
@@ -71,3 +75,6 @@ public sealed class CategoryTree
         }
     }
 }
+
+/// A Category as it appears on Transactions and Rules in API responses.
+public record CategoryRef(Guid Id, string Name, string Path);

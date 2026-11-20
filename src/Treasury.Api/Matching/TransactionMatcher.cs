@@ -66,24 +66,46 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
         return null;
     }
 
+    /// Brings the kind of each linked pair among <paramref name="reowned"/> (Transactions whose Owner just changed: by
+    /// hand, by bulk edit or by a Rule) in line with the Owners: same Owner on both legs = Transfer (no Category),
+    /// different Owners = Contribution (built-in Contribution Categories, which also follow the other leg's new
+    /// Owner, unless a Member set the leg's Category by hand). Unlinked Transactions are left alone.
+    public async Task RefreshLinksAsync(IReadOnlyCollection<Transaction> reowned, CancellationToken ct = default)
+    {
+        var linked = reowned.Where(t => t.LinkedTransactionId is not null).ToList();
+        if (linked.Count == 0) return;
+        var tree = await CategoryTree.LoadAsync(db);
+        foreach (var transaction in linked)
+        {
+            var other = await db.Transactions.FindAsync([transaction.LinkedTransactionId!.Value], ct);
+            if (other is not null) Link(transaction, other, KindOf(transaction, other), tree);
+        }
+    }
+
     /// Breaks the link of <paramref name="transaction"/> (no-op when unlinked). Both legs become plain Income or
     /// Expense again; Contribution Categories that matching assigned are removed (back to Uncategorised).
-    public async Task UnlinkAsync(Transaction transaction, CancellationToken ct = default)
+    /// Returns the other leg (tracked), or null when there was none.
+    public async Task<Transaction?> UnlinkAsync(Transaction transaction, CancellationToken ct = default)
     {
-        if (transaction.LinkedTransactionId is not { } otherId) return;
+        if (transaction.LinkedTransactionId is not { } otherId) return null;
         var other = await db.Transactions.FindAsync([otherId], ct);
         Clear(transaction);
         if (other is not null) Clear(other);
+        return other;
     }
 
     /// Breaks every link the Source file's Transactions are part of. Call it before deleting the Source file
     /// (undo, #10) so the remaining legs also lose the Contribution Categories matching gave them. Without the call,
     /// the database still breaks the links (FK set null), but Contribution legs keep their Category.
-    public async Task BreakLinksOfSourceFileAsync(Guid sourceFileId, CancellationToken ct = default)
+    /// Returns the ids of the former legs outside the Source file (they stay; see <see cref="FormerLegs"/>).
+    public async Task<List<Guid>> BreakLinksOfSourceFileAsync(Guid sourceFileId, CancellationToken ct = default)
     {
         var linked = await db.Transactions
             .Where(t => t.SourceFileId == sourceFileId && t.LinkedTransactionId != null).ToListAsync(ct);
-        foreach (var transaction in linked) await UnlinkAsync(transaction, ct);
+        var survivors = new List<Guid>();
+        foreach (var transaction in linked)
+            if (await UnlinkAsync(transaction, ct) is { } other && other.SourceFileId != sourceFileId) survivors.Add(other.Id);
+        return survivors;
     }
 
     private static List<Transaction> CandidatesFor(Transaction transaction, List<Transaction> pool, ChfRates rates) =>

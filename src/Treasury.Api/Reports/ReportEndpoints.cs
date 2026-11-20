@@ -37,19 +37,14 @@ public static class ReportEndpoints
             if (!string.IsNullOrEmpty(month) && !DateOnly.TryParseExact(month, "yyyy-MM", CultureInfo.InvariantCulture,
                     DateTimeStyles.None, out first))
                 errors["month"] = ["Use a month like 2026-11."];
-            if (!ReportQueries.TryParseOwner(owner, out var reportOwner))
-                errors["owner"] = ["Use \"me\" or \"family\"."];
+            var reportOwner = ParseOwner(owner, errors);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-            var rows = await db.Transactions.InReportScope(user.MemberId(), reportOwner)
-                .InPeriod(first, first.AddMonths(1).AddDays(-1))
-                .ToReportRowsAsync(chf, ct);
-            var tree = await CategoryTree.LoadAsync(db);
-            var income = CategoryBreakdown.Build(rows, TransactionType.Income, tree);
-            var expense = CategoryBreakdown.Build(rows, TransactionType.Expense, tree);
+            var (income, expense, net) = await SidesAsync(db, chf,
+                db.Transactions.InReportScope(user.MemberId(), reportOwner).InPeriod(first, first.AddMonths(1).AddDays(-1)), ct);
 
             return Results.Ok(new MonthlyReportResponse(first.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-                reportOwner.ToApiValue(), ChfConverter.ReportingCurrency, income, expense, income.Total - expense.Total));
+                reportOwner.ToApi(), ChfConverter.ReportingCurrency, income, expense, net));
         });
 
         // ?owner=me|family (default: me) &from=yyyy-MM-dd &to=yyyy-MM-dd (inclusive, either may be left open)
@@ -58,8 +53,7 @@ public static class ReportEndpoints
             ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
-            if (!ReportQueries.TryParseOwner(owner, out var reportOwner))
-                errors["owner"] = ["Use \"me\" or \"family\"."];
+            var reportOwner = ParseOwner(owner, errors);
             var fromDate = ParseDate(from, "from", errors);
             var toDate = ParseDate(to, "to", errors);
             if (fromDate is not null && toDate is not null && fromDate > toDate)
@@ -71,18 +65,30 @@ public static class ReportEndpoints
             if (fromDate is null && toDate is null && allTime != true)
                 (fromDate, toDate) = (tag.DateFrom, tag.DateTo);
 
-            var rows = await db.Transactions.InReportScope(user.MemberId(), reportOwner)
-                .TaggedWith(tag.Id)
-                .InPeriod(fromDate, toDate)
-                .ToReportRowsAsync(chf, ct);
-            var tree = await CategoryTree.LoadAsync(db);
-            var income = CategoryBreakdown.Build(rows, TransactionType.Income, tree);
-            var expense = CategoryBreakdown.Build(rows, TransactionType.Expense, tree);
+            var (income, expense, net) = await SidesAsync(db, chf,
+                db.Transactions.InReportScope(user.MemberId(), reportOwner).TaggedWith(tag.Id).InPeriod(fromDate, toDate), ct);
 
             return Results.Ok(new TagReportResponse(new TagSummary(tag.Id, tag.Name, tag.DateFrom, tag.DateTo),
-                reportOwner.ToApiValue(), fromDate, toDate, ChfConverter.ReportingCurrency, income, expense,
-                income.Total - expense.Total));
+                reportOwner.ToApi(), fromDate, toDate, ChfConverter.ReportingCurrency, income, expense, net));
         });
+    }
+
+    /// The `owner` query value ("me" default, or "family"); anything else adds an `owner` error.
+    private static ReportOwner ParseOwner(string? owner, Dictionary<string, string[]> errors)
+    {
+        if (!ReportQueries.TryParseOwner(owner, out var reportOwner)) errors["owner"] = ["Use \"me\" or \"family\"."];
+        return reportOwner;
+    }
+
+    /// The Income and Expense breakdowns of the scoped Transactions, and Net = Income - Expense.
+    private static async Task<(CategoryBreakdown Income, CategoryBreakdown Expense, decimal Net)> SidesAsync(
+        TreasuryDbContext db, ChfConverter chf, IQueryable<Transaction> scoped, CancellationToken ct)
+    {
+        var rows = await scoped.ToReportRowsAsync(chf, ct);
+        var tree = await CategoryTree.LoadAsync(db);
+        var income = CategoryBreakdown.Build(rows, TransactionType.Income, tree);
+        var expense = CategoryBreakdown.Build(rows, TransactionType.Expense, tree);
+        return (income, expense, income.Total - expense.Total);
     }
 
     private static DateOnly? ParseDate(string? value, string key, Dictionary<string, string[]> errors)
