@@ -166,7 +166,8 @@ export type Transaction = {
   currency: Currency
   /** The amount in CHF at the rate of its date (= amount for CHF); null until a rate is available. */
   chfAmount: number | null
-  type: 'income' | 'expense'
+  /** A Transfer (a leg of money moved between one Owner's Accounts) is neither Income nor Expense. */
+  type: TransactionType
   /** The original description (as entered, or as the bank wrote it); never replaced by the Display name. */
   description: string
   /** Friendly name shown instead of the description, when set. */
@@ -182,11 +183,19 @@ export type Transaction = {
   origin: 'manual' | 'imported'
   /** null = Uncategorised. */
   category: CategoryRef | null
+  /** The Tags on this Transaction, by name, each with the sources that put it there. */
+  tags: TagRef[]
   /** Classification fields a Member set by hand (Rules leave them alone). */
-  manuallySet: ('owner' | 'category' | 'displayName')[]
+  manuallySet: ('owner' | 'category' | 'tags' | 'displayName')[]
   /** The Source file an imported Transaction came from. */
   sourceFile: { id: string; fileName: string } | null
+  /** The other leg of a Transfer or Contribution; it may sit in an Account the viewer can't see. */
+  link: TransactionLink | null
 }
+
+export type TransactionType = 'income' | 'expense' | 'transfer'
+
+export type TransactionLink = { kind: 'transfer' | 'contribution'; transactionId: string }
 
 export type NewTransaction = {
   accountId: string
@@ -198,6 +207,8 @@ export type NewTransaction = {
   owner?: OwnerRef
   /** Omit to leave it Uncategorised. */
   categoryId?: string
+  /** Tags added by hand (date-range Tags are added automatically). */
+  tagIds?: string[]
 }
 
 /**
@@ -213,10 +224,22 @@ export type TransactionChanges = {
   owner?: OwnerRef
   categoryId?: string
   uncategorise?: true
+  /** Add Tags by hand. */
+  addTagIds?: string[]
+  /** Remove Tags by hand; the removal sticks (the Tag's date range won't add it back). */
+  removeTagIds?: string[]
 }
 
+/** Filters for the Transactions list. */
+export type TransactionFilter = { tagId?: string }
+
 /** The Transactions the current Member can see, newest first. */
-export const listTransactions = (signal?: AbortSignal) => apiFetch<Transaction[]>('/api/transactions', { signal })
+export const listTransactions = (signal?: AbortSignal, filter: TransactionFilter = {}) => {
+  const query = new URLSearchParams()
+  if (filter.tagId) query.set('tagId', filter.tagId)
+  const qs = query.toString()
+  return apiFetch<Transaction[]>(`/api/transactions${qs ? `?${qs}` : ''}`, { signal })
+}
 
 /** The Uncategorised queue: visible Income and Expense without a Category, newest first. */
 export const listUncategorised = (signal?: AbortSignal) =>
@@ -229,6 +252,14 @@ export const updateTransaction = (id: string, changes: TransactionChanges) =>
   apiFetch<Transaction>(`/api/transactions/${id}`, { method: 'PATCH', body: changes })
 
 export const deleteTransaction = (id: string) => apiFetch<void>(`/api/transactions/${id}`, { method: 'DELETE' })
+
+/** Links two Transactions as a pair: a Transfer (same Owner) or a Contribution (different Owners). */
+export const linkTransactions = (id: string, otherId: string) =>
+  apiFetch<Transaction>(`/api/transactions/${id}/link`, { method: 'POST', body: { transactionId: otherId } })
+
+/** Breaks a pair: both legs become Income or Expense again. */
+export const unlinkTransaction = (id: string) =>
+  apiFetch<Transaction>(`/api/transactions/${id}/link`, { method: 'DELETE' })
 
 // ---- Imports and Source files ----
 
@@ -304,6 +335,32 @@ export const removeCategory = (id: string, transactions: RemovedCategoryTransact
   return apiFetch<void>(`/api/categories/${id}?${query}`, { method: 'DELETE' })
 }
 
+// ---- Tags ----
+
+/** Why a Tag is on a Transaction: added by hand, by the Tag's date range, or by a Rule. */
+export type TagSource = 'manual' | 'dateRange' | 'rule'
+
+/** A Tag as Transactions carry it. */
+export type TagRef = { id: string; name: string; sources: TagSource[] }
+
+/**
+ * A shared Tag. With a date range (inclusive ISO dates) it is applied automatically to every Transaction in the
+ * range; `owners` limits that to Transactions of those Owners (empty = every Owner).
+ */
+export type Tag = { id: string; name: string; dateFrom: string | null; dateTo: string | null; owners: Owner[] }
+
+export type TagInput = { name: string; dateFrom: string | null; dateTo: string | null; owners: OwnerRef[] }
+
+export const listTags = (signal?: AbortSignal) => apiFetch<Tag[]>('/api/tags', { signal })
+
+export const createTag = (tag: TagInput) => apiFetch<Tag>('/api/tags', { method: 'POST', body: tag })
+
+/** Replaces name, date range and Owner limit. */
+export const updateTag = (id: string, tag: TagInput) => apiFetch<Tag>(`/api/tags/${id}`, { method: 'PUT', body: tag })
+
+/** Takes the Tag off every Transaction. */
+export const deleteTag = (id: string) => apiFetch<void>(`/api/tags/${id}`, { method: 'DELETE' })
+
 // ---- Members (Admin only: /api/admin/members) ----
 
 /** A Member as the Admin sees them in member management. */
@@ -372,3 +429,34 @@ export type MonthlyReport = {
 
 export const getMonthlyReport = (month: string, owner: ReportOwner, signal?: AbortSignal) =>
   apiFetch<MonthlyReport>(`/api/reports/monthly?month=${encodeURIComponent(month)}&owner=${owner}`, { signal })
+
+/** `from`/`to` = the period counted (inclusive; null = open-ended, both null = all time). */
+export type TagReport = {
+  tag: { id: string; name: string; dateFrom: string | null; dateTo: string | null }
+  owner: ReportOwner
+  from: string | null
+  to: string | null
+  currency: 'CHF'
+  income: ReportSection
+  expense: ReportSection
+  net: number
+}
+
+/**
+ * The period of a Tag report: 'default' = the Tag's date range (all time when it has none), 'all' = all time,
+ * or explicit bounds (yyyy-MM-dd, either may be empty).
+ */
+export type TagReportPeriod = 'default' | 'all' | { from: string; to: string }
+
+export function getTagReport(tagId: string, owner: ReportOwner, period: TagReportPeriod, signal?: AbortSignal) {
+  const query = new URLSearchParams({ owner })
+  if (period === 'all') query.set('allTime', 'true')
+  else if (period !== 'default') {
+    if (period.from) query.set('from', period.from)
+    if (period.to) query.set('to', period.to)
+  }
+  return apiFetch<TagReport>(`/api/reports/tag/${tagId}?${query}`, { signal })
+}
+
+/** Link to the Tag report screen (used by the Tags list and Transaction Tag chips). */
+export const tagReportPath = (tagId: string) => `/reports/tag/${tagId}`
