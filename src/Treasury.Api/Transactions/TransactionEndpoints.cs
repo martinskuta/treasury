@@ -237,7 +237,7 @@ public static class TransactionEndpoints
 
         // Manual Transactions only (imported ones go away by undoing their import), by Members who manage the Account.
         transactions.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
-            TransactionMatcher matcher) =>
+            TransactionMatcher matcher, FormerLegs formerLegs) =>
         {
             var viewer = user.MemberId();
             var transaction = await FindVisibleAsync(db, id, viewer);
@@ -249,9 +249,10 @@ public static class TransactionEndpoints
                     ["transaction"] = ["An imported Transaction is removed by deleting its Source file."],
                 });
 
-            await matcher.UnlinkAsync(transaction); // the other leg becomes Income or Expense again
+            var other = await matcher.UnlinkAsync(transaction); // the other leg becomes Income or Expense again
             db.Transactions.Remove(transaction);
             await db.SaveChangesAsync();
+            if (other is not null) await formerLegs.SettleAsync([other.Id]);
             return Results.NoContent();
         });
     }

@@ -7,6 +7,7 @@ public static class MatchingSetup
     public static void AddMatching(this WebApplicationBuilder builder)
     {
         builder.Services.AddScoped<TransactionMatcher>();
+        builder.Services.AddScoped<FormerLegs>();
         builder.Services.AddScoped<IImportStep, MatchImportStep>();
     }
 }
