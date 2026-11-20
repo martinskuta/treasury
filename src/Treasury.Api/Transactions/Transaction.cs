@@ -1,6 +1,7 @@
 using Treasury.Api.Accounts;
 using Treasury.Api.Imports;
 using Treasury.Api.Ownership;
+using Treasury.Api.Tags;
 
 namespace Treasury.Api.Transactions;
 
@@ -66,6 +67,9 @@ public class Transaction : IOwned
     /// Classification fields a Member set by hand; Rules (#15) must leave these alone.
     public ManuallySetFields ManuallySet { get; set; }
 
+    /// Why each Tag is on this Transaction (one link per Tag and source; see <see cref="TransactionTag"/>).
+    public List<TransactionTag> TagLinks { get; init; } = [];
+
     public DateTimeOffset CreatedAt { get; init; }
 
     /// Income or Expense from the sign (Transfers come with matching, #8).
@@ -93,6 +97,7 @@ public enum ManuallySetFields
     None = 0,
     Owner = 1,
     Category = 2,
-    // Tags = 4 — added by #14.
+    /// A Member added or removed a Tag by hand (per-Tag stickiness lives in TransactionTagRemovals).
+    Tags = 4,
     DisplayName = 8,
 }
