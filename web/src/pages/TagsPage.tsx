@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import { FormField } from '../components/FormField'
 import {
   ApiError,
@@ -6,6 +7,7 @@ import {
   deleteTag,
   listOwners,
   listTags,
+  tagReportPath,
   updateTag,
   type Owner,
   type OwnerRef,
@@ -107,6 +109,9 @@ function TagRow({ tag, owners, onChanged }: { tag: Tag; owners: Owner[]; onChang
       <div className="category-main">
         <span className="tag-chip">{tag.name}</span>
         <span className="account-meta">{describeRange(tag)}</span>
+        <Link className="button-link" to={tagReportPath(tag.id)}>
+          Report
+        </Link>
         <button type="button" className="button-link" onClick={() => setEditing(!editing)}>
           {editing ? 'Close' : 'Edit'}
         </button>
