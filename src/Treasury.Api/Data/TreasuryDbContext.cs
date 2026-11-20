@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
+using Treasury.Api.Imports;
 using Treasury.Api.Transactions;
 
 namespace Treasury.Api.Data;
@@ -19,6 +20,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
     public DbSet<Account> Accounts => Set<Account>();
 
     public DbSet<Transaction> Transactions => Set<Transaction>();
+
+    public DbSet<SourceFile> SourceFiles => Set<SourceFile>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -47,10 +50,27 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             t.Property(x => x.Amount).HasPrecision(19, 4);
             t.Property(x => x.Description).HasMaxLength(TransactionEndpoints.MaxDescriptionLength);
             t.Property(x => x.Note).HasMaxLength(TransactionEndpoints.MaxNoteLength);
+            t.Property(x => x.DisplayName).HasMaxLength(TransactionEndpoints.MaxDisplayNameLength);
+            t.Property(x => x.Counterparty).HasMaxLength(TransactionEndpoints.MaxDescriptionLength);
+            t.Property(x => x.Reference).HasMaxLength(ImportPipeline.MaxReferenceLength);
+            t.Property(x => x.OriginalAmount).HasPrecision(19, 4);
+            t.Property(x => x.OriginalCurrency).HasMaxLength(3);
+            // Undoing an import (#10) = deleting its Source file, which takes its Transactions with it.
+            t.HasOne(x => x.SourceFile).WithMany().HasForeignKey(x => x.SourceFileId).OnDelete(DeleteBehavior.Cascade);
             t.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
             t.HasIndex(x => new { x.AccountId, x.Date });
             // Owner: null = the Family (same storage as Account.Owner).
             t.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<SourceFile>(f =>
+        {
+            f.Property(x => x.FileName).HasMaxLength(255);
+            f.Property(x => x.StoredPath).HasMaxLength(500);
+            f.Property(x => x.ContentHash).HasMaxLength(64);
+            f.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+            f.HasIndex(x => new { x.AccountId, x.ImportedAt });
+            f.HasOne<Member>().WithMany().HasForeignKey(x => x.ImportedByMemberId).OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

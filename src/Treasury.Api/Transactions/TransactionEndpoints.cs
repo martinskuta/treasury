@@ -9,16 +9,24 @@ public static class TransactionEndpoints
 {
     public const int MaxDescriptionLength = 500;
     public const int MaxNoteLength = 2000;
+    public const int MaxDisplayNameLength = 200;
 
     public record CreateTransactionRequest(Guid? AccountId, DateOnly? Date, decimal? Amount, string? Description,
         string? Note, OwnerRequest? Owner);
 
-    /// Partial update: a missing (null) field stays as it is; an empty note clears the note.
+    /// Partial update: a missing (null) field stays as it is; an empty note or Display name clears it.
     public record UpdateTransactionRequest(DateOnly? Date, decimal? Amount, string? Description, string? Note,
-        OwnerRequest? Owner);
+        OwnerRequest? Owner, string? DisplayName);
 
+    /// <param name="Description">The original description (never replaced by the Display name).</param>
+    /// <param name="OriginalAmount">Foreign-currency purchase: the amount in <paramref name="OriginalCurrency"/>.</param>
+    /// <param name="SourceFile">The Source file an imported Transaction came from; null for manual ones.</param>
     public record TransactionResponse(Guid Id, Guid AccountId, string AccountName, DateOnly Date, decimal Amount,
-        string Currency, string Type, string Description, string? Note, OwnerResponse Owner, string Origin);
+        string Currency, string Type, string Description, string? DisplayName, string? Counterparty, string? Reference,
+        decimal? OriginalAmount, string? OriginalCurrency, string? Note, OwnerResponse Owner, string Origin,
+        SourceFileRef? SourceFile);
+
+    public record SourceFileRef(Guid Id, string FileName);
 
     /// /api/transactions: the Transactions the current Member can see, and manual Transactions.
     public static void MapTransactions(this RouteGroupBuilder api)
@@ -27,7 +35,7 @@ public static class TransactionEndpoints
 
         transactions.MapGet("/", async (ClaimsPrincipal user, TreasuryDbContext db) =>
         {
-            var list = await db.Transactions.VisibleTo(user.MemberId()).Include(t => t.Account)
+            var list = await db.Transactions.VisibleTo(user.MemberId()).Include(t => t.Account).Include(t => t.SourceFile)
                 .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
             return Results.Ok(await ToResponsesAsync(db, list));
         });
@@ -77,7 +85,7 @@ public static class TransactionEndpoints
             return Results.Created($"/api/transactions/{transaction.Id}", (await ToResponsesAsync(db, [transaction]))[0]);
         });
 
-        // Classification (Owner, note) can be changed by anyone who sees the Transaction; the facts (date, amount,
+        // Classification (Owner, note, Display name) can be changed by anyone who sees the Transaction; the facts (date, amount,
         // description) only on manual Transactions, by Members who can manage the Account.
         transactions.MapPatch("/{id:guid}", async (Guid id, UpdateTransactionRequest request, ClaimsPrincipal user,
             TreasuryDbContext db) =>
@@ -101,6 +109,9 @@ public static class TransactionEndpoints
             var description = request.Description?.Trim();
             if (request.Description is not null) ValidateDescription(description, errors);
             var note = request.Note is null ? transaction.Note : NormalizeNote(request.Note, errors);
+            var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
+            if (displayName?.Length > MaxDisplayNameLength)
+                errors["displayName"] = [$"Use at most {MaxDisplayNameLength} characters."];
             var owner = request.Owner is null ? null : await ResolveOwnerAsync(db, request.Owner, errors);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
@@ -108,6 +119,11 @@ public static class TransactionEndpoints
             if (request.Amount is { } amount) transaction.Amount = amount;
             if (description is not null) transaction.Description = description;
             transaction.Note = note;
+            if (request.DisplayName is not null)
+            {
+                transaction.DisplayName = displayName;
+                transaction.ManuallySet |= ManuallySetFields.DisplayName;
+            }
             if (owner is { } newOwner)
             {
                 transaction.Owner = newOwner;
@@ -137,7 +153,7 @@ public static class TransactionEndpoints
     }
 
     private static Task<Transaction?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
-        db.Transactions.VisibleTo(viewer).Include(t => t.Account).SingleOrDefaultAsync(t => t.Id == id);
+        db.Transactions.VisibleTo(viewer).Include(t => t.Account).Include(t => t.SourceFile).SingleOrDefaultAsync(t => t.Id == id);
 
     /// The requested Owner: the Family or any existing Member; null (with an `owner` error) otherwise.
     private static async Task<Owner?> ResolveOwnerAsync(TreasuryDbContext db, OwnerRequest request,
@@ -174,7 +190,9 @@ public static class TransactionEndpoints
     {
         var names = await db.MemberNamesAsync(list.Select(t => t.OwnerMemberId));
         return list.Select(t => new TransactionResponse(t.Id, t.AccountId, t.Account.Name, t.Date, t.Amount,
-            t.Account.Currency, t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.Note,
-            OwnerResponse.From(t.Owner, names), t.Origin == TransactionOrigin.Manual ? "manual" : "imported")).ToList();
+            t.Account.Currency, t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.DisplayName,
+            t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
+            t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
+            t.SourceFile is null ? null : new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName))).ToList();
     }
 }
