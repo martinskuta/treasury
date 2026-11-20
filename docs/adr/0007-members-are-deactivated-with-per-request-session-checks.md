@@ -6,6 +6,8 @@ Identity normally re-validates the cookie's security stamp only every 30 minutes
 
 When deactivating, the Admin may hand each of the Member's Accounts to the Family or another active Member. To choose, the Admin sees only the names and currencies of that Member's Accounts (`GET /api/admin/members/{id}/accounts`), never balances, identifiers or Transactions; the Admin role otherwise gives no view into other Members' personal finances. Accounts not handed over stay with the deactivated Member.
 
+That endpoint is the handover lookup and nothing more: it answers only for active Members (handover happens at deactivation; for a deactivated Member it is 404) and returns only each Account's id, name and currency.
+
 ## Consequences
 
 - An Admin can't deactivate themselves, and the last active Admin can't lose the role, so there is always an Admin who can log in.

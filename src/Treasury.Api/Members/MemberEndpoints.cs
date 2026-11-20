@@ -73,11 +73,12 @@ public static class MemberEndpoints
             return Results.Ok(new MemberResponse(member.Id, member.UserName!, isAdmin, member.IsActive));
         });
 
-        // Only what the Admin needs to choose a new Owner for each Account on deactivation: no balances,
-        // identifiers or Transactions (the Admin role gives no view into personal finances).
+        // The handover lookup (ADR 0007): only what the Admin needs to choose a new Owner for each Account while
+        // deactivating an active Member — id, name and currency; no balances, identifiers or Transactions (the Admin
+        // role gives no view into personal finances). Deactivated (or unknown) Members: 404.
         members.MapGet("/{id:guid}/accounts", async (Guid id, UserManager<Member> users, TreasuryDbContext db) =>
         {
-            if (await users.FindByIdAsync(id.ToString()) is null) return Results.NotFound();
+            if (await users.FindByIdAsync(id.ToString()) is not { IsActive: true }) return Results.NotFound();
             var accounts = await db.Accounts.Where(a => a.OwnerMemberId == id).OrderBy(a => a.Name)
                 .Select(a => new HandoverAccountResponse(a.Id, a.Name, a.Currency)).ToListAsync();
             return Results.Ok(accounts);
