@@ -52,13 +52,17 @@ public static class TransactionEndpoints
     {
         var transactions = api.MapGroup("/transactions");
 
-        // Optional filters: ?tagId= (Transactions carrying that Tag).
-        transactions.MapGet("/", async (Guid? tagId, ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
+        // Filters, sorting and paging: see TransactionListRequest. One page as a JSON array; the number of matching
+        // Transactions across all pages is in the X-Total-Count header.
+        transactions.MapGet("/", async ([AsParameters] TransactionListRequest request, ClaimsPrincipal user,
+            HttpResponse response, TreasuryDbContext db, ChfConverter chf) =>
         {
-            var query = db.Transactions.VisibleTo(user.MemberId());
-            if (tagId is { } tag) query = query.TaggedWith(tag);
-            var list = await query.Include(t => t.Account).Include(t => t.SourceFile)
-                .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
+            var (query, errors) = await TransactionList.FilterAsync(db, user.MemberId(), request);
+            if (query is null) return Results.ValidationProblem(errors);
+            var total = await query.CountAsync();
+            var list = await TransactionList.SortAndPage(query, request)
+                .Include(t => t.Account).Include(t => t.SourceFile).ToListAsync();
+            response.Headers[TransactionList.TotalCountHeader] = total.ToString(System.Globalization.CultureInfo.InvariantCulture);
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
 
