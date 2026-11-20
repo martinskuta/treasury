@@ -7,6 +7,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { TransactionsPage } from './pages/TransactionsPage'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
+              <Route path="transactions" element={<TransactionsPage />} />
               <Route path="accounts" element={<AccountsPage />} />
               <Route path="account/password" element={<ChangePasswordPage />} />
               <Route path="*" element={<NotFoundPage />} />

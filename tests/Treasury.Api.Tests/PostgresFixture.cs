@@ -10,7 +10,9 @@ public sealed class PostgresFixture : IAsyncInitializer, IAsyncDisposable
 {
     public const string TemplateDb = "treasury_template";
 
+    // Every test runs its own API with its own connection pool, in parallel: the default 100 connections run out.
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18")
+        .WithCommand("-c", "max_connections=500")
         .Build();
 
     public async Task InitializeAsync()

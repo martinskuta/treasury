@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Treasury.Api.Auth;
 
 namespace Treasury.Api.Tests;
@@ -62,5 +63,11 @@ public abstract class ApiTestBase : IAsyncDisposable
     {
         Client?.Dispose();
         if (App is not null) await App.DisposeAsync();
+        // Release this test's idle pooled connections now instead of after the pool's idle timeout.
+        if (ConnectionString is not null)
+        {
+            await using var conn = new NpgsqlConnection(ConnectionString);
+            NpgsqlConnection.ClearPool(conn);
+        }
     }
 }

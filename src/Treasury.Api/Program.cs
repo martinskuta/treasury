@@ -3,7 +3,9 @@ using Treasury.Api;
 using Treasury.Api.Accounts;
 using Treasury.Api.Auth;
 using Treasury.Api.Data;
+using Treasury.Api.Ownership;
 using Treasury.Api.Storage;
+using Treasury.Api.Transactions;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -36,6 +38,8 @@ var api = app.MapGroup("/api").RequireAuthorization();
 api.MapHealth();
 api.MapAuth();
 api.MapAccounts();
+api.MapTransactions();
+api.MapOwners();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA
 
 // Production: the React build is copied into wwwroot by the AppHost (PublishWithContainerFiles).
