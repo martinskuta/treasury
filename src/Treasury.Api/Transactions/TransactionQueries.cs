@@ -17,4 +17,9 @@ public static class TransactionQueries
     /// TODO(#16): exclude Transfers here once they exist (Transfers have no Category but are not Uncategorised).
     public static IQueryable<Transaction> Uncategorised(this IQueryable<Transaction> query) =>
         query.Where(t => t.CategoryId == null);
+
+    /// Transactions carrying the Tag (from any source). Compose with <see cref="VisibleTo"/>; reused by the
+    /// Transactions list filter, bulk edit (#17) and the Tag report (#19).
+    public static IQueryable<Transaction> TaggedWith(this IQueryable<Transaction> query, Guid tagId) =>
+        query.Where(t => t.TagLinks.Any(l => l.TagId == tagId));
 }

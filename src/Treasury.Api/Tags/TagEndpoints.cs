@@ -32,6 +32,7 @@ public static class TagEndpoints
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
             db.Tags.Add(tag);
+            await Tagging.ApplyDateRangeAsync(db, tag);
             await db.SaveChangesAsync();
             return Results.Created($"/api/tags/{tag.Id}", (await ToResponsesAsync(db, [tag]))[0]);
         });
@@ -44,6 +45,7 @@ public static class TagEndpoints
             var errors = await ApplyRequestAsync(db, tag, request);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
+            await Tagging.ApplyDateRangeAsync(db, tag);
             await db.SaveChangesAsync();
             return Results.Ok((await ToResponsesAsync(db, [tag]))[0]);
         });

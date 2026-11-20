@@ -4,6 +4,7 @@ using Treasury.Api.Categories;
 using Treasury.Api.Data;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
+using Treasury.Api.Tags;
 
 namespace Treasury.Api.Transactions;
 
@@ -14,24 +15,30 @@ public static class TransactionEndpoints
     public const int MaxDisplayNameLength = 200;
 
     public record CreateTransactionRequest(Guid? AccountId, DateOnly? Date, decimal? Amount, string? Description,
-        string? Note, OwnerRequest? Owner, Guid? CategoryId);
+        string? Note, OwnerRequest? Owner, Guid? CategoryId, Guid[]? TagIds);
 
     /// Partial update: a missing (null) field stays as it is; an empty note or Display name clears it;
     /// `uncategorise: true` makes the Transaction Uncategorised (instead of setting a `categoryId`).
+    /// `addTagIds` / `removeTagIds` add or remove Tags by hand (a removal sticks: no date range or Rule re-adds it).
     public record UpdateTransactionRequest(DateOnly? Date, decimal? Amount, string? Description, string? Note,
-        OwnerRequest? Owner, Guid? CategoryId, bool? Uncategorise, string? DisplayName);
+        OwnerRequest? Owner, Guid? CategoryId, bool? Uncategorise, string? DisplayName, Guid[]? AddTagIds,
+        Guid[]? RemoveTagIds);
 
     /// Category null = Uncategorised. ManuallySet lists the classification fields a Member set by hand
-    /// ("owner", "category", "displayName").
+    /// ("owner", "category", "tags", "displayName"). Tags lists each Tag with the sources that put it there
+    /// ("manual", "dateRange", "rule").
     /// <param name="Description">The original description (never replaced by the Display name).</param>
     /// <param name="OriginalAmount">Foreign-currency purchase: the amount in <paramref name="OriginalCurrency"/>.</param>
     /// <param name="SourceFile">The Source file an imported Transaction came from; null for manual ones.</param>
     public record TransactionResponse(Guid Id, Guid AccountId, string AccountName, DateOnly Date, decimal Amount,
         string Currency, decimal? ChfAmount, string Type, string Description, string? DisplayName,
         string? Counterparty, string? Reference, decimal? OriginalAmount, string? OriginalCurrency, string? Note,
-        OwnerResponse Owner, string Origin, CategoryRef? Category, string[] ManuallySet, SourceFileRef? SourceFile);
+        OwnerResponse Owner, string Origin, CategoryRef? Category, TagRef[] Tags, string[] ManuallySet,
+        SourceFileRef? SourceFile);
 
     public record CategoryRef(Guid Id, string Name, string Path);
+
+    public record TagRef(Guid Id, string Name, string[] Sources);
 
     public record SourceFileRef(Guid Id, string FileName);
 
@@ -40,9 +47,12 @@ public static class TransactionEndpoints
     {
         var transactions = api.MapGroup("/transactions");
 
-        transactions.MapGet("/", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
+        // Optional filters: ?tagId= (Transactions carrying that Tag).
+        transactions.MapGet("/", async (Guid? tagId, ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
         {
-            var list = await db.Transactions.VisibleTo(user.MemberId()).Include(t => t.Account).Include(t => t.SourceFile)
+            var query = db.Transactions.VisibleTo(user.MemberId());
+            if (tagId is { } tag) query = query.TaggedWith(tag);
+            var list = await query.Include(t => t.Account).Include(t => t.SourceFile)
                 .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
@@ -80,6 +90,7 @@ public static class TransactionEndpoints
             var note = NormalizeNote(request.Note, errors);
             var owner = request.Owner is null ? null : await ResolveOwnerAsync(db, request.Owner, errors);
             await ValidateCategoryAsync(db, request.CategoryId, errors);
+            var tagIds = await ValidateTagsAsync(db, request.TagIds, "tagIds", errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
@@ -95,10 +106,13 @@ public static class TransactionEndpoints
                 Owner = owner ?? account.Owner,
                 CategoryId = request.CategoryId,
                 ManuallySet = (owner is null ? ManuallySetFields.None : ManuallySetFields.Owner)
-                    | (request.CategoryId is null ? ManuallySetFields.None : ManuallySetFields.Category),
+                    | (request.CategoryId is null ? ManuallySetFields.None : ManuallySetFields.Category)
+                    | (tagIds.Count == 0 ? ManuallySetFields.None : ManuallySetFields.Tags),
                 CreatedAt = clock.GetUtcNow(),
             };
             db.Transactions.Add(transaction);
+            await Tagging.AddByHandAsync(db, transaction.Id, tagIds);
+            await Tagging.ApplyDateRangesAsync(db, [transaction]);
             await db.SaveChangesAsync();
             await rates.RequestIfNotCoveredAsync(db, transaction.Date);
 
@@ -136,7 +150,14 @@ public static class TransactionEndpoints
             if (request.CategoryId is not null && request.Uncategorise == true)
                 errors["categoryId"] = ["Either choose a Category or make the Transaction Uncategorised."];
             else await ValidateCategoryAsync(db, request.CategoryId, errors);
+            var addTagIds = await ValidateTagsAsync(db, request.AddTagIds, "addTagIds", errors);
+            var removeTagIds = await ValidateTagsAsync(db, request.RemoveTagIds, "removeTagIds", errors);
+            if (addTagIds.Intersect(removeTagIds).Any())
+                errors["removeTagIds"] = ["A Tag can't be added and removed at the same time."];
             if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+            var redated = request.Date is { } newDate && newDate != transaction.Date;
+            var reowned = owner is { } o && o != transaction.Owner;
 
             if (request.Date is { } date) transaction.Date = date;
             if (request.Amount is { } amount) transaction.Amount = amount;
@@ -163,7 +184,25 @@ public static class TransactionEndpoints
                 transaction.CategoryId = null;
                 transaction.ManuallySet &= ~ManuallySetFields.Category;
             }
-            await db.SaveChangesAsync();
+            if (addTagIds.Count > 0 || removeTagIds.Count > 0) transaction.ManuallySet |= ManuallySetFields.Tags;
+
+            // Steps read what the previous ones saved: date-range Tags follow the new date/Owner, then the Member's
+            // own Tag changes (a removal also takes off a date-range link added just now).
+            await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var tx = await db.Database.BeginTransactionAsync();
+                await db.SaveChangesAsync();
+                if (redated || reowned)
+                {
+                    await Tagging.ApplyDateRangesAsync(db, [transaction]);
+                    await db.SaveChangesAsync();
+                }
+                await Tagging.RemoveByHandAsync(db, transaction.Id, removeTagIds);
+                await db.SaveChangesAsync();
+                await Tagging.AddByHandAsync(db, transaction.Id, addTagIds);
+                await db.SaveChangesAsync();
+                await tx.CommitAsync();
+            });
             if (request.Date is not null) await rates.RequestIfNotCoveredAsync(db, transaction.Date);
             return Results.Ok((await ToResponsesAsync(db, chf, [transaction]))[0]);
         });
@@ -207,6 +246,16 @@ public static class TransactionEndpoints
             errors["categoryId"] = ["Choose an existing Category."];
     }
 
+    /// The distinct requested Tag ids; an unknown one adds an error under <paramref name="field"/>.
+    private static async Task<List<Guid>> ValidateTagsAsync(TreasuryDbContext db, Guid[]? tagIds, string field,
+        Dictionary<string, string[]> errors)
+    {
+        var ids = (tagIds ?? []).Distinct().ToList();
+        if (ids.Count > 0 && await db.Tags.CountAsync(t => ids.Contains(t.Id)) != ids.Count)
+            errors[field] = ["Choose existing Tags."];
+        return ids;
+    }
+
     private static void ValidateAmount(decimal? amount, Dictionary<string, string[]> errors)
     {
         if (amount is null) errors["amount"] = ["Enter the amount."];
@@ -234,17 +283,24 @@ public static class TransactionEndpoints
         var names = await db.MemberNamesAsync(list.Select(t => t.OwnerMemberId));
         var rates = list.Count == 0 ? null : await chf.LoadAsync(list.Min(t => t.Date), list.Max(t => t.Date));
         var categories = list.Any(t => t.CategoryId is not null) ? await CategoryTree.LoadAsync(db) : new CategoryTree([]);
+        var tags = await Tagging.LoadAsync(db, list.Select(t => t.Id).ToList());
         return list.Select(t => new TransactionResponse(t.Id, t.AccountId, t.Account.Name, t.Date, t.Amount,
             t.Account.Currency, rates!.ToChf(t.Amount, t.Account.Currency, t.Date),
             t.Type == TransactionType.Income ? "income" : "expense", t.Description, t.DisplayName,
             t.Counterparty, t.Reference, t.OriginalAmount, t.OriginalCurrency, t.Note, OwnerResponse.From(t.Owner, names),
             t.Origin == TransactionOrigin.Manual ? "manual" : "imported",
-            ToCategoryRef(categories, t.CategoryId), ManuallySetNames(t.ManuallySet),
+            ToCategoryRef(categories, t.CategoryId), ToTagRefs(tags.GetValueOrDefault(t.Id)), ManuallySetNames(t.ManuallySet),
             t.SourceFile is null ? null : new SourceFileRef(t.SourceFile.Id, t.SourceFile.FileName))).ToList();
     }
 
     private static CategoryRef? ToCategoryRef(CategoryTree tree, Guid? categoryId) =>
         categoryId is { } id && tree.Find(id) is { } c ? new(c.Id, c.Name, tree.PathOf(c.Id)) : null;
+
+    private static TagRef[] ToTagRefs(List<TagOnTransaction>? tags) =>
+        tags?.Select(t => new TagRef(t.Id, t.Name, t.Sources.Select(CamelCase).ToArray())).ToArray() ?? [];
+
+    private static string CamelCase<T>(T value) where T : struct, Enum =>
+        System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(value.ToString());
 
     private static string[] ManuallySetNames(ManuallySetFields fields) =>
         Enum.GetValues<ManuallySetFields>()
