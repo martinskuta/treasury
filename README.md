@@ -131,3 +131,22 @@ date,amount,description,counterparty,reference,original_amount,original_currency
   - `original_amount` and `original_currency` (both or neither): for a purchase in a foreign currency, what was
     paid, e.g. `-48.00` and `EUR`, next to the `amount` the Account was charged
 - No Account identifier and no closing balance, so Accounts using it can't have an identifier.
+
+### TKB (`tkb`)
+
+For Thurgauer Kantonalbank, download the account statement from TKB e-banking as **camt.053** (ISO 20022) and
+import the file as it is: a single XML file or the zip (one or more XML statements; other files in the zip, such as
+a PDF copy, are ignored). A zip is one Source file, so undoing its import removes all of it. TKB's CSV export is not
+supported.
+
+- Enter the IBAN as the Account's identifier to have statements for another account rejected.
+- Only booked entries are imported; pending ones are skipped. Each Transaction gets the booking date, the amount
+  (credit positive, debit negative), the bank's reference, the other party as counterparty (the payee for money out,
+  the payer for money in, preferring the ultimate party) and a description made of the bank's entry text, the
+  counterparty and the payment message or reference, one per line. A batch booking becomes one Transaction per
+  payment. A foreign-currency purchase keeps its original amount and currency.
+- The closing balance of the statement that ends last is used for the balance check.
+- Rejected (nothing imported): a statement whose opening balance plus booked entries doesn't equal its closing
+  balance, a page of a multi-page statement that isn't the last, statements for different accounts or currencies
+  or with overlapping periods in one zip, a zip without XML or larger than 50 MB unpacked, and anything that isn't
+  camt.053 (CSV, camt.052, camt.054).
