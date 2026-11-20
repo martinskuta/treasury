@@ -135,12 +135,60 @@ public class MemberTests : ApiTestBase
         await Assert.That((await Client.GetAsync("/api/admin/members")).StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
     }
 
+    [Test]
+    public async Task A_deactivated_member_can_no_longer_log_in_and_their_open_session_stops_working()
+    {
+        var annaId = await AddMemberAsync("anna");
+        using var annaSession = NewClient();
+        await LoginAsync(annaSession, "anna", MemberPassword);
+        await LoginAsAdminAsync();
+
+        var res = await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new { handover = Array.Empty<object>() });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That((await annaSession.GetAsync("/api/auth/me")).StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        await Assert.That((await annaSession.GetAsync("/api/accounts")).StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        using var again = NewClient();
+        var login = await again.PostAsJsonAsync("/api/auth/login", new { userName = "anna", password = MemberPassword });
+        await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+        var members = await Client.GetFromJsonAsync<List<MemberRow>>("/api/admin/members");
+        var anna = members!.Single(m => m.UserName == "anna");
+        await Assert.That(anna.IsActive).IsFalse();
+    }
+
+    [Test]
+    public async Task A_password_reset_does_not_reactivate_a_deactivated_member()
+    {
+        var annaId = await AddMemberAsync("anna");
+        await LoginAsAdminAsync();
+        await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new { handover = Array.Empty<object>() });
+
+        await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/password", new { newPassword = "Reset-Pa55word" });
+
+        using var anna = NewClient();
+        var login = await anna.PostAsJsonAsync("/api/auth/login", new { userName = "anna", password = "Reset-Pa55word" });
+        await Assert.That(login.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
+    }
+
+    [Test]
+    public async Task An_admin_cannot_deactivate_themselves()
+    {
+        await LoginAsAdminAsync();
+        var adminId = (await Client.GetFromJsonAsync<Me>("/api/auth/me"))!.Id;
+
+        var res = await Client.PostAsJsonAsync($"/api/admin/members/{adminId}/deactivate", new { handover = Array.Empty<object>() });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        await Assert.That((await Client.GetAsync("/api/auth/me")).StatusCode).IsEqualTo(HttpStatusCode.OK);
+    }
+
     // {id} is replaced by another Member's id.
     [Test]
     [Arguments("GET", "/api/admin/members")]
     [Arguments("POST", "/api/admin/members")]
     [Arguments("POST", "/api/admin/members/{id}/password")]
     [Arguments("PUT", "/api/admin/members/{id}/admin")]
+    [Arguments("POST", "/api/admin/members/{id}/deactivate")]
     public async Task Members_without_the_admin_role_cannot_reach_member_management(string method, string path)
     {
         var bobId = await AddMemberAsync("bob");
