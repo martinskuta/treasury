@@ -678,3 +678,11 @@ h1 {
   border-bottom: none;
   font-weight: 600;
 }
+
+.transaction-amount.transfer {
+  color: var(--muted);
+}
+
+.transaction-link-form {
+  margin-top: 8px;
+}
