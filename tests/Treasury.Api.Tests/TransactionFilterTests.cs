@@ -61,6 +61,25 @@ public class TransactionFilterTests : ApiTestBase
     }
 
     [Test]
+    public async Task The_uncategorised_queue_can_be_filtered_by_owner_like_the_list()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        var joint = await CreateAccountAsync(anna, "Joint", Family);
+        var annas = await AddAsync(anna, joint.Id, -10m, owner: await MeAsync(anna));
+        var bobs = await AddAsync(anna, joint.Id, -20m, owner: await MeAsync(bob));
+        var family = await AddAsync(anna, joint.Id, -30m);
+        await AddAsync(anna, joint.Id, -40m, owner: await MeAsync(anna), categoryId: await CategoryIdAsync(anna, "Housing"));
+
+        await Assert.That((await UncategorisedAsync(anna, "owner=me")).Select(t => t.Id)).IsEquivalentTo([annas.Id]);
+        await Assert.That((await UncategorisedAsync(anna, "owner=family")).Select(t => t.Id)).IsEquivalentTo([family.Id]);
+        await Assert.That((await UncategorisedAsync(anna, $"owner={await MemberIdAsync(bob)}")).Select(t => t.Id)).IsEquivalentTo([bobs.Id]);
+        await Assert.That((await UncategorisedAsync(anna, "")).Count).IsEqualTo(3);
+        await Assert.That((await ListAsync(anna, "owner=me")).Select(t => t.Amount)).IsEquivalentTo([-10m, -40m]);
+        await AssertValidationErrorAsync(await anna.GetAsync("/api/transactions/uncategorised?owner=nobody"), "owner");
+    }
+
+    [Test]
     public async Task The_text_filter_also_finds_display_names_and_notes()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
@@ -196,6 +215,14 @@ public class TransactionFilterTests : ApiTestBase
         var res = await client.GetAsync($"/api/transactions?{query}");
         if (res.StatusCode != HttpStatusCode.OK)
             throw new InvalidOperationException($"List failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
+        return (await res.Content.ReadFromJsonAsync<List<Transaction>>())!;
+    }
+
+    private static async Task<List<Transaction>> UncategorisedAsync(HttpClient client, string query)
+    {
+        var res = await client.GetAsync($"/api/transactions/uncategorised?{query}");
+        if (res.StatusCode != HttpStatusCode.OK)
+            throw new InvalidOperationException($"Uncategorised failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
         return (await res.Content.ReadFromJsonAsync<List<Transaction>>())!;
     }
 

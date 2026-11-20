@@ -75,10 +75,16 @@ public static class TransactionEndpoints
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
 
-        // The Uncategorised queue: visible Income and Expense without a Category, newest first.
-        transactions.MapGet("/uncategorised", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter chf) =>
+        // The Uncategorised queue: visible Income and Expense without a Category, newest first. Optional `owner`
+        // filter ("me" | "family" | Member id), as in the list.
+        transactions.MapGet("/uncategorised", async (string? owner, ClaimsPrincipal user, TreasuryDbContext db,
+            ChfConverter chf) =>
         {
-            var list = await db.Transactions.VisibleTo(user.MemberId()).Uncategorised().Include(t => t.Account).Include(t => t.SourceFile)
+            var viewer = user.MemberId();
+            var errors = new Dictionary<string, string[]>();
+            var query = db.Transactions.VisibleTo(viewer).Uncategorised().OwnedAs(owner, viewer, errors);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
+            var list = await query.Include(t => t.Account).Include(t => t.SourceFile)
                 .OrderByDescending(t => t.Date).ThenByDescending(t => t.CreatedAt).ToListAsync();
             return Results.Ok(await ToResponsesAsync(db, chf, list));
         });
