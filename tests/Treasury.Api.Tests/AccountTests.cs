@@ -238,6 +238,31 @@ public class AccountTests : ApiTestBase
     }
 
     [Test]
+    public async Task An_accounts_balance_is_also_shown_in_chf_at_todays_rate()
+    {
+        App.ExchangeRates.Publish("2026-11-20", chf: 0.93m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        await CreateAsync(anna, NewAccount("Joint card", Family, currency: "EUR", openingBalance: 200m));
+        await CreateAsync(anna, NewAccount("TKB", Family, currency: "CHF", openingBalance: 50.25m));
+
+        // 200 EUR * 0.93 = 186.00 CHF at today's rate; CHF balances are unchanged.
+        var accounts = await EventuallyAsync(anna, list => list.All(a => a.BalanceChf is not null));
+
+        await Assert.That(accounts.Select(a => (a.Name, a.BalanceChf)))
+            .IsEquivalentTo([("Joint card", (decimal?)186.00m), ("TKB", (decimal?)50.25m)]);
+    }
+
+    [Test]
+    public async Task The_balance_in_chf_is_empty_while_the_exchange_rate_is_missing()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        await CreateAsync(anna, NewAccount("Joint card", Family, currency: "EUR", openingBalance: 200m));
+
+        await Assert.That((await ListAsync(anna)).Single().BalanceChf).IsNull();
+    }
+
+    [Test]
     public async Task The_identifier_is_optional()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
@@ -305,6 +330,21 @@ public class AccountTests : ApiTestBase
     private static async Task<List<Account>> ListAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<List<Account>>("/api/accounts"))!;
 
+    /// Polls the Accounts until the condition holds. Exchange rates are fetched in the background on a schedule,
+    /// so the clock is moved past the next run between polls.
+    private async Task<List<Account>> EventuallyAsync(HttpClient client, Func<List<Account>, bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            var list = await ListAsync(client);
+            if (done(list)) return list;
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Condition not met.");
+            await Task.Delay(25);
+            App.Clock.Advance(TimeSpan.FromMinutes(30));
+        }
+    }
+
     private static async Task AssertValidationErrorAsync(HttpResponseMessage res, string field)
     {
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
@@ -324,5 +364,5 @@ public class AccountTests : ApiTestBase
     private record OwnerDto(string Kind, Guid? MemberId, string Name);
 
     private record Account(Guid Id, string Name, string Slug, OwnerDto Owner, string IntegrationKey, string Currency,
-        decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance);
+        decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance, decimal? BalanceChf);
 }

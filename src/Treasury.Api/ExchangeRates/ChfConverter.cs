@@ -65,3 +65,21 @@ public sealed class ChfRates
         return found < 0 ? null : rates[found].PerEur;
     }
 }
+
+/// Today's rates (by <see cref="TimeProvider"/>), for showing current balances in other currencies.
+public sealed class TodaysRates(ChfRates rates, DateOnly today)
+{
+    public DateOnly Today { get; } = today;
+
+    public static async Task<TodaysRates> LoadAsync(ChfConverter converter, TimeProvider clock, CancellationToken ct = default)
+    {
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        return new TodaysRates(await converter.LoadAsync(today, today, ct), today);
+    }
+
+    /// <paramref name="amount"/> in CHF at today's rate; null when the rate is missing.
+    public decimal? ToChf(decimal amount, string currency) => rates.ToChf(amount, currency, Today);
+
+    /// <paramref name="amount"/> in <paramref name="to"/> at today's rates; null when a rate is missing.
+    public decimal? Convert(decimal amount, string from, string to) => rates.Convert(amount, from, to, Today);
+}

@@ -126,6 +126,30 @@ public class MultiCurrencyAccountTests : ApiTestBase
     }
 
     [Test]
+    public async Task Its_total_is_also_shown_in_chf_at_todays_rates()
+    {
+        App.ExchangeRates.Publish("2026-11-20", chf: 0.93m, usd: 1.10m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family, mainCurrency: "USD", openingBalance: 110m));
+        await AddCurrencyAccountAsync(group.Id, "EUR", openingBalance: 50m);
+
+        // 110 USD = 93.00 CHF and 50 EUR = 46.50 CHF at today's rates.
+        var listed = await EventuallyAsync(anna, groups => groups.Single().TotalBalanceChf is not null);
+
+        await Assert.That(listed.Single().TotalBalanceChf).IsEqualTo(139.50m);
+    }
+
+    [Test]
+    public async Task Its_total_in_chf_is_empty_while_an_exchange_rate_is_missing()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family, mainCurrency: "CHF", openingBalance: 10m));
+        await AddCurrencyAccountAsync(group.Id, "EUR", openingBalance: 50m);
+
+        await Assert.That((await ListGroupsAsync(anna)).Single().TotalBalanceChf).IsNull();
+    }
+
+    [Test]
     public async Task A_member_sees_their_own_and_the_family_multi_currency_accounts_but_never_another_members()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
@@ -368,7 +392,7 @@ public class MultiCurrencyAccountTests : ApiTestBase
         decimal OpeningBalance, DateOnly OpeningDate, decimal Balance, Guid? MultiCurrencyAccountId);
 
     private record Group(Guid Id, string Name, string Slug, OwnerDto Owner, string IntegrationKey, string MainCurrency,
-        List<Account> Accounts, decimal? TotalBalance);
+        List<Account> Accounts, decimal? TotalBalance, decimal? TotalBalanceChf);
 
     private record HandoverItem(Guid Id, string Name, string Currency, bool IsMultiCurrencyAccount);
 
