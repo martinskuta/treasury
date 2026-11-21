@@ -4,8 +4,9 @@ namespace Treasury.Api.ExchangeRates;
 /// <see cref="Currency"/>. Only business days have rows; EUR itself is implicit (always 1).
 public class ExchangeRate
 {
-    /// The currencies stored per EUR. Together with EUR they cover <see cref="Accounts.Currencies.All"/>.
-    public static readonly IReadOnlyList<string> FetchedCurrencies = ["CHF", "CZK", "USD"];
+    /// The currencies stored per EUR: every one of <see cref="Accounts.Currencies.All"/> except EUR.
+    public static readonly IReadOnlyList<string> FetchedCurrencies =
+        [.. Accounts.Currencies.All.Where(c => c != "EUR")];
 
     public DateOnly Date { get; init; }
 

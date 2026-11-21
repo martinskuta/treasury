@@ -43,8 +43,3 @@ public class Account : IOwned, IImportTarget
 
     string IImportTarget.Description => $"the Account \"{Name}\"";
 }
-
-public static class Currencies
-{
-    public static readonly IReadOnlyList<string> All = ["CHF", "CZK", "EUR", "USD"];
-}

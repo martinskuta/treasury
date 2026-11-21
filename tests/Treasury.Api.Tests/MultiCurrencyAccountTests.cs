@@ -72,12 +72,24 @@ public class MultiCurrencyAccountTests : ApiTestBase
             name = " ",
             owner = new { kind = "bank" },
             integrationKey = "nope",
-            mainCurrency = "GBP",
+            mainCurrency = "RUB",
         });
 
         await AssertValidationErrorAsync(res, "name", "owner", "integrationKey", "mainCurrency", "openingBalance", "openingDate");
         await Assert.That(await ListGroupsAsync(anna)).IsEmpty();
         await Assert.That(Directory.Exists(App.IngestRoot) ? Directory.GetDirectories(App.IngestRoot) : []).IsEmpty();
+    }
+
+    [Test]
+    public async Task Any_currency_with_an_exchange_rate_can_be_the_main_currency()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family, mainCurrency: "GBP", openingBalance: 80m));
+
+        await Assert.That(group.MainCurrency).IsEqualTo("GBP");
+        await Assert.That(group.Accounts.Single().Name).IsEqualTo("Revolut GBP");
+        await Assert.That(group.Accounts.Single().Currency).IsEqualTo("GBP");
     }
 
     [Test]

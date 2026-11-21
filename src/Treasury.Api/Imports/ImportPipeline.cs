@@ -202,10 +202,10 @@ public sealed class ImportPipeline(
                 continue;
             }
 
-            if (!Currencies.All.Contains(currency))
+            if (!Currencies.IsSupported(currency))
                 throw new ImportFailedException(
-                    $"The statement has rows in {currency}, but Treasury keeps Accounts only in " +
-                    $"{string.Join(", ", Currencies.All)}. Nothing was imported.");
+                    $"The statement has rows in {currency}, but Treasury keeps Accounts only in currencies it has " +
+                    "exchange rates for (the ECB reference rates). Nothing was imported.");
             if (balances is null)
                 throw new ImportFailedException(
                     $"The statement doesn't say the {currency} balance before its first {currency} row, so Treasury " +

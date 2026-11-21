@@ -21,6 +21,14 @@ public sealed class FakeExchangeRateProvider : IExchangeRateProvider
     public void Publish(string date, decimal chf, decimal czk = 24.4m, decimal usd = 1.1m) =>
         Publish(DateOnly.Parse(date), chf, czk, usd);
 
+    /// Adds one more currency's rate (how many units one EUR buys) to a business day already published.
+    public void Publish(string date, string currency, decimal perEur)
+    {
+        var day = DateOnly.Parse(date);
+        var rates = new Dictionary<string, decimal>(_published[day].PerEur) { [currency] = perEur };
+        _published[day] = new DailyRates(day, rates);
+    }
+
     public Task<IReadOnlyList<DailyRates>> GetDailyRatesAsync(DateOnly from, DateOnly to, CancellationToken ct)
     {
         Requests.Enqueue((from, to));

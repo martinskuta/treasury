@@ -70,6 +70,28 @@ public class MultiCurrencyImportTests : ApiTestBase
     }
 
     [Test]
+    public async Task A_pound_row_opens_a_pound_account_whose_balance_counts_in_the_total()
+    {
+        // Today (2026-11-20) 1 EUR = 0.93 CHF = 0.75 GBP: 15 GBP = 20 EUR = 18.60 CHF.
+        App.ExchangeRates.Publish("2026-11-20", chf: 0.93m);
+        App.ExchangeRates.Publish("2026-11-20", "GBP", 0.75m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var res = await UploadAsync(anna, group.Id, "november.csv", Csv(
+            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00",
+            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Pret,-5.00,0.00,GBP,COMPLETED,15.00"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.CreatedAccounts.Select(a => (a.Name, a.Currency))).IsEquivalentTo([("Revolut GBP", "GBP")]);
+        var revolut = await EventuallyAsync(anna, group.Id, g => g.TotalBalance is not null);
+        await Assert.That(revolut.Accounts.Select(a => (a.Currency, a.Balance)))
+            .IsEquivalentTo([("CHF", 980m), ("GBP", 15m)]);
+        await Assert.That(revolut.TotalBalance).IsEqualTo(998.60m);
+    }
+
+    [Test]
     public async Task A_file_stays_one_source_file_and_undo_removes_every_currency_but_keeps_created_accounts()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
@@ -302,17 +324,17 @@ public class MultiCurrencyImportTests : ApiTestBase
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
         var folder = Path.Combine(App.IngestRoot, group.Slug);
-        await File.WriteAllTextAsync(Path.Combine(folder, "pounds.csv"), Csv(
+        await File.WriteAllTextAsync(Path.Combine(folder, "roubles.csv"), Csv(
             "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Pret,-5.00,0.00,GBP,COMPLETED,15.00"));
+            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Pret,-5.00,0.00,RUB,COMPLETED,15.00"));
 
         var scanned = (await ScanAsync(anna)).Single();
 
         await Assert.That(scanned.Succeeded).IsFalse();
-        await Assert.That(scanned.Error).Contains("GBP");
-        await Assert.That(File.Exists(Path.Combine(folder, "failed", "pounds.csv"))).IsTrue();
-        await Assert.That(await File.ReadAllTextAsync(Path.Combine(folder, "failed", "pounds.csv.error.txt")))
-            .Contains("the Multi-currency account \"Revolut\"").And.Contains("GBP");
+        await Assert.That(scanned.Error).Contains("RUB");
+        await Assert.That(File.Exists(Path.Combine(folder, "failed", "roubles.csv"))).IsTrue();
+        await Assert.That(await File.ReadAllTextAsync(Path.Combine(folder, "failed", "roubles.csv.error.txt")))
+            .Contains("the Multi-currency account \"Revolut\"").And.Contains("RUB");
         await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
         await Assert.That(await ListAsync(anna)).IsEmpty();
         await Assert.That(await SourceFilesAsync(anna, group.Id)).IsEmpty();
@@ -436,7 +458,22 @@ public class MultiCurrencyImportTests : ApiTestBase
     private record Account(Guid Id, string Name, OwnerDto Owner, string Currency, decimal OpeningBalance,
         DateOnly OpeningDate, decimal Balance, BalanceWarning? BalanceWarning, Guid? MultiCurrencyAccountId);
 
-    private record Group(Guid Id, string Name, string Slug, OwnerDto Owner, List<Account> Accounts);
+    private record Group(Guid Id, string Name, string Slug, OwnerDto Owner, List<Account> Accounts, decimal? TotalBalance);
+
+    /// Polls one Multi-currency account until the condition holds. Exchange rates are fetched in the background on a
+    /// schedule, so the clock is moved past the next run between polls.
+    private async Task<Group> EventuallyAsync(HttpClient client, Guid groupId, Func<Group, bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            var group = await GetGroupAsync(client, groupId);
+            if (done(group)) return group;
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Condition not met.");
+            await Task.Delay(25);
+            App.Clock.Advance(TimeSpan.FromMinutes(30));
+        }
+    }
 
     private record SourceFileDto(Guid Id, Guid? AccountId, Guid? MultiCurrencyAccountId, string FileName,
         int TransactionCount);

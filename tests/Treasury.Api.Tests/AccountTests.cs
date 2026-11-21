@@ -57,7 +57,12 @@ public class AccountTests : ApiTestBase
     [Arguments("CZK")]
     [Arguments("EUR")]
     [Arguments("USD")]
-    public async Task Each_supported_currency_is_accepted(string currency)
+    [Arguments("GBP")]
+    [Arguments("PLN")]
+    [Arguments("JPY")]
+    [Arguments("AUD")]
+    [Arguments("ZAR")]
+    public async Task Each_currency_with_an_exchange_rate_is_accepted(string currency)
     {
         using var anna = await LoginAsNewMemberAsync("anna");
 
@@ -67,11 +72,14 @@ public class AccountTests : ApiTestBase
     }
 
     [Test]
-    public async Task Other_currencies_are_rejected()
+    [Arguments("RUB")] // no ECB reference rate
+    [Arguments("BGN")] // no longer published since Bulgaria adopted the euro
+    [Arguments("gbp")]
+    public async Task Currencies_without_an_exchange_rate_are_rejected(string currency)
     {
         using var anna = await LoginAsNewMemberAsync("anna");
 
-        var res = await anna.PostAsJsonAsync("/api/accounts", NewAccount("Wallet", Family, currency: "GBP"));
+        var res = await anna.PostAsJsonAsync("/api/accounts", NewAccount("Wallet", Family, currency: currency));
 
         await AssertValidationErrorAsync(res, "currency");
         await Assert.That(await ListAsync(anna)).IsEmpty();
