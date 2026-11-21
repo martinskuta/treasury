@@ -30,7 +30,7 @@ export function LoginPage() {
 
   return (
     <main className="login">
-      <form className="ui-component login-card" onSubmit={submit}>
+      <form className="ui-component login-panel" onSubmit={submit}>
         <h1 className="login-brand">
           <i className="brand-mark" aria-hidden="true">
             T

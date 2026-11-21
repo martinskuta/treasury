@@ -1,11 +1,16 @@
 // Swiss number and date formatting (1'234.50, 20.11.2026).
 // Hand-rolled on purpose: Intl 'de-CH' output differs between ICU versions (' vs ’), so it is not deterministic.
 
-/** Formats an amount with an apostrophe as thousands separator and two decimals: 1234.5 -> "1'234.50". */
-export function formatAmount(value: number): string {
-  const [int, frac] = Math.abs(value).toFixed(2).split('.')
-  const sign = value < 0 && Number(`${int}.${frac}`) !== 0 ? '-' : ''
-  return `${sign}${int.replace(/\B(?=(\d{3})+(?!\d))/g, "'")}.${frac}`
+/**
+ * Formats an amount with an apostrophe as thousands separator and two decimals: 1234.5 -> "1'234.50".
+ * With `whole`, rounds to whole units without decimals (legends, the donut centre): 1842.6 -> "1'843".
+ */
+export function formatAmount(value: number, { whole = false }: { whole?: boolean } = {}): string {
+  const fixed = Math.abs(value).toFixed(whole ? 0 : 2)
+  const [int, frac] = fixed.split('.')
+  const sign = value < 0 && Number(fixed) !== 0 ? '-' : ''
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, "'")
+  return frac === undefined ? `${sign}${grouped}` : `${sign}${grouped}.${frac}`
 }
 
 /** An amount split for the large amount display (see <Amount>): 1234.5 -> { sign: '', integer: "1'234", cents: '.50' }. */

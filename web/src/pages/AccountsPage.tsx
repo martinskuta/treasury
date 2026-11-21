@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Balance } from '../components/Balance'
 import { FormField } from '../components/FormField'
 import { SelectField } from '../components/SelectField'
 import {
@@ -40,16 +41,6 @@ function AccountIcon({ label, tone }: { label: string; tone: 'multi' | 'family' 
 
 /** First letter of a name for the icon. */
 const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
-
-/** Balance in a list: small muted currency code, Swiss number, Expense red when negative. */
-function Balance({ value, currency }: { value: number | null; currency: string }) {
-  return (
-    <span className={`acct-amount num${value !== null && value < 0 ? ' exp' : ''}`}>
-      <span className="acct-cur">{currency}</span>
-      {value === null ? '–' : formatAmount(value)}
-    </span>
-  )
-}
 
 /**
  * The Accounts the Member can see (their own and the Family's) with balances; create and rename. The Accounts of a
@@ -242,7 +233,11 @@ function MultiCurrencyAccountRow({
           </small>
         </div>
         <div className="acct-bal">
-          <Balance value={multiCurrencyAccount.totalBalance} currency={multiCurrencyAccount.mainCurrency} />
+          <Balance
+            value={multiCurrencyAccount.totalBalance}
+            currency={multiCurrencyAccount.mainCurrency}
+            className="acct-amount"
+          />
           <small>
             {multiCurrencyAccount.totalBalance === null ? 'total: exchange rate missing' : 'total at today’s rates'}
           </small>
@@ -338,7 +333,7 @@ function AccountRow({
           </small>
         </div>
         <div className="acct-bal">
-          <Balance value={account.balance} currency={account.currency} />
+          <Balance value={account.balance} currency={account.currency} className="acct-amount" />
           <small>opening {formatDate(account.openingDate)}</small>
         </div>
       </div>

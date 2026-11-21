@@ -48,14 +48,14 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 - **Inter** (400, 500, 600, 700) for everything, `letter-spacing: -0.006em`, base 15px, line-height 1.45, antialiased.
 - Headings are 600, slightly tight (`-0.02em`): page title 1.45rem; UI component title 0.95rem.
 - Labels and legends: 0.78–0.85rem, `--muted`, weight 500.
-- **Amounts**: tabular figures (`font-variant-numeric: tabular-nums`), Swiss format (`1'234.50`, dates `20.11.2026`). Key amounts are large and quiet: 600 weight, `-0.03em`, with the currency code small and muted before the number (`.cur`: 0.42em) and the cents de-emphasised (`.dec`: 0.62em, 45% opacity). Sign colour: `--inc-ink` positive, `--exp-ink` negative, `--tr-ink` Transfers.
+- **Amounts**: tabular figures (`font-variant-numeric: tabular-nums`), Swiss format (`1'234.50`, dates `20.11.2026`). Key amounts are large and quiet: 600 weight, `-0.03em`, with the currency code small and muted before the number (`.cur`: 0.42em) and the cents de-emphasised (`.dec`: 0.62em, 45% opacity). Sign colour: `--inc-ink` positive, `--exp-ink` negative, `--tr-ink` Transfers. Net amounts, balances and Transaction amounts always carry their sign (`+` / `−`); totals already labelled Income or Expense (This month's bars, Last 6 months' stats, Spending by Category) may be shown unsigned, since the label says which way the money went.
 
 ## Layout and spacing
 
 - **App shell**: fixed left sidebar (216px) with the brand (brown rounded square + "Treasury"), nav links (rounded 12px, active = `--panel` background) and the signed-in Member at the bottom. Below 900px the sidebar becomes a top bar with a horizontally scrolling nav.
 - **Content**: max-width 1300px. Pages are made of UI components on a grid with a small, consistent gap: `--gap: 14px`.
 - **UI component**: `--panel` background, radius `--r: 22px`, padding `--pad: 22px 24px` (20px on phones), **no border, no heavy shadow**. Separate content inside with spacing, not divider lines.
-- **Dashboard** is a bento grid: 3 columns → 2 below 1150px → 1 below 700px. Order: welcome strip (full width) · This month · Spending by Category · Accounts · Last 6 months (full width) · Latest Tag · Uncategorised.
+- **Dashboard** is a bento grid: 3 columns → 2 below 1150px → 1 below 700px. Order on desktop: welcome strip (full width) · This month · Spending by Category · Accounts · Last 6 months (full width) · Latest Tag (two columns) · Uncategorised. With 2 columns: welcome strip · This month · Spending by Category · Last 6 months · Accounts beside Uncategorised and Latest Tag. On phones (one column) the most actionable come first: welcome strip · This month · Uncategorised · Last 6 months · Spending by Category · Accounts · Latest Tag.
 - Airy means generous padding inside UI components and few elements per component. When a component feels busy, remove secondary labels before shrinking type.
 - Responsive down to 320px; check 390px.
 
@@ -83,7 +83,7 @@ Inline SVG, no chart library, styled from the tokens. Charts are smooth and soft
 The foundation lives in `web/src/styles/` (`tokens.css`, `base.css`, `shell.css`, `controls.css`, `charts.css`, imported by `index.css`) and `web/src/components/`; each file starts with a short usage note.
 
 - UI component: `<UiComponent title actions>` or `.ui-component`; `.ui-grid` / `.stack` for the gap.
-- Amounts: `<Amount value currency signed tone size>` for key amounts; `formatAmount()` with `.num` / `.amount` in lists.
+- Amounts: `<Amount value currency signed tone size>` for key amounts; `<Balance value currency>` for Account balances in lists (Expense red when negative); `formatAmount()` (`{ whole: true }` for whole francs) with `.num` / `.amount` in lists.
 - Controls: `.button-primary`, `.button-secondary`, `.button-link`, `.button-small`; `FormField` / `SelectField` or `.input`; `<SegmentedControl>`; chips `.chip`, `.chip-tag` (`.tag-chip`), `.chip-uncategorised`.
 - Charts (`components/charts`): `<TrendChart>`, `<Donut>`, `<ProgressBar>`, `<StackedBar>`, `<ChartLegend>`, colours via `toneColors` and `seriesColor(i)`.
 - Text helpers: `.page-title` / `.page-header`, `.section-title`, `.label`, `.muted`, `.inc` / `.exp` / `.tr`.

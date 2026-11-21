@@ -131,6 +131,8 @@ export type Account = {
   balanceWarning: BalanceWarning | null
   /** The Multi-currency account it belongs to; such an Account has no Ingest folder of its own. */
   multiCurrencyAccountId: string | null
+  /** The balance in CHF at today's exchange rate (unchanged for CHF); null while the rate is missing. */
+  balanceChf: number | null
 }
 
 /** Computed on every read: it disappears once the balances match again. */
@@ -176,6 +178,8 @@ export type MultiCurrencyAccount = {
   accounts: Account[]
   /** Sum of its Accounts' balances in the main currency at today's rates; null while a rate is missing. */
   totalBalance: number | null
+  /** The same total in CHF at today's rates; null while a rate is missing. */
+  totalBalanceChf: number | null
 }
 
 export type NewMultiCurrencyAccount = {

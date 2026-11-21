@@ -11,17 +11,36 @@ import {
   topLevelSlices,
   type AccountEntry,
   type AccountsSummary,
+  type Slice,
 } from '../../lib/dashboard'
 import { formatAmount } from '../../lib/format'
+import { ownerHref } from '../../lib/reportParams'
 import { Amount } from '../Amount'
-import { ChartLegend, Donut, ProgressBar, StackedBar, TrendChart, seriesColor, toneColors } from '../charts'
+import { Balance } from '../Balance'
+import {
+  ChartLegend,
+  Donut,
+  ProgressBar,
+  StackedBar,
+  TrendChart,
+  seriesColor,
+  toneColors,
+  type LegendItem,
+} from '../charts'
 import { Frankie } from '../frankie/Frankie'
 import { ReportOwnerToggle } from '../ReportViews'
 import { UiComponent } from '../UiComponent'
 import type { Load } from './useLoad'
 
 /** Whole francs for legends and the donut centre: 1842.6 -> "1'843". */
-const wholeFrancs = (value: number) => formatAmount(Math.round(value)).slice(0, -3)
+const wholeFrancs = (value: number) => formatAmount(value, { whole: true })
+
+/** Category slices with their series colours, and the matching legend items in whole francs. */
+function colouredSlices(slices: Slice[]) {
+  const segments = slices.map((s, i) => ({ ...s, color: seriesColor(i) }))
+  const legend: LegendItem[] = segments.map(s => ({ label: s.label, color: s.color, value: wholeFrancs(s.value) }))
+  return { segments, legend }
+}
 
 /** Loading / failed text in place of a UI component's body; null once the data is ready. */
 function NotReady({ load, what }: { load: Load<unknown>; what: string }) {
@@ -67,8 +86,11 @@ export function WelcomeStrip({
         {net.status === 'ready' ? (
           <Amount value={net.data} signed tone="auto" size="l" />
         ) : (
-          <span className="amount-display size-l dash-net-pending" aria-label={net.status === 'failed' ? 'Couldn’t load' : 'Loading'}>
-            –
+          <span className="amount-display size-l dash-net-pending" role="status">
+            <span aria-hidden="true">–</span>
+            <span className="visually-hidden">
+              {net.status === 'failed' ? 'Couldn’t load the net' : 'Loading the net'}
+            </span>
           </span>
         )}
       </div>
@@ -134,9 +156,8 @@ export function SpendingByCategory({ report }: { report: Load<MonthlyReport> }) 
 }
 
 function SpendingBody({ report }: { report: MonthlyReport }) {
-  const slices = topLevelSlices(report.expense, 7)
-  if (slices.length === 0) return <Empty>No Expenses this month yet.</Empty>
-  const segments = slices.map((s, i) => ({ ...s, color: seriesColor(i) }))
+  const { segments, legend } = colouredSlices(topLevelSlices(report.expense, 7))
+  if (segments.length === 0) return <Empty>No Expenses this month yet.</Empty>
   return (
     <div className="dash-donut-wrap">
       <Donut
@@ -145,7 +166,7 @@ function SpendingBody({ report }: { report: MonthlyReport }) {
         centreLabel="CHF"
         centreValue={wholeFrancs(report.expense.total)}
       />
-      <ChartLegend items={segments.map(s => ({ label: s.label, color: s.color, value: wholeFrancs(s.value) }))} />
+      <ChartLegend items={legend} />
     </div>
   )
 }
@@ -187,18 +208,17 @@ function AccountsBody({ summary }: { summary: AccountsSummary }) {
         <span className="muted">Total</span>
         <Amount value={summary.totalChf} size="m" />
       </div>
-      {summary.notInTotal > 0 && (
+      {summary.withoutRate > 0 && (
         <p className="dash-note dash-note-right">
-          Without {summary.notInTotal} in other currencies
+          Not in the total: {summary.withoutRate} without an exchange rate yet
         </p>
       )}
     </>
   )
 }
 
-/** "1'234.50", or "EUR 1'234.50" outside CHF. */
-const balance = (value: number, currency: string) =>
-  currency === 'CHF' ? formatAmount(value) : `${currency} ${formatAmount(value)}`
+/** The currency code is shown only outside CHF: "1'234.50", "EUR 1'234.50". */
+const shownCurrency = (currency: string) => (currency === 'CHF' ? null : currency)
 
 function AccountItem({ entry }: { entry: AccountEntry }) {
   if (entry.kind === 'account') {
@@ -213,7 +233,7 @@ function AccountItem({ entry }: { entry: AccountEntry }) {
             {a.name}
             <small>{a.owner.name}</small>
           </div>
-          <div className="dash-acct-bal num">{balance(a.balance, a.currency)}</div>
+          <Balance value={a.balance} currency={shownCurrency(a.currency)} className="dash-acct-bal" />
         </div>
       </li>
     )
@@ -229,15 +249,18 @@ function AccountItem({ entry }: { entry: AccountEntry }) {
           {m.name}
           <small>{m.owner.name} · Multi-currency</small>
         </div>
-        <div className="dash-acct-bal num" title={m.totalBalance === null ? 'Waiting for an exchange rate' : undefined}>
-          {m.totalBalance === null ? '–' : balance(m.totalBalance, m.mainCurrency)}
-        </div>
+        <Balance
+          value={m.totalBalance}
+          currency={shownCurrency(m.mainCurrency)}
+          className="dash-acct-bal"
+          title={m.totalBalance === null ? 'Waiting for an exchange rate' : undefined}
+        />
       </div>
       <ul className="dash-acct-sub">
         {m.accounts.map(a => (
           <li key={a.id}>
             <span className="muted">{a.currency}</span>
-            <span className="num">{formatAmount(a.balance)}</span>
+            <Balance value={a.balance} currency={null} />
           </li>
         ))}
       </ul>
@@ -260,32 +283,11 @@ export function LastSixMonths({ labels, reports }: { labels: string[]; reports: 
   const expenseTotal = expense.reduce((s, v) => s + v, 0)
   const empty = incomeTotal === 0 && expenseTotal === 0
   return (
-    <section className="ui-component dash-trend a-trend">
-      <div className="dash-trend-head">
-        <h2>Last 6 months</h2>
-        {!empty && (
-          <>
-            <div className="dash-stat">
-              <div className="label">
-                <span className="dot" style={{ background: toneColors.income.fill }} />
-                Income
-              </div>
-              <Amount value={incomeTotal} currency={null} size="s" />
-            </div>
-            <div className="dash-stat">
-              <div className="label">
-                <span className="dot" style={{ background: toneColors.expense.fill }} />
-                Expense
-              </div>
-              <Amount value={expenseTotal} currency={null} size="s" />
-            </div>
-            <div className="dash-stat">
-              <div className="label">Net</div>
-              <Amount value={incomeTotal - expenseTotal} currency={null} signed tone="auto" size="s" />
-            </div>
-          </>
-        )}
-      </div>
+    <UiComponent
+      title="Last 6 months"
+      actions={empty ? undefined : <TrendStats income={incomeTotal} expense={expenseTotal} />}
+      className="dash-trend a-trend"
+    >
       {empty ? (
         <Empty>No Income or Expense in the last 6 months yet.</Empty>
       ) : (
@@ -298,7 +300,33 @@ export function LastSixMonths({ labels, reports }: { labels: string[]; reports: 
           ]}
         />
       )}
-    </section>
+    </UiComponent>
+  )
+}
+
+/** The six months' Income, Expense and Net at the right of the title row. */
+function TrendStats({ income, expense }: { income: number; expense: number }) {
+  return (
+    <div className="dash-trend-stats">
+      <div className="dash-stat">
+        <div className="label">
+          <span className="dot" style={{ background: toneColors.income.fill }} />
+          Income
+        </div>
+        <Amount value={income} currency={null} size="s" />
+      </div>
+      <div className="dash-stat">
+        <div className="label">
+          <span className="dot" style={{ background: toneColors.expense.fill }} />
+          Expense
+        </div>
+        <Amount value={expense} currency={null} size="s" />
+      </div>
+      <div className="dash-stat">
+        <div className="label">Net</div>
+        <Amount value={income - expense} currency={null} signed tone="auto" size="s" />
+      </div>
+    </div>
   )
 }
 
@@ -317,7 +345,7 @@ export function Uncategorised({ count, owner }: { count: Load<number>; owner: Re
             </div>
           </div>
           {count.data > 0 && (
-            <Link className="button-primary" to={`/uncategorised?owner=${owner}`}>
+            <Link className="button-primary" to={ownerHref('/uncategorised', owner)}>
               Review
             </Link>
           )}
@@ -330,8 +358,8 @@ export function Uncategorised({ count, owner }: { count: Load<number>; owner: Re
 // ---- Latest Tag ----
 
 /** `tag` null = there are no Tags at all; its report loads separately. */
-export function LatestTag({ tag }: { tag: Load<{ report: TagReport } | null> }) {
-  const range = tag.status === 'ready' && tag.data ? tagRange(tag.data.report.tag) : null
+export function LatestTag({ tag }: { tag: Load<TagReport | null> }) {
+  const range = tag.status === 'ready' && tag.data ? tagRange(tag.data.tag) : null
   return (
     <UiComponent
       title="Latest Tag"
@@ -345,19 +373,18 @@ export function LatestTag({ tag }: { tag: Load<{ report: TagReport } | null> }) 
             No Tag yet. <Link to="/settings/tags">Create one</Link> for a holiday or an event to see what it cost.
           </Empty>
         ) : (
-          <LatestTagBody report={tag.data.report} />
+          <LatestTagBody report={tag.data} />
         ))}
     </UiComponent>
   )
 }
 
 function LatestTagBody({ report }: { report: TagReport }) {
-  const slices = topLevelSlices(report.expense, 5)
-  const segments = slices.map((s, i) => ({ ...s, color: seriesColor(i) }))
+  const { segments, legend } = colouredSlices(topLevelSlices(report.expense, 5))
   return (
     <>
       <div className="dash-tag-head">
-        <Link className="chip-tag dash-tag-name" to={`/reports/tag/${report.tag.id}?owner=${report.owner}`}>
+        <Link className="chip-tag dash-tag-name" to={ownerHref(`/reports/tag/${report.tag.id}`, report.owner)}>
           {report.tag.name}
         </Link>
         <Amount value={report.expense.total} size="m" />
@@ -367,11 +394,7 @@ function LatestTagBody({ report }: { report: TagReport }) {
       ) : (
         <>
           <StackedBar ariaLabel={`${report.tag.name} by Category`} segments={segments} />
-          <ChartLegend
-            variant="inline"
-            className="dash-tag-legend"
-            items={segments.map(s => ({ label: s.label, color: s.color, value: wholeFrancs(s.value) }))}
-          />
+          <ChartLegend variant="inline" className="dash-tag-legend" items={legend} />
         </>
       )}
     </>

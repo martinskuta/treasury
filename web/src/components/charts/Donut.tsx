@@ -24,7 +24,7 @@ type Props = {
   thickness?: number
   /** Small muted text above the centre value, e.g. "CHF". */
   centreLabel?: string
-  /** Centre value in ink, already formatted (e.g. formatAmount(total).slice(0, -3) for whole francs). */
+  /** Centre value in ink, already formatted (e.g. formatAmount(total, { whole: true }) for whole francs). */
   centreValue?: string
   /** Tooltip text per segment; default "CHF 1'234.50". */
   formatValue?: (value: number) => string

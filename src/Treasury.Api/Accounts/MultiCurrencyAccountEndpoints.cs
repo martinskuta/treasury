@@ -22,8 +22,11 @@ public static class MultiCurrencyAccountEndpoints
 
     /// <param name="TotalBalance">The sum of its Accounts' balances in the main currency at today's exchange rates;
     /// null while a needed rate is missing.</param>
+    /// <param name="TotalBalanceChf">The same total in CHF at today's exchange rates; null while a needed rate is
+    /// missing.</param>
     public record MultiCurrencyAccountResponse(Guid Id, string Name, string Slug, OwnerResponse Owner,
-        string IntegrationKey, string MainCurrency, IReadOnlyList<AccountResponse> Accounts, decimal? TotalBalance);
+        string IntegrationKey, string MainCurrency, IReadOnlyList<AccountResponse> Accounts, decimal? TotalBalance,
+        decimal? TotalBalanceChf);
 
     public static void MapMultiCurrencyAccounts(this RouteGroupBuilder api)
     {
@@ -129,17 +132,21 @@ public static class MultiCurrencyAccountEndpoints
         var names = await db.MemberNamesAsync(multiCurrencyAccounts.Select(m => m.OwnerMemberId));
         var balances = await AccountBalances.CurrentAsync(db, allAccounts);
         var mismatches = await AccountBalances.MismatchesAsync(db, allAccounts);
-        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-        var rates = await converter.LoadAsync(today, today);
+        var rates = await TodaysRates.LoadAsync(converter, clock);
 
         return multiCurrencyAccounts.Select(m =>
         {
             var accounts = m.Accounts.OrderBy(a => a.Currency != m.MainCurrency).ThenBy(a => a.Name)
-                .Select(a => ToResponse(a, names, balances, mismatches)).ToList();
-            var converted = accounts.Select(a => rates.Convert(a.Balance, a.Currency, m.MainCurrency, today)).ToList();
-            decimal? total = converted.Any(c => c is null) ? null : converted.Sum(c => c!.Value);
+                .Select(a => ToResponse(a, names, balances, mismatches, rates)).ToList();
+            var converted = accounts.Select(a => rates.Convert(a.Balance, a.Currency, m.MainCurrency));
             return new MultiCurrencyAccountResponse(m.Id, m.Name, m.Slug, OwnerResponse.From(m.Owner, names),
-                m.IntegrationKey, m.MainCurrency, accounts, total);
+                m.IntegrationKey, m.MainCurrency, accounts, SumOrNull(converted), SumOrNull(accounts.Select(a => a.BalanceChf)));
         }).ToList();
+    }
+
+    private static decimal? SumOrNull(IEnumerable<decimal?> amounts)
+    {
+        var list = amounts.ToList();
+        return list.Any(a => a is null) ? null : list.Sum(a => a!.Value);
     }
 }

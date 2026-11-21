@@ -9,6 +9,8 @@
  *   .page-title          page heading (h1); .page-header = title row with actions on the right
  *   .section-title       heading (h2) of a group of UI components within a page
  *   .label               small muted label (legends, stat captions)
+ *   .visually-hidden     text for screen readers only
+ *   .balance             an Account balance in a list; render it with <Balance> (components/Balance.tsx)
  *   .amount-display      large key amount; render it with <Amount> (components/Amount.tsx) rather than by hand
  */
 *,
@@ -107,6 +109,26 @@ h1,
 
 .tr {
   color: var(--tr-ink);
+}
+
+.balance-cur {
+  margin-right: 0.35em;
+  font-size: 0.68em;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .num,
