@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Treasury.Api.Data;
 
 namespace Treasury.Api.Tests;
 
@@ -90,7 +93,80 @@ public class MultiCurrencyAccountTests : ApiTestBase
         await Assert.That(await ListGroupsAsync(bob)).IsEmpty();
     }
 
+    [Test]
+    public async Task Its_accounts_are_listed_with_it_and_its_total_is_shown_in_the_main_currency()
+    {
+        App.ExchangeRates.Publish("2026-11-20", chf: 0.93m, usd: 1.10m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family, mainCurrency: "CHF", openingBalance: 100m));
+        var dollars = await AddCurrencyAccountAsync(group.Id, "USD", openingBalance: 110m);
+
+        // 110 USD = 110 / 1.10 * 0.93 = 93.00 CHF at today's rates.
+        var listed = await EventuallyAsync(anna, groups => groups.Single().TotalBalance is not null);
+
+        var revolut = listed.Single();
+        await Assert.That(revolut.TotalBalance).IsEqualTo(193.00m);
+        await Assert.That(revolut.Accounts.Select(a => (a.Currency, a.Balance)))
+            .IsEquivalentTo([("CHF", 100m), ("USD", 110m)]);
+        var accounts = await ListAccountsAsync(anna);
+        await Assert.That(accounts.Select(a => (a.Id, a.MultiCurrencyAccountId)))
+            .IsEquivalentTo([(group.Accounts.Single().Id, (Guid?)group.Id), (dollars, (Guid?)group.Id)]);
+    }
+
+    [Test]
+    public async Task A_member_sees_their_own_and_the_family_multi_currency_accounts_but_never_another_members()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        await CreateGroupAsync(anna, NewGroup("Anna Revolut", new { kind = "member", memberId = await MemberIdAsync(anna) }));
+        var bobs = await CreateGroupAsync(bob, NewGroup("Bob Revolut", new { kind = "member", memberId = await MemberIdAsync(bob) }));
+        await CreateGroupAsync(bob, NewGroup("Family Revolut", Family));
+
+        await Assert.That((await ListGroupsAsync(anna)).Select(g => g.Name)).IsEquivalentTo(["Anna Revolut", "Family Revolut"]);
+        await Assert.That((await anna.GetAsync($"/api/multi-currency-accounts/{bobs.Id}")).StatusCode)
+            .IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That((await anna.GetAsync($"/api/accounts/{bobs.Accounts.Single().Id}")).StatusCode)
+            .IsEqualTo(HttpStatusCode.NotFound);
+    }
+
     // ---- helpers ----
+
+    /// Adds an Account in another currency to a group, as importing a statement with a new currency will (#25).
+    private async Task<Guid> AddCurrencyAccountAsync(Guid groupId, string currency, decimal openingBalance)
+    {
+        using var scope = App.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TreasuryDbContext>();
+        var group = await db.MultiCurrencyAccounts.Include(g => g.Accounts).SingleAsync(g => g.Id == groupId);
+        var account = new Api.Accounts.Account
+        {
+            Name = $"{group.Name} {currency}",
+            Slug = $"{group.Slug}-{currency.ToLowerInvariant()}",
+            Owner = group.Owner,
+            IntegrationKey = group.IntegrationKey,
+            Currency = currency,
+            OpeningBalance = openingBalance,
+            OpeningDate = new DateOnly(2026, 1, 1),
+            MultiCurrencyAccountId = group.Id,
+        };
+        db.Accounts.Add(account);
+        await db.SaveChangesAsync();
+        return account.Id;
+    }
+
+    /// Polls the Multi-currency accounts until the condition holds. Exchange rates are fetched in the background
+    /// on a schedule, so the clock is moved past the next run between polls.
+    private async Task<List<Group>> EventuallyAsync(HttpClient client, Func<List<Group>, bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            var list = await ListGroupsAsync(client);
+            if (done(list)) return list;
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Condition not met.");
+            await Task.Delay(25);
+            App.Clock.Advance(TimeSpan.FromMinutes(30));
+        }
+    }
 
     private static readonly object Family = new { kind = "family" };
 
