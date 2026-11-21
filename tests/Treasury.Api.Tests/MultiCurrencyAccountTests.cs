@@ -196,6 +196,108 @@ public class MultiCurrencyAccountTests : ApiTestBase
     }
 
     [Test]
+    public async Task A_multi_currency_account_can_be_created_with_an_identifier()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var created = await CreateGroupAsync(anna, NewGroup("Revolut", Family, integrationKey: "test-multi-id",
+            identifier: "  GB29 REVO 0099 7012 3456 78 "));
+
+        var group = (await anna.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{created.Id}"))!;
+        await Assert.That(group.Identifier).IsEqualTo("GB29 REVO 0099 7012 3456 78");
+        await Assert.That((await ListGroupsAsync(anna)).Single().Identifier).IsEqualTo("GB29 REVO 0099 7012 3456 78");
+        // The Accounts in it keep having no identifier of their own.
+        await Assert.That(group.Accounts.Single().Identifier).IsNull();
+    }
+
+    [Test]
+    public async Task The_identifier_of_a_multi_currency_account_is_optional()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family, integrationKey: "test-multi-id", identifier: " "));
+
+        await Assert.That(group.Identifier).IsNull();
+    }
+
+    [Test]
+    public async Task An_identifier_is_refused_when_the_multi_currency_integration_cannot_provide_one()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var res = await anna.PostAsJsonAsync("/api/multi-currency-accounts",
+            NewGroup("Revolut", Family, integrationKey: "test-multi", identifier: "GB29 REVO 0099 7012 3456 78"));
+
+        await AssertValidationErrorAsync(res, "identifier");
+        await Assert.That(await ListGroupsAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task An_identifier_longer_than_64_characters_is_refused()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var res = await anna.PostAsJsonAsync("/api/multi-currency-accounts",
+            NewGroup("Revolut", Family, integrationKey: "test-multi-id", identifier: new string('1', 65)));
+
+        await AssertValidationErrorAsync(res, "identifier");
+        await Assert.That(await ListGroupsAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task The_identifier_of_a_multi_currency_account_can_be_set_changed_and_removed()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family, integrationKey: "test-multi-id"));
+        var url = $"/api/multi-currency-accounts/{group.Id}";
+
+        var set = await anna.PatchAsJsonAsync(url, new { name = "Revolut", identifier = " GB29 REVO 0099 7012 3456 78 " });
+
+        await Assert.That(set.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await set.Content.ReadFromJsonAsync<Group>())!.Identifier).IsEqualTo("GB29 REVO 0099 7012 3456 78");
+        await Assert.That((await anna.GetFromJsonAsync<Group>(url))!.Identifier).IsEqualTo("GB29 REVO 0099 7012 3456 78");
+
+        await anna.PatchAsJsonAsync(url, new { name = "Revolut", identifier = "GB94 REVO 0099 7098 7654 32" });
+        await Assert.That((await anna.GetFromJsonAsync<Group>(url))!.Identifier).IsEqualTo("GB94 REVO 0099 7098 7654 32");
+
+        await anna.PatchAsJsonAsync(url, new { name = "Revolut", identifier = "" });
+        await Assert.That((await anna.GetFromJsonAsync<Group>(url))!.Identifier).IsNull();
+    }
+
+    [Test]
+    public async Task Renaming_a_multi_currency_account_without_an_identifier_in_the_request_keeps_its_identifier()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family, integrationKey: "test-multi-id",
+            identifier: "GB29 REVO 0099 7012 3456 78"));
+
+        var res = await anna.PatchAsJsonAsync($"/api/multi-currency-accounts/{group.Id}", new { name = "Revolut Anna" });
+
+        var renamed = (await res.Content.ReadFromJsonAsync<Group>())!;
+        await Assert.That(renamed.Name).IsEqualTo("Revolut Anna");
+        await Assert.That(renamed.Identifier).IsEqualTo("GB29 REVO 0099 7012 3456 78");
+    }
+
+    [Test]
+    public async Task Editing_refuses_an_identifier_the_integration_cannot_provide_or_that_is_too_long()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var without = await CreateGroupAsync(anna, NewGroup("Wise", Family, integrationKey: "test-multi"));
+        var with = await CreateGroupAsync(anna, NewGroup("Revolut", Family, integrationKey: "test-multi-id"));
+
+        var cannotProvide = await anna.PatchAsJsonAsync($"/api/multi-currency-accounts/{without.Id}",
+            new { name = "Wise", identifier = "GB29 REVO 0099 7012 3456 78" });
+        var tooLong = await anna.PatchAsJsonAsync($"/api/multi-currency-accounts/{with.Id}",
+            new { name = "Renamed", identifier = new string('1', 65) });
+
+        await AssertValidationErrorAsync(cannotProvide, "identifier");
+        await AssertValidationErrorAsync(tooLong, "identifier");
+        var unchanged = (await anna.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{with.Id}"))!;
+        await Assert.That(unchanged.Name).IsEqualTo("Revolut");
+        await Assert.That(unchanged.Identifier).IsNull();
+    }
+
+    [Test]
     public async Task Accounts_cannot_be_added_to_a_multi_currency_account_by_hand()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
@@ -348,7 +450,7 @@ public class MultiCurrencyAccountTests : ApiTestBase
     private static readonly object Family = new { kind = "family" };
 
     private static object NewGroup(string name, object owner, string mainCurrency = "CHF",
-        string integrationKey = "test-multi", decimal openingBalance = 100m) => new
+        string integrationKey = "test-multi", decimal openingBalance = 100m, string? identifier = null) => new
     {
         name,
         owner,
@@ -356,6 +458,7 @@ public class MultiCurrencyAccountTests : ApiTestBase
         mainCurrency,
         openingBalance,
         openingDate = "2026-01-01",
+        identifier,
     };
 
     private static async Task<Group> CreateGroupAsync(HttpClient client, object request)
@@ -389,10 +492,10 @@ public class MultiCurrencyAccountTests : ApiTestBase
     private record OwnerDto(string Kind, Guid? MemberId, string Name);
 
     private record Account(Guid Id, string Name, OwnerDto Owner, string IntegrationKey, string Currency,
-        decimal OpeningBalance, DateOnly OpeningDate, decimal Balance, Guid? MultiCurrencyAccountId);
+        decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance, Guid? MultiCurrencyAccountId);
 
     private record Group(Guid Id, string Name, string Slug, OwnerDto Owner, string IntegrationKey, string MainCurrency,
-        List<Account> Accounts, decimal? TotalBalance, decimal? TotalBalanceChf);
+        string? Identifier, List<Account> Accounts, decimal? TotalBalance, decimal? TotalBalanceChf);
 
     private record HandoverItem(Guid Id, string Name, string Currency, bool IsMultiCurrencyAccount);
 
