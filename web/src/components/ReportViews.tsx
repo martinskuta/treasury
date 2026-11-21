@@ -163,7 +163,7 @@ export function ReportBreakdown({
               size={168}
               thickness={18}
               centreLabel="CHF"
-              centreValue={formatAmount(levelTotal).slice(0, -3)}
+              centreValue={formatAmount(levelTotal, { whole: true })}
             />
           </div>
           <ul className="breakdown-list">
