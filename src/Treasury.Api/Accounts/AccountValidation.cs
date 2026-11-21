@@ -22,8 +22,9 @@ internal static class AccountValidation
     /// One of <see cref="Currencies.All"/>, in the request field <paramref name="field"/>.
     public static void Currency(string? currency, string field, Dictionary<string, string[]> errors)
     {
-        if (currency is null || !Currencies.All.Contains(currency))
-            errors[field] = [$"Choose one of {string.Join(", ", Currencies.All)}."];
+        if (!Currencies.IsSupported(currency))
+            errors[field] = [
+                "Choose a currency Treasury has exchange rates for (an ISO code such as CHF, EUR, USD or GBP)."];
     }
 
     public static void Opening(decimal? balance, DateOnly? date, Dictionary<string, string[]> errors)

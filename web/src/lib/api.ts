@@ -108,8 +108,11 @@ export const listIntegrations = (signal?: AbortSignal) => apiFetch<Integration[]
 
 // ---- Accounts ----
 
-export const currencies = ['CHF', 'CZK', 'EUR', 'USD'] as const
-export type Currency = (typeof currencies)[number]
+/** An ISO 4217 code; Accounts can be in any of `listCurrencies()` (every currency with an exchange rate). */
+export type Currency = string
+
+/** The currencies an Account can be in, alphabetical (served by the API so the list lives in one place). */
+export const listCurrencies = (signal?: AbortSignal) => apiFetch<Currency[]>('/api/currencies', { signal })
 
 export type Account = {
   id: string

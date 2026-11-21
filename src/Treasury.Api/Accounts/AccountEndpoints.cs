@@ -120,6 +120,9 @@ public static class AccountEndpoints
 
         api.MapMultiCurrencyAccounts();
 
+        // The currencies an Account can be in (Currencies.All), for the web app's currency pickers.
+        api.MapGet("/currencies", () => Results.Ok(Currencies.All));
+
         api.MapGet("/integrations", (IntegrationRegistry integrations) =>
             Results.Ok(integrations.All.OrderBy(i => i.Name).Select(i => new { i.Key, i.Name, i.CanProvideIdentifier, i.HoldsSeveralCurrencies })));
     }

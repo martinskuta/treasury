@@ -21,7 +21,9 @@ public class FrankfurterExchangeRateProviderTests
         var days = await provider.GetDailyRatesAsync(new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 3), default);
 
         await Assert.That(handler.RequestedUri!.ToString())
-            .IsEqualTo("https://api.frankfurter.dev/v1/2026-11-02..2026-11-03?base=EUR&symbols=CHF,CZK,USD");
+            .IsEqualTo("https://api.frankfurter.dev/v1/2026-11-02..2026-11-03?base=EUR&symbols=" +
+                "AUD,BRL,CAD,CHF,CNY,CZK,DKK,GBP,HKD,HUF,IDR,ILS,INR,ISK,JPY,KRW,MXN,MYR,NOK,NZD,PHP,PLN,RON,SEK,SGD," +
+                "THB,TRY,USD,ZAR");
         await Assert.That(days.Select(d => d.Date))
             .IsEquivalentTo([new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 3)]);
         await Assert.That(days[1].PerEur["CHF"]).IsEqualTo(0.9166m);

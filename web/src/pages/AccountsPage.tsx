@@ -5,10 +5,10 @@ import {
   ApiError,
   createAccount,
   createMultiCurrencyAccount,
-  currencies,
   deleteSourceFile,
   importStatement,
   listAccounts,
+  listCurrencies,
   listIntegrations,
   listMultiCurrencyAccounts,
   listSourceFiles,
@@ -36,6 +36,7 @@ export function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
   const [multiCurrencyAccounts, setMultiCurrencyAccounts] = useState<MultiCurrencyAccount[]>([])
   const [integrations, setIntegrations] = useState<Integration[]>([])
+  const [currencies, setCurrencies] = useState<Currency[]>([])
   const [loadError, setLoadError] = useState(false)
   const [creating, setCreating] = useState(false)
 
@@ -45,11 +46,13 @@ export function AccountsPage() {
       listAccounts(controller.signal),
       listMultiCurrencyAccounts(controller.signal),
       listIntegrations(controller.signal),
+      listCurrencies(controller.signal),
     ])
-      .then(([a, m, i]) => {
+      .then(([a, m, i, c]) => {
         setAccounts(a)
         setMultiCurrencyAccounts(m)
         setIntegrations(i)
+        setCurrencies(c)
       })
       .catch(() => {
         if (!controller.signal.aborted) setLoadError(true)
@@ -111,6 +114,7 @@ export function AccountsPage() {
       {creating ? (
         <NewAccountForm
           integrations={integrations}
+          currencies={currencies}
           onCancel={() => setCreating(false)}
           onCreated={() => {
             setCreating(false)
@@ -484,10 +488,12 @@ function ImportPanel({
 
 function NewAccountForm({
   integrations,
+  currencies,
   onCancel,
   onCreated,
 }: {
   integrations: Integration[]
+  currencies: Currency[]
   onCancel: () => void
   onCreated: () => void
 }) {
@@ -589,7 +595,7 @@ function NewAccountForm({
         name="currency"
         value={currency}
         errors={multiCurrency ? errors.mainCurrency : errors.currency}
-        onChange={e => setCurrency(e.target.value as Currency)}
+        onChange={e => setCurrency(e.target.value)}
       >
         {currencies.map(c => (
           <option key={c} value={c}>

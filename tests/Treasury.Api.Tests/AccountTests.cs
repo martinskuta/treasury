@@ -57,7 +57,12 @@ public class AccountTests : ApiTestBase
     [Arguments("CZK")]
     [Arguments("EUR")]
     [Arguments("USD")]
-    public async Task Each_supported_currency_is_accepted(string currency)
+    [Arguments("GBP")]
+    [Arguments("PLN")]
+    [Arguments("JPY")]
+    [Arguments("AUD")]
+    [Arguments("ZAR")]
+    public async Task Each_currency_with_an_exchange_rate_is_accepted(string currency)
     {
         using var anna = await LoginAsNewMemberAsync("anna");
 
@@ -67,14 +72,39 @@ public class AccountTests : ApiTestBase
     }
 
     [Test]
-    public async Task Other_currencies_are_rejected()
+    [Arguments("RUB")] // no ECB reference rate
+    [Arguments("XYZ")]
+    [Arguments("BGN")] // no longer published since Bulgaria adopted the euro
+    [Arguments("gbp")]
+    public async Task Currencies_without_an_exchange_rate_are_rejected(string currency)
     {
         using var anna = await LoginAsNewMemberAsync("anna");
 
-        var res = await anna.PostAsJsonAsync("/api/accounts", NewAccount("Wallet", Family, currency: "GBP"));
+        var res = await anna.PostAsJsonAsync("/api/accounts", NewAccount("Wallet", Family, currency: currency));
 
         await AssertValidationErrorAsync(res, "currency");
         await Assert.That(await ListAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task The_currencies_to_choose_from_are_every_currency_with_an_exchange_rate()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var currencies = (await anna.GetFromJsonAsync<List<string>>("/api/currencies"))!;
+
+        await Assert.That(currencies).IsEquivalentTo([
+            "AUD", "BRL", "CAD", "CHF", "CNY", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "IDR", "ILS", "INR", "ISK",
+            "JPY", "KRW", "MXN", "MYR", "NOK", "NZD", "PHP", "PLN", "RON", "SEK", "SGD", "THB", "TRY", "USD", "ZAR",
+        ]);
+    }
+
+    [Test]
+    public async Task Choosing_a_currency_requires_signing_in()
+    {
+        var res = await Client.GetAsync("/api/currencies");
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Unauthorized);
     }
 
     [Test]
