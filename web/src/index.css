@@ -9,22 +9,6 @@
 @import './styles/controls.css';
 @import './styles/charts.css';
 
-/* ---- Login screen ---- */
-.login {
-  display: flex;
-  justify-content: center;
-  padding: 48px 16px;
-}
-
-.login-card {
-  width: 100%;
-  max-width: 360px;
-}
-
-.login-card .button-primary {
-  width: 100%;
-}
-
 /* ---- Muted meta line (Transactions, Tags, Rules) ---- */
 .account-meta {
   font-size: 0.85rem;

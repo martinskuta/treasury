@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router'
 import { FormField } from '../components/FormField'
 import { ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import './login.css'
 
 export function LoginPage() {
   const auth = useAuth()
@@ -30,7 +31,13 @@ export function LoginPage() {
   return (
     <main className="login">
       <form className="ui-component login-card" onSubmit={submit}>
-        <h1>Treasury</h1>
+        <h1 className="login-brand">
+          <i className="brand-mark" aria-hidden="true">
+            T
+          </i>
+          Treasury
+        </h1>
+        <p className="login-intro">Log in to continue.</p>
         <FormField
           label="Username"
           name="userName"
