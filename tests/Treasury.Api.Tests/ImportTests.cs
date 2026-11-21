@@ -133,6 +133,20 @@ public class ImportTests : ApiTestBase
     }
 
     [Test]
+    public async Task A_row_in_another_currency_is_reported_as_the_wrong_account_before_its_other_problems()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "Revolut EUR", await MeAsync(anna), currency: "EUR");
+
+        var res = await UploadAsync(anna, account.Id, "chf.txt",
+            new TestStatement().Row("2026-11-18", -3m, new string('x', 1000), currency: "CHF"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"].Single()).Contains("Is this the right Account?");
+    }
+
+    [Test]
     public async Task Uploading_a_file_with_the_same_name_again_keeps_both_files()
     {
         using var anna = await LoginAsNewMemberAsync("anna");

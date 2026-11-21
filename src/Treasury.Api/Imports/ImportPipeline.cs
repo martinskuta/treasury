@@ -53,8 +53,7 @@ public sealed class ImportPipeline(
         {
             var integration = FindIntegration(account.IntegrationKey);
             var statement = integration.Read(content);
-            ValidateRows(statement);
-            ValidateCurrency(account, statement);
+            ValidateRows(statement, account);
             return Task.FromResult(new Plan(integration, [new Leg(account, IsNew: false, statement)]));
         }, ct);
 
@@ -249,13 +248,18 @@ public sealed class ImportPipeline(
             await step.RunAsync(context, ct);
     }
 
-    /// Facts every Integration must deliver in a shape Treasury can store.
-    private static void ValidateRows(ParsedStatement statement)
+    /// Facts every Integration must deliver in a shape Treasury can store. Into a single
+    /// <paramref name="account"/>, a row in another currency is reported first: it points at the wrong Account.
+    private static void ValidateRows(ParsedStatement statement, Account? account = null)
     {
         for (var i = 0; i < statement.Rows.Count; i++)
         {
             var row = statement.Rows[i];
             var at = At(i, row);
+            if (account is not null && row.Currency is { } currency
+                && !string.Equals(currency, account.Currency, StringComparison.OrdinalIgnoreCase))
+                throw new ImportFailedException(
+                    $"{at} is in {currency}, but this Account is in {account.Currency}. Is this the right Account?");
             if (string.IsNullOrWhiteSpace(row.Description))
                 throw new ImportFailedException($"{at} has no description.");
             if (row.Description.Trim().Length > TransactionEndpoints.MaxDescriptionLength)
@@ -269,16 +273,6 @@ public sealed class ImportPipeline(
             if (row.OriginalCurrency is { } original && !IsCurrencyCode(original.Trim()))
                 throw new ImportFailedException($"{at}: '{original}' is not a currency code.");
         }
-    }
-
-    /// A single Account takes rows in its own currency only.
-    private static void ValidateCurrency(Account account, ParsedStatement statement)
-    {
-        for (var i = 0; i < statement.Rows.Count; i++)
-            if (statement.Rows[i].Currency is { } currency
-                && !string.Equals(currency, account.Currency, StringComparison.OrdinalIgnoreCase))
-                throw new ImportFailedException(
-                    $"{At(i, statement.Rows[i])} is in {currency}, but this Account is in {account.Currency}. Is this the right Account?");
     }
 
     private static string At(int index, StatementRow row) => $"Row {index + 1} ({row.Date:yyyy-MM-dd} {row.Description})";
