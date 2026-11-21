@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { Link, NavLink } from 'react-router'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { Link, NavLink, useLocation } from 'react-router'
 
 export type NavItem = {
   label: string
@@ -20,6 +20,23 @@ type Props = {
  * Below 900px the sidebar becomes a top bar with a horizontally scrolling nav (styles/shell.css).
  */
 export function Layout({ nav, user, children }: Props) {
+  const navRef = useRef<HTMLElement>(null)
+  const { pathname } = useLocation()
+
+  // Phone top bar: keep the active link in view in the sideways-scrolling nav (no-op on the desktop sidebar).
+  useEffect(() => {
+    const centreActive = () => {
+      const navElement = navRef.current
+      const active = navElement?.querySelector<HTMLElement>('a.active')
+      if (!navElement || !active || navElement.scrollWidth <= navElement.clientWidth) return
+      const left = active.getBoundingClientRect().left - navElement.getBoundingClientRect().left + navElement.scrollLeft
+      navElement.scrollLeft = left - (navElement.clientWidth - active.offsetWidth) / 2
+    }
+    centreActive()
+    // Link widths change once Inter has loaded.
+    void document.fonts.ready.then(centreActive)
+  }, [pathname])
+
   return (
     <div className="shell">
       <aside className="shell-side">
@@ -29,7 +46,7 @@ export function Layout({ nav, user, children }: Props) {
           </i>
           Treasury
         </Link>
-        <nav className="shell-nav" aria-label="Main">
+        <nav ref={navRef} className="shell-nav" aria-label="Main">
           <ul>
             {nav.map(item => (
               <li key={item.href}>

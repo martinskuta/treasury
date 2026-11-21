@@ -166,7 +166,7 @@
   padding: 10px 16px;
   border: 0;
   border-radius: 99px;
-  background: var(--panel);
+  background-color: var(--panel);
   outline: none;
   transition: box-shadow 150ms ease-out;
 }
@@ -175,11 +175,17 @@
   border-radius: 16px;
 }
 
+.input::placeholder,
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--muted);
+}
+
 .ui-component .input,
 .ui-component .field input:not([type='checkbox'], [type='radio'], [type='file']),
 .ui-component .field select,
 .ui-component .field textarea {
-  background: var(--bg);
+  background-color: var(--bg);
 }
 
 .input:focus-visible,
@@ -200,9 +206,9 @@ select.input,
     linear-gradient(45deg, transparent 50%, var(--muted) 50%),
     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
   background-position:
-    right 19px center,
+    right 20px center,
     right 15px center;
-  background-size: 4px 4px;
+  background-size: 5px 5px;
   background-repeat: no-repeat;
 }
 
@@ -322,12 +328,14 @@ a.chip-tag:hover {
   color: var(--exp-ink);
 }
 
-.page-loading,
-.empty {
-  padding: 24px 0;
+.page-loading {
+  margin: 0;
+  padding: 24px 16px;
   color: var(--muted);
 }
 
 .empty {
+  padding: 24px 0;
   text-align: center;
+  color: var(--muted);
 }
