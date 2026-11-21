@@ -5,7 +5,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { AccountsPage } from './pages/AccountsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
-import { HomePage } from './pages/HomePage'
+import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { MembersPage } from './pages/MembersPage'
 import { MonthlyOverviewPage } from './pages/MonthlyOverviewPage'
@@ -26,7 +26,7 @@ export default function App() {
           {/* Everything else needs a logged-in Member and is shown inside the app shell. */}
           <Route element={<RequireAuth />}>
             <Route element={<AppShell />}>
-              <Route index element={<HomePage />} />
+              <Route index element={<DashboardPage />} />
               <Route path="overview" element={<MonthlyOverviewPage />} />
               <Route path="reports/tag" element={<TagReportPage />} />
               <Route path="reports/tag/:tagId" element={<TagReportPage />} />
