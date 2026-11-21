@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace Treasury.Api.Integrations;
 
-/// Reads ISO 20022 camt.053 (bank-to-customer statement) files for camt.053 Integrations such as TKB: a single
+/// Reads ISO 20022 camt.053 (bank-to-customer statement) files for camt.053 Integrations (TKB, PostFinance): a single
 /// XML document, or a zip with one or more of them. Pure like every Integration reader (no database, no files).
 /// Elements are matched by local name, so the schema versions (.001.04, .001.08, ...) read the same.
 public static class Camt053Reader

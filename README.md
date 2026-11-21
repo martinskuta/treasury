@@ -142,12 +142,16 @@ date,amount,description,counterparty,reference,original_amount,original_currency
     paid, e.g. `-48.00` and `EUR`, next to the `amount` the Account was charged
 - No Account identifier and no closing balance, so Accounts using it can't have an identifier.
 
-### TKB (`tkb`)
+### camt.053 banks: TKB (`tkb`) and PostFinance (`postfinance`)
 
-For Thurgauer Kantonalbank, download the account statement from TKB e-banking as **camt.053** (ISO 20022) and
-import the file as it is: a single XML file or the zip (one or more XML statements; other files in the zip, such as
-a PDF copy, are ignored). A zip is one Source file, so undoing its import removes all of it. TKB's CSV export is not
-supported.
+These banks are read the same way, from their ISO 20022 **camt.053** statement:
+
+- **TKB** (Thurgauer Kantonalbank): download the account statement from TKB e-banking as camt.053.
+- **PostFinance**: download the account statement from PostFinance e-finance as camt.053.
+
+Import the file as it is: a single XML file or the zip (one or more XML statements; other files in the zip, such as
+a PDF copy, are ignored). A zip is one Source file, so undoing its import removes all of it. The banks' CSV exports
+are not supported.
 
 - Enter the IBAN as the Account's identifier to have statements for another account rejected.
 - Each camt.053 `Ntry` with status `BOOK` becomes a Transaction; other statuses (such as `PDNG`) are skipped. A

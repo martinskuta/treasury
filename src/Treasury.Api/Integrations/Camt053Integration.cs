@@ -1,16 +1,25 @@
 namespace Treasury.Api.Integrations;
 
-/// "TKB" (key tkb): Thurgauer Kantonalbank's ISO 20022 camt.053 statement, as a single XML file or a zip with one
-/// or more of them (documented in README "TKB"). Reading and checking camt.053 is <see cref="Camt053Reader"/>'s job;
-/// this class turns its statements into rows and owns the description and counterparty composition.
-/// TKB's CSV export is not supported.
-public sealed class TkbIntegration : IIntegration
+/// A bank whose statements are read as ISO 20022 camt.053, as a single XML file or a zip with one or more of them
+/// (documented in README "camt.053 banks"). Banks differ only in key, name and where to export from: see
+/// <see cref="Tkb"/> and <see cref="PostFinance"/>. Reading and checking camt.053 is <see cref="Camt053Reader"/>'s
+/// job; this class turns its statements into rows and owns the description and counterparty composition.
+/// The banks' CSV exports are not supported.
+public sealed class Camt053Integration(string key, string name, string exportHint) : IIntegration
 {
-    private const string ExportHint = "Export the statement as camt.053 (XML or zip) from TKB e-banking.";
+    /// Thurgauer Kantonalbank.
+    public static Camt053Integration Tkb { get; } =
+        new("tkb", "TKB", "Export the statement as camt.053 (XML or zip) from TKB e-banking.");
 
-    public string Key => "tkb";
+    public static Camt053Integration PostFinance { get; } =
+        new("postfinance", "PostFinance", "Export the statement as camt.053 (XML or zip) from PostFinance e-finance.");
 
-    public string Name => "TKB";
+    /// All camt.053 banks, for registration.
+    public static IReadOnlyList<Camt053Integration> All { get; } = [Tkb, PostFinance];
+
+    public string Key { get; } = key;
+
+    public string Name { get; } = name;
 
     public bool CanProvideIdentifier => true;
 
@@ -18,7 +27,7 @@ public sealed class TkbIntegration : IIntegration
 
     public ParsedStatement Read(SourceFileContent file)
     {
-        var statements = Camt053Reader.Read(file, ExportHint);
+        var statements = Camt053Reader.Read(file, exportHint);
         var rows = statements.SelectMany(s => s.Entries).Where(e => e.IsBooked).SelectMany(Rows).ToList();
         var closing = statements.MaxBy(s => s.To)!.Closing;
         return new ParsedStatement(rows, statements[0].Iban, new ClosingBalance(closing.Date, closing.Amount));

@@ -34,7 +34,7 @@ public static class ImportEndpoints
         builder.Services.AddScoped<IImportStep, DuplicateDetection>();
         // Production Integrations (tests register their fake ones on top). Bank-specific ones (#22) go here.
         builder.Services.AddSingleton<IIntegration, GenericCsvIntegration>();
-        builder.Services.AddSingleton<IIntegration, TkbIntegration>();
+        foreach (var bank in Camt053Integration.All) builder.Services.AddSingleton<IIntegration>(bank);
         builder.Services.AddSingleton<IIntegration, RevolutIntegration>();
     }
 
