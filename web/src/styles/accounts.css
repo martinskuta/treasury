@@ -107,14 +107,6 @@
   letter-spacing: -0.02em;
 }
 
-.acct-cur {
-  margin-right: 0.35em;
-  font-size: 0.68em;
-  font-weight: 600;
-  letter-spacing: 0;
-  color: var(--muted);
-}
-
 .acct-actions {
   display: flex;
   flex-wrap: wrap;
