@@ -85,7 +85,7 @@ public static class AccountEndpoints
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!owner!.Value.IsManageableBy(viewer)) return Results.Forbid();
 
-            var slug = await UniqueSlugAsync(db, folders, IngestFolders.Slugify(name!));
+            var slug = await folders.UniqueSlugAsync(db, name!);
             var account = new Account
             {
                 Name = name!,
@@ -140,21 +140,7 @@ public static class AccountEndpoints
         else if (name.Length > maxLength) errors["name"] = [$"Use at most {maxLength} characters."];
     }
 
-    /// The slug, or slug-2, slug-3... if an Account, a Multi-currency account, a leftover folder or one of the
-    /// <paramref name="reserved"/> slugs (picked earlier in the same request) already uses it.
-    internal static async Task<string> UniqueSlugAsync(TreasuryDbContext db, IngestFolders folders, string slug,
-        params string[] reserved)
-    {
-        var taken = (await db.Accounts.Where(a => a.Slug == slug || a.Slug.StartsWith(slug + "-")).Select(a => a.Slug)
-            .Concat(db.MultiCurrencyAccounts.Where(g => g.Slug == slug || g.Slug.StartsWith(slug + "-")).Select(g => g.Slug))
-            .ToListAsync()).ToHashSet();
-        taken.UnionWith(reserved);
-        var candidate = slug;
-        for (var n = 2; taken.Contains(candidate) || folders.Exists(candidate); n++) candidate = $"{slug}-{n}";
-        return candidate;
-    }
-
-    internal static Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts) =>
+    private static Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts) =>
         db.MemberNamesAsync(accounts.Select(a => a.OwnerMemberId));
 
     private static async Task<AccountResponse> ToResponseAsync(TreasuryDbContext db, Account account) =>

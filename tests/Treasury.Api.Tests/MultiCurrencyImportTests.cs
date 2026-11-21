@@ -170,6 +170,67 @@ public class MultiCurrencyImportTests : ApiTestBase
     }
 
     [Test]
+    public async Task Rules_and_date_range_tags_apply_to_the_rows_of_every_currency()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+        var groceries = (await anna.GetFromJsonAsync<List<CategoryDto>>("/api/categories"))!
+            .Single(c => c.Path == "Food › Groceries").Id;
+        await PostOkAsync(anna, "/api/rules", new { field = "description", match = "contains", text = "Market", categoryId = groceries });
+        await PostOkAsync(anna, "/api/tags", new { name = "holiday", dateFrom = "2026-11-01", dateTo = "2026-11-30" });
+
+        await UploadAsync(anna, group.Id, "november.csv", Csv(
+            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Market Zurich,-20.00,0.00,CHF,COMPLETED,980.00",
+            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Market Milano,-10.00,0.00,EUR,COMPLETED,40.00"));
+
+        var list = await ListAsync(anna);
+        await Assert.That(list.Select(t => (t.Currency, t.Category?.Id, string.Join(",", t.Tags.Select(x => x.Name)))))
+            .IsEquivalentTo([("CHF", (Guid?)groceries, "holiday"), ("EUR", (Guid?)groceries, "holiday")]);
+    }
+
+    [Test]
+    public async Task Undoing_a_file_breaks_a_transfer_with_a_transaction_outside_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+        var checking = await PostOkAsync<IdDto>(anna, "/api/accounts", new
+        {
+            name = "Checking", owner = new { kind = "member", memberId = await MemberIdAsync(anna) },
+            integrationKey = "test", currency = "CHF", openingBalance = 0m, openingDate = "2026-01-01",
+        });
+        var incoming = await PostOkAsync<IdDto>(anna, "/api/transactions",
+            new { accountId = checking.Id, date = "2026-11-03", amount = 100m, description = "From Revolut" });
+        var import = (await (await UploadAsync(anna, group.Id, "november.csv", Csv(
+            "Transfer,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,To Checking,-100.00,0.00,CHF,COMPLETED,900.00")))
+            .Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That((await ListAsync(anna)).Single(t => t.Id == incoming.Id).Type).IsEqualTo("transfer");
+
+        await anna.DeleteAsync($"/api/source-files/{import.SourceFile.Id}");
+
+        var after = (await ListAsync(anna)).Single();
+        await Assert.That((after.Id, after.Type, after.Link)).IsEqualTo((incoming.Id, "income", (LinkRef?)null));
+    }
+
+    [Test]
+    public async Task Concurrent_imports_into_two_multi_currency_accounts_both_open_their_new_accounts()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        for (var round = 0; round < 5; round++)
+        {
+            // Same names: both new EUR Accounts are called "Revolut <round> EUR".
+            var first = await CreateGroupAsync(anna, $"Revolut {round}", openingBalance: 1000m, openingDate: "2026-10-31");
+            var second = await CreateGroupAsync(anna, $"Revolut {round}", openingBalance: 1000m, openingDate: "2026-10-31");
+            var csv = Csv(
+                "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00");
+
+            var results = await Task.WhenAll(UploadAsync(anna, first.Id, "a.csv", csv), UploadAsync(anna, second.Id, "b.csv", csv));
+
+            var outcomes = await Task.WhenAll(results.Select(async r => $"{(int)r.StatusCode} {await r.Content.ReadAsStringAsync()}"));
+            await Assert.That(outcomes.Where(o => !o.StartsWith("201"))).IsEmpty();
+        }
+    }
+
+    [Test]
     public async Task The_anonymised_revolut_samples_import_end_to_end_by_upload()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
@@ -390,5 +451,25 @@ public class MultiCurrencyImportTests : ApiTestBase
     private record LinkRef(string Kind, Guid TransactionId);
 
     private record TransactionDto(Guid Id, Guid? AccountId, DateOnly Date, decimal Amount, string Currency,
-        string Type, string Description, string? Counterparty, SourceFileRef? SourceFile, LinkRef? Link);
+        string Type, string Description, string? Counterparty, SourceFileRef? SourceFile, LinkRef? Link,
+        CategoryRef? Category, List<TagRef> Tags);
+
+    private record CategoryRef(Guid Id);
+
+    private record TagRef(string Name);
+
+    private record CategoryDto(Guid Id, string Path);
+
+    private record IdDto(Guid Id);
+
+    private static async Task PostOkAsync(HttpClient client, string url, object body) =>
+        await PostOkAsync<IdDto>(client, url, body);
+
+    private static async Task<T> PostOkAsync<T>(HttpClient client, string url, object body)
+    {
+        var res = await client.PostAsJsonAsync(url, body);
+        if (res.StatusCode != HttpStatusCode.Created)
+            throw new InvalidOperationException($"POST {url} failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
+        return (await res.Content.ReadFromJsonAsync<T>())!;
+    }
 }

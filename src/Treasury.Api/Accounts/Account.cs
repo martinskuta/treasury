@@ -9,8 +9,9 @@ public class Account : IOwned, IImportTarget
 
     public required string Name { get; set; }
 
-    /// Name of the Ingest folder (ingest/&lt;slug&gt;/). Fixed at creation; renaming keeps it.
-    public required string Slug { get; init; }
+    /// Name of the Ingest folder (ingest/&lt;slug&gt;/). Fixed once saved; renaming keeps it. (Settable so that an
+    /// import can pick another one for an Account it creates when a concurrent save took it, see ImportPipeline.)
+    public required string Slug { get; set; }
 
     /// Null = the Family. Use <see cref="Owner"/> in code.
     public Guid? OwnerMemberId { get; set; }

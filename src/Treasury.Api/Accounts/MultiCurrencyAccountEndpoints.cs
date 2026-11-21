@@ -73,7 +73,7 @@ public static class MultiCurrencyAccountEndpoints
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!owner!.Value.IsManageableBy(viewer)) return Results.Forbid();
 
-            var slug = await UniqueSlugAsync(db, folders, IngestFolders.Slugify(name!));
+            var slug = await folders.UniqueSlugAsync(db, name!);
             var accountName = $"{name} {request.MainCurrency}";
             var group = new MultiCurrencyAccount
             {
@@ -87,7 +87,7 @@ public static class MultiCurrencyAccountEndpoints
                     {
                         Name = accountName,
                         // Reserved for the Account's kept Source files; no Ingest folder is created for it.
-                        Slug = await UniqueSlugAsync(db, folders, IngestFolders.Slugify(accountName), slug),
+                        Slug = await folders.UniqueSlugAsync(db, accountName, [slug]),
                         IntegrationKey = integration.Key,
                         Currency = request.MainCurrency!,
                         OpeningBalance = request.OpeningBalance!.Value,

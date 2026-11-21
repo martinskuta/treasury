@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
+using Treasury.Api.Data;
 using Treasury.Api.Storage;
 
 namespace Treasury.Api.Accounts;
@@ -20,6 +22,23 @@ public sealed class IngestFolders(DataRoot dataRoot)
         var folder = PathFor(slug);
         Directory.CreateDirectory(Path.Combine(folder, Processed));
         Directory.CreateDirectory(Path.Combine(folder, Failed));
+    }
+
+    /// A free slug for a new Account or Multi-currency account called <paramref name="name"/>: its
+    /// <see cref="Slugify"/>d name, or that with -2, -3... if an Account, a Multi-currency account, a leftover folder
+    /// or one of the <paramref name="reserved"/> slugs (picked earlier for the same save) already uses it.
+    /// Two saves may still pick the same slug at the same time; the unique index on Slug rejects the second.
+    public async Task<string> UniqueSlugAsync(TreasuryDbContext db, string name, IEnumerable<string>? reserved = null,
+        CancellationToken ct = default)
+    {
+        var slug = Slugify(name);
+        var prefix = slug + "-";
+        var taken = (await db.Accounts.Select(a => a.Slug).Concat(db.MultiCurrencyAccounts.Select(g => g.Slug))
+            .Where(s => s == slug || s.StartsWith(prefix)).ToListAsync(ct)).ToHashSet();
+        taken.UnionWith(reserved ?? []);
+        var candidate = slug;
+        for (var n = 2; taken.Contains(candidate) || Exists(candidate); n++) candidate = $"{slug}-{n}";
+        return candidate;
     }
 
     /// A folder-safe slug from an Account name: lower-case ASCII letters and digits joined by '-'
