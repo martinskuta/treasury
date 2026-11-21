@@ -64,10 +64,10 @@ export function BulkEditPanel({
   const generalError = errors.form ?? errors.transactionIds ?? errors.change
 
   return (
-    <form className="ui-component form bulk-edit" onSubmit={submit} aria-label="Change selected Transactions">
-      <div className="bulk-edit-header">
+    <form className="ui-component tx-bulk" onSubmit={submit} aria-label="Change selected Transactions">
+      <div className="tx-bulk-head">
         <strong>
-          {selected.length} selected
+          <span className="tx-bulk-count num">{selected.length}</span> selected
         </strong>
         <button type="button" className="button-link" onClick={onClear}>
           Clear selection
@@ -93,7 +93,7 @@ export function BulkEditPanel({
         onChange={setOwner}
       />
       {tags.length > 0 && (
-        <details className="bulk-edit-tags" open={addTagIds.length + removeTagIds.length > 0}>
+        <details className="tx-bulk-tags" open={addTagIds.length + removeTagIds.length > 0}>
           <summary>Tags</summary>
           <TagPicker
             legend="Add Tags"
@@ -120,7 +120,7 @@ export function BulkEditPanel({
         </details>
       )}
       {refused.length > 0 && (
-        <div className="form-error" role="alert">
+        <div className="form-error tx-bulk-error" role="alert">
           Nothing was changed. These can’t take the change:
           <ul>
             {refused.map(({ t, messages }) => (
@@ -132,11 +132,11 @@ export function BulkEditPanel({
         </div>
       )}
       {generalError && (
-        <p className="form-error" role="alert">
+        <p className="form-error tx-bulk-error" role="alert">
           {generalError[0]}
         </p>
       )}
-      <div className="form-actions">
+      <div className="form-actions tx-bulk-actions">
         <button type="submit" className="button-primary" disabled={busy || nothingChosen}>
           Apply to {selected.length}
         </button>

@@ -1,6 +1,6 @@
 import type { Tag } from '../../lib/api'
 
-/** Tag checkboxes. */
+/** Tag checkboxes, drawn as toggle pills (a ticked Tag looks like a Tag pill). */
 export function TagPicker(props: {
   legend?: string
   tags: Tag[]
@@ -11,11 +11,11 @@ export function TagPicker(props: {
 }) {
   if (props.tags.length === 0) return null
   return (
-    <fieldset className="checkbox-group">
+    <fieldset className="checkbox-group tag-picker">
       <legend>{props.legend ?? 'Tags'}</legend>
-      <span className="account-meta">{props.hint}</span>
+      <span className="tag-picker-hint">{props.hint}</span>
       {props.tags.map(tag => (
-        <label key={tag.id} className="checkbox-field">
+        <label key={tag.id} className="tag-picker-option">
           <input
             type="checkbox"
             checked={props.selected.includes(tag.id)}

@@ -46,7 +46,7 @@ export function LinkForm({
 
   if (candidates.length === 0)
     return (
-      <p className="account-meta">
+      <p className="tx-hint">
         No unlinked Transaction with the opposite sign in another Account.{' '}
         <button type="button" className="button-link" onClick={onCancel}>
           Close
@@ -55,7 +55,7 @@ export function LinkForm({
     )
 
   return (
-    <form className="form transaction-link-form" onSubmit={submit}>
+    <form className="form tx-link-form" onSubmit={submit}>
       <SelectField
         label="Pair with"
         name="transactionId"
