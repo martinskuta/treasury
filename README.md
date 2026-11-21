@@ -80,6 +80,16 @@ this folder together with the database ([docs/backup.md](docs/backup.md)).
 - `source-files/<account-slug>/<id>/<file>`: Treasury's own copy of every imported Source file. Transactions link
   to it and the app downloads it from here, so don't edit or delete these by hand.
 
+## Currencies
+
+An Account (and a Multi-currency account's main currency) can be in any currency Treasury can get an exchange rate
+for: EUR and the ECB reference rates served by [Frankfurter](https://frankfurter.dev) — AUD, BRL, CAD, CHF, CNY,
+CZK, DKK, GBP, HKD, HUF, IDR, ILS, INR, ISK, JPY, KRW, MXN, MYR, NOK, NZD, PHP, PLN, RON, SEK, SGD, THB, TRY, USD
+and ZAR. The list lives in `src/Treasury.Api/Accounts/Currencies.cs` and is served to the app at `GET
+/api/currencies`. Amounts are shown in CHF using the most recent rate on or before their date; rates are fetched in
+the background for every supported currency, back to the earliest Transaction or opening balance (a currency added
+to the list is backfilled over that whole range).
+
 ## Importing statements
 
 On the Accounts screen, choose **Import statement** on an Account and upload the bank's export. The Account's
@@ -169,8 +179,8 @@ file into its Ingest folder (`ingest/<slug>/`) or upload it from its **Imports**
 - Each row goes to the Multi-currency account's Account in the row's currency. A currency without an Account yet
   gets one during the import, named `<Multi-currency account name> <CUR>` (renamable), with the group's Owner,
   opened on the day before that currency's first row with the balance before that row (see below). The import
-  result says "Created Account ...". Only CHF, CZK, EUR and USD can have Accounts: a file with rows in another
-  currency is rejected.
+  result says "Created Account ...". Only currencies Treasury has exchange rates for can have Accounts (see
+  [Currencies](#currencies)): a file with rows in another currency is rejected.
 - The file is one Source file. Duplicates, Rules, date-range Tags and the balance check work per Account as
   usual; an exchange between two of its currencies is paired as a Transfer when both legs' CHF values are
   within 2% and at most a day apart (exchange rates for that day must be known).
