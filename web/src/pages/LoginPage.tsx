@@ -29,7 +29,7 @@ export function LoginPage() {
 
   return (
     <main className="login">
-      <form className="card login-card" onSubmit={submit}>
+      <form className="ui-component login-card" onSubmit={submit}>
         <h1>Treasury</h1>
         <FormField
           label="Username"

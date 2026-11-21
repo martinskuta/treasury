@@ -82,7 +82,7 @@ export function AccountsPage() {
       {loadError && <p className="status status-bad">Couldn’t load the Accounts.</p>}
       {accounts === null && !loadError && <p>Loading…</p>}
       {accounts !== null && (
-        <section className="card">
+        <section className="ui-component">
           {rows.length === 0 ? (
             <p>No Accounts yet.</p>
           ) : (
@@ -553,7 +553,7 @@ function NewAccountForm({
   }
 
   return (
-    <form className="card form" onSubmit={submit}>
+    <form className="ui-component form" onSubmit={submit}>
       <h2>New Account</h2>
       {integrations.length === 0 && (
         <p className="status status-bad">No Integrations are installed yet, so no Account can be created.</p>

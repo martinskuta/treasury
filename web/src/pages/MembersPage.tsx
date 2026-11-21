@@ -57,7 +57,7 @@ export function MembersPage() {
       {loadError && <p className="status status-bad">Couldn’t load the Members.</p>}
       {members === null && !loadError && <p>Loading…</p>}
       {members !== null && (
-        <section className="card">
+        <section className="ui-component">
           <ul className="member-list">
             {members.map(m => (
               <MemberRow key={m.id} member={m} members={members} isMe={m.id === me.id} onChanged={() => void reload()} />
@@ -179,7 +179,7 @@ function AddMemberForm({ onCancel, onAdded }: { onCancel: () => void; onAdded: (
   }
 
   return (
-    <form className="card form" onSubmit={submit}>
+    <form className="ui-component form" onSubmit={submit}>
       <h2>Add Member</h2>
       <FormField
         label="User name"

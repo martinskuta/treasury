@@ -58,7 +58,7 @@ export function CategoriesPage() {
       {categories !== null && (
         <>
           <NewCategoryForm categories={categories} onCreated={() => void load()} />
-          <section className="card">
+          <section className="ui-component">
             <ul className="category-list">
               {categories.map(c => (
                 <CategoryRow
@@ -100,7 +100,7 @@ function NewCategoryForm({ categories, onCreated }: { categories: Category[]; on
   }
 
   return (
-    <form className="card form" onSubmit={submit}>
+    <form className="ui-component form" onSubmit={submit}>
       <h2>New Category</h2>
       <FormField label="Name" name="name" required value={name} errors={errors.name} onChange={e => setName(e.target.value)} />
       <SelectField

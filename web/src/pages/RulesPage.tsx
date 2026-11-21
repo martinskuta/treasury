@@ -154,7 +154,7 @@ export function RulesPage() {
       )}
       {rules !== null && (
         <>
-          <section className="card">
+          <section className="ui-component">
             <h2>{draft ? 'New Rule from your correction' : 'New Rule'}</h2>
             <RuleForm
               key={draft ? `draft-${fromTransaction}` : 'new'}
@@ -167,7 +167,7 @@ export function RulesPage() {
               resetOnDone
             />
           </section>
-          <section className="card">
+          <section className="ui-component">
             <div className="form-actions">
               <button type="button" className="button-secondary" disabled={busy} onClick={() => void apply()}>
                 Apply Rules to Uncategorised Transactions

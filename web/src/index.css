@@ -1,273 +1,13 @@
-:root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --text: #1c2430;
-  --muted: #5b6675;
-  --border: #dde2e8;
-  --accent: #1f6feb;
-  --good: #1a7f37;
-  --bad: #cf222e;
-  --nav-width: 220px;
-  --header-height: 52px;
-
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.5;
-  color: var(--text);
-  background: var(--bg);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1419;
-    --surface: #182029;
-    --text: #e6edf3;
-    --muted: #9aa7b4;
-    --border: #2c3744;
-    --accent: #58a6ff;
-    --good: #3fb950;
-    --bad: #f85149;
-  }
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  background: var(--bg);
-}
-
-/* ---- App shell (mobile first) ---- */
-.shell-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: var(--header-height);
-  padding: 0 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-
-.menu-button {
-  font-size: 1.4rem;
-  line-height: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.shell-nav {
-  display: none;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.shell-nav.open {
-  display: block;
-}
-
-.shell-nav ul {
-  list-style: none;
-  margin: 0;
-  padding: 8px 0;
-}
-
-.shell-nav a {
-  display: block;
-  padding: 10px 16px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.shell-nav a:hover {
-  color: var(--accent);
-}
-
-.shell-main {
-  padding: 16px;
-  max-width: 1100px;
-}
-
-/* ---- Desktop: sidebar navigation ---- */
-@media (min-width: 768px) {
-  .menu-button {
-    display: none;
-  }
-
-  .shell-nav {
-    display: block;
-    position: fixed;
-    top: var(--header-height);
-    bottom: 0;
-    left: 0;
-    width: var(--nav-width);
-    border-bottom: none;
-    border-right: 1px solid var(--border);
-  }
-
-  .shell-main {
-    margin-left: var(--nav-width);
-    padding: 24px 32px;
-  }
-}
-
-/* ---- Content ---- */
-h1 {
-  margin: 0 0 16px;
-  font-size: 1.6rem;
-}
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.card h2 {
-  margin: 0 0 8px;
-  font-size: 1.05rem;
-  color: var(--muted);
-}
-
-.status {
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-
-.status-good {
-  color: var(--good);
-}
-
-.status-bad {
-  color: var(--bad);
-}
-
-/* Amounts line up in tables and lists */
-.amount {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
-}
-
-/* ---- Header Member menu ---- */
-.shell-header-end {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.header-user {
-  color: inherit;
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.header-user:hover,
-.shell-nav a.active {
-  color: var(--accent);
-}
-
-.page-loading {
-  padding: 24px 16px;
-  color: var(--muted);
-}
-
-/* ---- Forms and buttons ---- */
-.form {
-  max-width: 420px;
-}
-
-.field {
-  margin-bottom: 14px;
-}
-
-.field label {
-  display: block;
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-
-.field input,
-.field select {
-  width: 100%;
-  padding: 8px 10px;
-  font: inherit;
-  color: inherit;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-.field input:focus,
-.field select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-}
-
-.field input[aria-invalid='true'],
-.field select[aria-invalid='true'] {
-  border-color: var(--bad);
-}
-
-.field-errors,
-.form-error {
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--bad);
-  font-size: 0.9rem;
-}
-
-.form-error {
-  margin: 0 0 12px;
-}
-
-.button-primary,
-.button-secondary {
-  font: inherit;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.button-primary {
-  color: #fff;
-  background: var(--accent);
-  border: 1px solid var(--accent);
-}
-
-.button-primary:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.button-secondary {
-  padding: 4px 12px;
-  color: inherit;
-  background: transparent;
-  border: 1px solid var(--border);
-}
+/*
+ * Global styles. The design foundation lives in ./styles (tokens, base type, app shell, shared controls, charts);
+ * see docs/design-guidelines.md. Below the imports: page-specific styles, still partly in the pre-refresh look
+ * until each page is restyled. Use tokens only, never hex values.
+ */
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/shell.css';
+@import './styles/controls.css';
+@import './styles/charts.css';
 
 /* ---- Login screen ---- */
 .login {
@@ -285,21 +25,6 @@ h1 {
   width: 100%;
 }
 
-.button-link {
-  font: inherit;
-  font-size: 0.9rem;
-  padding: 0;
-  color: var(--accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.form-actions {
-  display: flex;
-  gap: 8px;
-}
-
 /* ---- Accounts ---- */
 .account-list {
   margin: 0;
@@ -313,7 +38,7 @@ h1 {
   justify-content: space-between;
   gap: 8px 16px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--track);
 }
 
 .account-row:last-child {
@@ -358,14 +83,14 @@ h1 {
   flex-basis: 100%;
   margin-top: 4px;
   padding-left: 16px;
-  border-left: 2px solid var(--border);
+  border-left: 2px solid var(--track);
 }
 
 /* ---- Import (Accounts page) ---- */
 .import-panel {
   margin-top: 10px;
   padding: 10px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--track);
   border-radius: 8px;
 }
 
@@ -415,7 +140,7 @@ h1 {
   align-items: baseline;
   gap: 4px 16px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--track);
 }
 
 .transaction-row:last-child {
@@ -439,7 +164,7 @@ h1 {
 }
 
 .transaction-amount.income {
-  color: var(--good);
+  color: var(--inc-ink);
 }
 
 .transaction-chf {
@@ -470,7 +195,7 @@ h1 {
 
 .member-row {
   padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--track);
 }
 
 .member-row:last-child {
@@ -506,7 +231,7 @@ h1 {
   max-width: 100%;
   font: inherit;
   padding: 6px 8px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--track);
   border-radius: 6px;
   background: inherit;
   color: inherit;
@@ -520,7 +245,7 @@ h1 {
 
 .category-row {
   padding: 8px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--track);
 }
 
 .category-row:last-child {
@@ -541,7 +266,7 @@ h1 {
 .category-badge {
   font-size: 0.75rem;
   padding: 1px 6px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--track);
   border-radius: 10px;
   color: var(--muted);
 }
@@ -559,36 +284,6 @@ h1 {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
-}
-
-.segmented {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-
-.report-controls .segmented {
-  margin-bottom: 0;
-}
-
-.segmented button {
-  font: inherit;
-  padding: 6px 14px;
-  color: inherit;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-}
-
-.segmented button + button {
-  border-left: 1px solid var(--border);
-}
-
-.segmented button[aria-pressed='true'] {
-  color: #fff;
-  background: var(--accent);
 }
 
 .month-switcher {
@@ -623,11 +318,11 @@ h1 {
 }
 
 .report-totals .income {
-  color: var(--good);
+  color: var(--inc-ink);
 }
 
 .report-totals .expense {
-  color: var(--bad);
+  color: var(--exp-ink);
 }
 
 .report-note {
@@ -637,7 +332,7 @@ h1 {
 }
 
 .report-pending {
-  color: var(--bad);
+  color: var(--exp-ink);
 }
 
 .breadcrumb {
@@ -657,7 +352,7 @@ h1 {
   gap: 12px;
   align-items: baseline;
   padding: 8px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--track);
 }
 
 .breakdown-row.muted .breakdown-name {
@@ -707,21 +402,6 @@ h1 {
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 4px;
-}
-
-.tag-chip {
-  display: inline-block;
-  font-size: 0.8rem;
-  padding: 1px 8px;
-  border: 1px solid var(--accent);
-  border-radius: 10px;
-  color: var(--accent);
-  overflow-wrap: anywhere;
-}
-
-/* Applied automatically (date range or Rule), not by hand. */
-.tag-chip.auto {
-  border-style: dashed;
 }
 
 .checkbox-group {
@@ -805,7 +485,7 @@ h1 {
   justify-content: space-between;
   gap: 4px 16px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--track);
 }
 
 .transaction-list-header .checkbox-field {
@@ -822,7 +502,7 @@ h1 {
 }
 
 .transaction-row.selected {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in srgb, var(--brown) 8%, transparent);
 }
 
 .pager {
@@ -841,7 +521,7 @@ h1 {
   max-width: none;
   max-height: 70vh;
   overflow-y: auto;
-  box-shadow: 0 -4px 12px rgb(0 0 0 / 12%);
+  box-shadow: var(--shadow-float);
 }
 
 .bulk-edit-header {
@@ -905,11 +585,23 @@ h1 {
   align-items: flex-end;
 }
 
-a.tag-chip {
-  text-decoration: none;
+/* Settings → System (and the placeholder home page): API status + formatting check. */
+.system-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-a.tag-chip:hover {
-  background: var(--accent);
-  color: var(--bg);
+.system-checks {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
 }
+
+.system-checks li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
