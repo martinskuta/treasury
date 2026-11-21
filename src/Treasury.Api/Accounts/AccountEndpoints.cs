@@ -67,6 +67,8 @@ public static class AccountEndpoints
 
             var integration = integrations.Find(request.IntegrationKey);
             if (integration is null) errors["integrationKey"] = ["Choose an Integration."];
+            else if (integration.HoldsSeveralCurrencies)
+                errors["integrationKey"] = ["This Integration holds several currencies; create a Multi-currency account for it."];
 
             if (request.Currency is null || !Currencies.All.Contains(request.Currency))
                 errors["currency"] = [$"Choose one of {string.Join(", ", Currencies.All)}."];

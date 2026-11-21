@@ -129,6 +129,90 @@ public class MultiCurrencyAccountTests : ApiTestBase
             .IsEqualTo(HttpStatusCode.NotFound);
     }
 
+    [Test]
+    public async Task Its_accounts_can_be_renamed_but_stay_in_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family));
+        var main = group.Accounts.Single();
+
+        var res = await anna.PatchAsJsonAsync($"/api/accounts/{main.Id}",
+            new { name = "Revolut Francs", multiCurrencyAccountId = (Guid?)null });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var renamed = (await anna.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{group.Id}"))!.Accounts.Single();
+        await Assert.That(renamed.Name).IsEqualTo("Revolut Francs");
+        await Assert.That(renamed.MultiCurrencyAccountId).IsEqualTo(group.Id);
+    }
+
+    [Test]
+    public async Task A_multi_currency_account_can_be_renamed_and_keeps_its_ingest_folder()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family));
+
+        var res = await anna.PatchAsJsonAsync($"/api/multi-currency-accounts/{group.Id}", new { name = "Revolut Anna" });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var renamed = (await anna.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{group.Id}"))!;
+        await Assert.That(renamed.Name).IsEqualTo("Revolut Anna");
+        await Assert.That(renamed.Slug).IsEqualTo("revolut");
+    }
+
+    [Test]
+    public async Task Accounts_cannot_be_added_to_a_multi_currency_account_by_hand()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", Family));
+
+        var res = await anna.PostAsJsonAsync("/api/accounts", new
+        {
+            name = "Revolut EUR",
+            owner = Family,
+            integrationKey = "test",
+            currency = "EUR",
+            openingBalance = 0m,
+            openingDate = "2026-01-01",
+            multiCurrencyAccountId = group.Id,
+        });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var created = (await res.Content.ReadFromJsonAsync<Account>())!;
+        await Assert.That(created.MultiCurrencyAccountId).IsNull();
+        var unchanged = (await anna.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{group.Id}"))!;
+        await Assert.That(unchanged.Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
+    }
+
+    [Test]
+    public async Task A_multi_currency_integration_cannot_be_chosen_for_a_plain_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var res = await anna.PostAsJsonAsync("/api/accounts", new
+        {
+            name = "Revolut CHF",
+            owner = Family,
+            integrationKey = "test-multi",
+            currency = "CHF",
+            openingBalance = 0m,
+            openingDate = "2026-01-01",
+        });
+
+        await AssertValidationErrorAsync(res, "integrationKey");
+        await Assert.That(await ListAccountsAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_single_currency_integration_cannot_be_chosen_for_a_multi_currency_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var res = await anna.PostAsJsonAsync("/api/multi-currency-accounts", NewGroup("TKB", Family, integrationKey: "test"));
+
+        await AssertValidationErrorAsync(res, "integrationKey");
+        await Assert.That(await ListGroupsAsync(anna)).IsEmpty();
+    }
+
     // ---- helpers ----
 
     /// Adds an Account in another currency to a group, as importing a statement with a new currency will (#25).
