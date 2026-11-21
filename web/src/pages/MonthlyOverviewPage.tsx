@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router'
 import { ReportBreakdown, ReportOwnerToggle, ReportSideToggle, ReportTotals } from '../components/ReportViews'
 import { getMonthlyReport, type MonthlyReport } from '../lib/api'
 import { reportOwnerFromParams, reportSideFromParams } from '../lib/reportParams'
-import './reports.css'
+import '../styles/reports.css'
 
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',

@@ -27,7 +27,7 @@ import {
 import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
 import { formatAmount, formatDate } from '../lib/format'
-import './accounts.css'
+import '../styles/accounts.css'
 
 /** Rounded square before an Account: brown for a Multi-currency account, teal for the Family's, neutral otherwise. */
 function AccountIcon({ label, tone }: { label: string; tone: 'multi' | 'family' | 'member' | 'currency' }) {

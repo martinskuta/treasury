@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { SystemStatus } from '../components/SystemStatus'
 import { isAdmin } from '../lib/api'
 import { useMe } from '../lib/auth'
-import './settings.css'
+import '../styles/settings.css'
 
 function SettingsTile({ to, icon, title, children }: { to: string; icon: string; title: string; children: string }) {
   return (

@@ -11,7 +11,7 @@ import {
   type Category,
 } from '../lib/api'
 import { firstError, GENERIC_ERROR, toErrors, type Errors } from '../lib/errors'
-import './settings.css'
+import '../styles/settings.css'
 
 /** Depth in the tree (0 = top level), following parentId. */
 function depthOf(c: Category, byId: Map<string, Category>) {

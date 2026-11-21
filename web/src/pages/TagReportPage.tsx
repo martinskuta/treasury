@@ -14,7 +14,7 @@ import {
 } from '../lib/api'
 import { formatDate } from '../lib/format'
 import { reportOwnerFromParams, reportSideFromParams } from '../lib/reportParams'
-import './reports.css'
+import '../styles/reports.css'
 
 const toPeriod = (allTime: boolean, from: string, to: string): TagReportPeriod =>
   allTime ? 'all' : from || to ? { from, to } : 'default'

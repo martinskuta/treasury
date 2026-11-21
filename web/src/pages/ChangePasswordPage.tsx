@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { FormField } from '../components/FormField'
 import { changePassword } from '../lib/api'
 import { toErrors, type Errors } from '../lib/errors'
-import './settings.css'
+import '../styles/settings.css'
 
 export function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('')

@@ -27,7 +27,7 @@ import {
 import { useMe } from '../lib/auth'
 import { toErrors, type Errors } from '../lib/errors'
 import { ownerRefFromValue, ownerValue } from '../lib/owners'
-import './settings.css'
+import '../styles/settings.css'
 
 /** Owner <select> value: "" (don't set an Owner), "family" or a Member id. */
 const ruleOwnerValue = (owner: Owner | OwnerRef | null) => (owner === null ? '' : ownerValue(owner))

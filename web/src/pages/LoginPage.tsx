@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router'
 import { FormField } from '../components/FormField'
 import { ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import './login.css'
+import '../styles/login.css'
 
 export function LoginPage() {
   const auth = useAuth()

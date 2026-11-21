@@ -15,7 +15,7 @@ import {
 import { toErrors, type Errors } from '../lib/errors'
 import { ownerRefFromValue, ownerValue } from '../lib/owners'
 import { formatDate } from '../lib/format'
-import './settings.css'
+import '../styles/settings.css'
 
 /** "1.7.2026 – 14.7.2026 · Family, anna" or "No date range". */
 function describeRange(tag: Tag) {

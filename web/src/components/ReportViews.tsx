@@ -1,5 +1,5 @@
 /*
- * Building blocks of the reports (Monthly overview, Tag report); styles in pages/reports.css (imported by the report pages).
+ * Building blocks of the reports (Monthly overview, Tag report); styles in styles/reports.css (imported by the report pages).
  *
  *   <ReportOwnerToggle owner={owner} onChange={…} />        // Mine / Family segmented control
  *   <ReportTotals report={report} />                        // UI component: Income and Expense bars, Net

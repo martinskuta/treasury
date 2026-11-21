@@ -17,7 +17,7 @@ import {
 import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
 import { ownerRefFromValue } from '../lib/owners'
-import './settings.css'
+import '../styles/settings.css'
 
 /** Initials for the avatar: "anna.muster" -> "AM", "martin" -> "M". */
 function initials(userName: string): string {
