@@ -162,8 +162,21 @@ supported.
 For Revolut, export the account statement from the Revolut app as **CSV (Excel)** in **English** and import the
 file as it is. Its header is
 `Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance` (a UTF-8 byte order mark
-is fine). One Revolut account holds several currencies, and a file can contain all of them.
+is fine). One Revolut account holds several currencies, and a file can contain all of them, so Revolut is used
+through a **Multi-currency account**: create one with the Revolut Integration and a main currency, then drop the
+file into its Ingest folder (`ingest/<slug>/`) or upload it from its **Imports** on the Accounts screen.
 
+- Each row goes to the Multi-currency account's Account in the row's currency. A currency without an Account yet
+  gets one during the import, named `<Multi-currency account name> <CUR>` (renamable), with the group's Owner,
+  opened on the day before that currency's first row with the balance before that row (see below). The import
+  result says "Created Account ...". Only CHF, CZK, EUR and USD can have Accounts: a file with rows in another
+  currency is rejected.
+- The file is one Source file. Duplicates, Rules, date-range Tags and the balance check work per Account as
+  usual; an exchange between two of its currencies is paired as a Transfer when both legs' CHF values are
+  within 2% and at most a day apart (exchange rates for that day must be known).
+  Undoing the import removes its Transactions in every currency; Accounts it created stay.
+- Files go to the Multi-currency account's `processed/` or `failed/`. Its Accounts have no Ingest folder of their
+  own, and uploads straight into one of them are rejected.
 - Revolut statements have no account identifier, so Accounts using it can't have an identifier.
 - Only rows with Product `Current` and State `COMPLETED` are imported; everything else (savings and other
   `Deposit` rows, `PENDING`, `REVERTED`, `DECLINED`, ...) is skipped. Type and State may be written in title case
