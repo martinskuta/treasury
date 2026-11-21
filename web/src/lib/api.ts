@@ -178,6 +178,8 @@ export type MultiCurrencyAccount = {
   owner: Owner
   integrationKey: string
   mainCurrency: Currency
+  /** Optional identifier (e.g. IBAN) its statements are checked against; its Accounts have none of their own. */
+  identifier: string | null
   /** The main-currency Account first. */
   accounts: Account[]
   /** Sum of its Accounts' balances in the main currency at today's rates; null while a rate is missing. */
@@ -194,6 +196,8 @@ export type NewMultiCurrencyAccount = {
   /** Of the main-currency Account, created with it. */
   openingBalance: number | null
   openingDate: string | null
+  /** Only when the Integration can provide one. */
+  identifier: string | null
 }
 
 export const listMultiCurrencyAccounts = (signal?: AbortSignal) =>
@@ -202,8 +206,9 @@ export const listMultiCurrencyAccounts = (signal?: AbortSignal) =>
 export const createMultiCurrencyAccount = (multiCurrencyAccount: NewMultiCurrencyAccount) =>
   apiFetch<MultiCurrencyAccount>('/api/multi-currency-accounts', { method: 'POST', body: multiCurrencyAccount })
 
-export const renameMultiCurrencyAccount = (id: string, name: string) =>
-  apiFetch<MultiCurrencyAccount>(`/api/multi-currency-accounts/${id}`, { method: 'PATCH', body: { name } })
+/** Renames a Multi-currency account and, when `identifier` is given, sets its identifier ('' removes it). */
+export const updateMultiCurrencyAccount = (id: string, changes: { name: string; identifier?: string }) =>
+  apiFetch<MultiCurrencyAccount>(`/api/multi-currency-accounts/${id}`, { method: 'PATCH', body: changes })
 
 /** Every Owner something can be assigned to: the Family first, then each Member. */
 export const listOwners = (signal?: AbortSignal) => apiFetch<Owner[]>('/api/owners', { signal })
