@@ -1,0 +1,125 @@
+/*
+ * Chart primitives (components/charts): inline SVG and pill bars styled from the tokens
+ * (docs/design-guidelines.md, "Charts"). Use the React components; these classes are their internals plus
+ * the legend, which can also be used on its own:
+ *   .legend (list: dot, label, value right-aligned) / .legend-inline (one row) → <ChartLegend>
+ *   .dot  8px colour dot (set background)
+ */
+.chart {
+  min-width: 0;
+}
+
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.chart text {
+  fill: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.chart text.current {
+  fill: var(--ink);
+  font-weight: 700;
+}
+
+.chart .donut-label {
+  font-size: 11px;
+}
+
+.chart .donut-value {
+  fill: var(--ink);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.84rem;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.legend .legend-value {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.legend-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.legend-inline li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-inline .legend-value {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pill progress bar */
+.pill-track {
+  height: 10px;
+  border-radius: 99px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.pill-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  transition: width 250ms ease-out;
+}
+
+/* Stacked bar: rounded segments with 4px gaps */
+.stackbar {
+  display: flex;
+  gap: 4px;
+  height: 12px;
+}
+
+.stackbar > span {
+  min-width: 10px;
+  border-radius: 99px;
+}
+
+.stackbar.empty-bar {
+  border-radius: 99px;
+  background: var(--track);
+}
