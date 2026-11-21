@@ -96,7 +96,13 @@ export type Owner = { kind: 'family' | 'member'; memberId: string | null; name: 
 
 // ---- Integrations ----
 
-export type Integration = { key: string; name: string; canProvideIdentifier: boolean }
+export type Integration = {
+  key: string
+  name: string
+  canProvideIdentifier: boolean
+  /** Used only through a Multi-currency account, never by a plain Account. */
+  holdsSeveralCurrencies: boolean
+}
 
 export const listIntegrations = (signal?: AbortSignal) => apiFetch<Integration[]>('/api/integrations', { signal })
 
@@ -120,6 +126,8 @@ export type Account = {
   balance: number
   /** Set when the most recent statement's closing balance differs from the calculated balance on that date. */
   balanceWarning: BalanceWarning | null
+  /** The Multi-currency account it belongs to; such an Account has no Ingest folder of its own. */
+  multiCurrencyAccountId: string | null
 }
 
 /** Computed on every read: it disappears once the balances match again. */
@@ -149,6 +157,42 @@ export const createAccount = (account: NewAccount) =>
 
 export const renameAccount = (id: string, name: string) =>
   apiFetch<Account>(`/api/accounts/${id}`, { method: 'PATCH', body: { name } })
+
+// ---- Multi-currency accounts ----
+
+/** A group of one Owner's Accounts, one per currency, that one provider holds together (e.g. Revolut). */
+export type MultiCurrencyAccount = {
+  id: string
+  name: string
+  /** Name of its Ingest folder: ingest/<slug>/ */
+  slug: string
+  owner: Owner
+  integrationKey: string
+  mainCurrency: Currency
+  /** The main-currency Account first. */
+  accounts: Account[]
+  /** Sum of its Accounts' balances in the main currency at today's rates; null while a rate is missing. */
+  totalBalance: number | null
+}
+
+export type NewMultiCurrencyAccount = {
+  name: string
+  owner: OwnerRef
+  integrationKey: string
+  mainCurrency: Currency
+  /** Of the main-currency Account, created with it. */
+  openingBalance: number | null
+  openingDate: string | null
+}
+
+export const listMultiCurrencyAccounts = (signal?: AbortSignal) =>
+  apiFetch<MultiCurrencyAccount[]>('/api/multi-currency-accounts', { signal })
+
+export const createMultiCurrencyAccount = (group: NewMultiCurrencyAccount) =>
+  apiFetch<MultiCurrencyAccount>('/api/multi-currency-accounts', { method: 'POST', body: group })
+
+export const renameMultiCurrencyAccount = (id: string, name: string) =>
+  apiFetch<MultiCurrencyAccount>(`/api/multi-currency-accounts/${id}`, { method: 'PATCH', body: { name } })
 
 /** Every Owner something can be assigned to: the Family first, then each Member. */
 export const listOwners = (signal?: AbortSignal) => apiFetch<Owner[]>('/api/owners', { signal })
@@ -484,10 +528,15 @@ export const suggestRule = (transactionId: string, signal?: AbortSignal) =>
 /** A Member as the Admin sees them in member management. */
 export type MemberSummary = { id: string; userName: string; isAdmin: boolean; isActive: boolean }
 
-/** One of a Member's Accounts, just enough to choose who gets it on deactivation. */
-export type HandoverAccount = { id: string; name: string; currency: Currency }
+/**
+ * One of a Member's Accounts, just enough to choose who gets it on deactivation. A Multi-currency account is
+ * listed (and handed over) as a whole instead of its Accounts; its currency is the main currency.
+ */
+export type HandoverAccount = { id: string; name: string; currency: Currency; isMultiCurrencyAccount: boolean }
 
-export type Handover = { accountId: string; owner: OwnerRef }
+export type Handover =
+  | { accountId: string; owner: OwnerRef }
+  | { multiCurrencyAccountId: string; owner: OwnerRef }
 
 export const listMembers = (signal?: AbortSignal) => apiFetch<MemberSummary[]>('/api/admin/members', { signal })
 

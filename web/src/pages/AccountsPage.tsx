@@ -4,36 +4,50 @@ import { SelectField } from '../components/SelectField'
 import {
   ApiError,
   createAccount,
+  createMultiCurrencyAccount,
   currencies,
   deleteSourceFile,
   importStatement,
   listAccounts,
   listIntegrations,
+  listMultiCurrencyAccounts,
   listSourceFiles,
   renameAccount,
+  renameMultiCurrencyAccount,
   sourceFileContentUrl,
   type Account,
   type Currency,
   type ImportResult,
   type Integration,
+  type MultiCurrencyAccount,
+  type OwnerRef,
   type SourceFile,
 } from '../lib/api'
 import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
 import { formatAmount, formatDate } from '../lib/format'
 
-/** The Accounts the Member can see (their own and the Family's) with balances; create and rename. */
+/**
+ * The Accounts the Member can see (their own and the Family's) with balances; create and rename. The Accounts of a
+ * Multi-currency account are shown nested under it, with its total in the main currency.
+ */
 export function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
+  const [groups, setGroups] = useState<MultiCurrencyAccount[]>([])
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [loadError, setLoadError] = useState(false)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
-    Promise.all([listAccounts(controller.signal), listIntegrations(controller.signal)])
-      .then(([a, i]) => {
+    Promise.all([
+      listAccounts(controller.signal),
+      listMultiCurrencyAccounts(controller.signal),
+      listIntegrations(controller.signal),
+    ])
+      .then(([a, g, i]) => {
         setAccounts(a)
+        setGroups(g)
         setIntegrations(i)
       })
       .catch(() => {
@@ -43,11 +57,20 @@ export function AccountsPage() {
   }, [])
 
   const reloadAccounts = () =>
-    listAccounts()
-      .then(setAccounts)
+    Promise.all([listAccounts(), listMultiCurrencyAccounts()])
+      .then(([a, g]) => {
+        setAccounts(a)
+        setGroups(g)
+      })
       .catch(() => setLoadError(true))
 
   const integrationName = (key: string) => integrations.find(i => i.key === key)?.name ?? key
+  const plainAccounts = accounts?.filter(a => a.multiCurrencyAccountId === null) ?? []
+  // Accounts and groups in one list, by name.
+  const rows = [
+    ...plainAccounts.map(a => ({ name: a.name, account: a, group: null })),
+    ...groups.map(g => ({ name: g.name, account: null, group: g })),
+  ].sort((x, y) => x.name.localeCompare(y.name))
 
   return (
     <>
@@ -56,19 +79,30 @@ export function AccountsPage() {
       {accounts === null && !loadError && <p>Loading…</p>}
       {accounts !== null && (
         <section className="card">
-          {accounts.length === 0 ? (
+          {rows.length === 0 ? (
             <p>No Accounts yet.</p>
           ) : (
             <ul className="account-list">
-              {accounts.map(a => (
-                <AccountRow
-                  key={a.id}
-                  account={a}
-                  integrationName={integrationName(a.integrationKey)}
-                  onRenamed={renamed => setAccounts(list => list?.map(x => (x.id === renamed.id ? renamed : x)) ?? null)}
-                  onImported={() => void reloadAccounts()}
-                />
-              ))}
+              {rows.map(({ account, group }) =>
+                group ? (
+                  <GroupRow
+                    key={group.id}
+                    group={group}
+                    integrationName={integrationName(group.integrationKey)}
+                    onChanged={() => void reloadAccounts()}
+                  />
+                ) : (
+                  <AccountRow
+                    key={account.id}
+                    account={account}
+                    integrationName={integrationName(account.integrationKey)}
+                    onRenamed={renamed =>
+                      setAccounts(list => list?.map(x => (x.id === renamed.id ? renamed : x)) ?? null)
+                    }
+                    onImported={() => void reloadAccounts()}
+                  />
+                ),
+              )}
             </ul>
           )}
         </section>
@@ -91,6 +125,112 @@ export function AccountsPage() {
   )
 }
 
+/** Inline rename form; calls onSave with the new name and closes when it resolves. */
+function RenameForm({
+  initialName,
+  onSave,
+  onClose,
+}: {
+  initialName: string
+  onSave: (name: string) => Promise<void>
+  onClose: () => void
+}) {
+  const [name, setName] = useState(initialName)
+  const [errors, setErrors] = useState<Errors>({})
+  const [busy, setBusy] = useState(false)
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setErrors({})
+    try {
+      await onSave(name)
+      onClose()
+    } catch (err) {
+      setErrors(toErrors(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="account-rename" onSubmit={save}>
+      <FormField
+        label="Name"
+        name="name"
+        required
+        autoFocus
+        value={name}
+        errors={errors.name ?? errors.form}
+        onChange={e => setName(e.target.value)}
+      />
+      <button type="submit" className="button-primary" disabled={busy}>
+        Save
+      </button>
+      <button type="button" className="button-secondary" onClick={onClose}>
+        Cancel
+      </button>
+    </form>
+  )
+}
+
+/** A Multi-currency account: its Ingest folder and total, with its Accounts nested (renamable, never moved). */
+function GroupRow({
+  group,
+  integrationName,
+  onChanged,
+}: {
+  group: MultiCurrencyAccount
+  integrationName: string
+  onChanged: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+
+  return (
+    <li className="account-row">
+      <div className="account-main">
+        {editing ? (
+          <RenameForm
+            initialName={group.name}
+            onSave={async name => {
+              await renameMultiCurrencyAccount(group.id, name)
+              onChanged()
+            }}
+            onClose={() => setEditing(false)}
+          />
+        ) : (
+          <>
+            <strong>{group.name}</strong>{' '}
+            <button type="button" className="button-link" onClick={() => setEditing(true)}>
+              Rename
+            </button>
+          </>
+        )}
+        <div className="account-meta">
+          {group.owner.name} · {integrationName} · Multi-currency account · Ingest folder ingest/{group.slug}/
+        </div>
+      </div>
+      <div className="amount account-balance">
+        {group.totalBalance === null ? '–' : formatAmount(group.totalBalance)} {group.mainCurrency}
+        <div className="account-meta">
+          {group.totalBalance === null ? 'total: exchange rate missing' : 'total at today’s rates'}
+        </div>
+      </div>
+      <ul className="account-list account-group">
+        {group.accounts.map(a => (
+          <AccountRow
+            key={a.id}
+            account={a}
+            integrationName={integrationName}
+            onRenamed={() => onChanged()}
+            onImported={onChanged}
+          />
+        ))}
+      </ul>
+    </li>
+  )
+}
+
 function AccountRow({
   account,
   integrationName,
@@ -104,67 +244,43 @@ function AccountRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [name, setName] = useState(account.name)
-  const [errors, setErrors] = useState<Errors>({})
-  const [busy, setBusy] = useState(false)
-
-  async function save(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setErrors({})
-    try {
-      onRenamed(await renameAccount(account.id, name))
-      setEditing(false)
-    } catch (err) {
-      setErrors(toErrors(err))
-    } finally {
-      setBusy(false)
-    }
-  }
+  // An Account in a Multi-currency account has no Ingest folder of its own; files go into the group's.
+  const inGroup = account.multiCurrencyAccountId !== null
 
   return (
     <li className="account-row">
       <div className="account-main">
         {editing ? (
-          <form className="account-rename" onSubmit={save}>
-            <FormField
-              label="Name"
-              name="name"
-              required
-              autoFocus
-              value={name}
-              errors={errors.name ?? errors.form}
-              onChange={e => setName(e.target.value)}
-            />
-            <button type="submit" className="button-primary" disabled={busy}>
-              Save
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => {
-                setEditing(false)
-                setName(account.name)
-                setErrors({})
-              }}
-            >
-              Cancel
-            </button>
-          </form>
+          <RenameForm
+            initialName={account.name}
+            onSave={async name => onRenamed(await renameAccount(account.id, name))}
+            onClose={() => setEditing(false)}
+          />
         ) : (
           <>
             <strong>{account.name}</strong>{' '}
             <button type="button" className="button-link" onClick={() => setEditing(true)}>
               Rename
-            </button>{' '}
-            <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
-              {importing ? 'Close imports' : 'Imports'}
             </button>
+            {!inGroup && (
+              <>
+                {' '}
+                <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
+                  {importing ? 'Close imports' : 'Imports'}
+                </button>
+              </>
+            )}
           </>
         )}
         <div className="account-meta">
-          {account.owner.name} · {integrationName}
-          {account.identifier && <> · {account.identifier}</>} · Ingest folder ingest/{account.slug}/
+          {inGroup ? (
+            account.currency
+          ) : (
+            <>
+              {account.owner.name} · {integrationName}
+              {account.identifier && <> · {account.identifier}</>} · Ingest folder ingest/{account.slug}/
+            </>
+          )}
         </div>
         {account.balanceWarning && (
           <p className="status status-bad account-warning" role="alert">
@@ -350,7 +466,9 @@ function NewAccountForm({
   const [busy, setBusy] = useState(false)
 
   const integration = integrations.find(i => i.key === integrationKey)
-  const offerIdentifier = integration?.canProvideIdentifier ?? false
+  // An Integration holding several currencies is used only through a Multi-currency account (ADR-0009).
+  const multiCurrency = integration?.holdsSeveralCurrencies ?? false
+  const offerIdentifier = !multiCurrency && (integration?.canProvideIdentifier ?? false)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -361,16 +479,28 @@ function NewAccountForm({
     }
     setBusy(true)
     setErrors({})
+    const ownerRef: OwnerRef = owner === 'family' ? { kind: 'family' } : { kind: 'member', memberId: me.id }
     try {
-      await createAccount({
-        name,
-        owner: owner === 'family' ? { kind: 'family' } : { kind: 'member', memberId: me.id },
-        integrationKey,
-        currency,
-        openingBalance: balance,
-        openingDate: openingDate || null,
-        identifier: offerIdentifier && identifier.trim() ? identifier.trim() : null,
-      })
+      if (multiCurrency) {
+        await createMultiCurrencyAccount({
+          name,
+          owner: ownerRef,
+          integrationKey,
+          mainCurrency: currency,
+          openingBalance: balance,
+          openingDate: openingDate || null,
+        })
+      } else {
+        await createAccount({
+          name,
+          owner: ownerRef,
+          integrationKey,
+          currency,
+          openingBalance: balance,
+          openingDate: openingDate || null,
+          identifier: offerIdentifier && identifier.trim() ? identifier.trim() : null,
+        })
+      }
       onCreated()
     } catch (err) {
       setErrors(toErrors(err))
@@ -410,11 +540,18 @@ function NewAccountForm({
           </option>
         ))}
       </SelectField>
+      {multiCurrency && (
+        <p className="account-meta">
+          {integration?.name} holds several currencies, so this creates a Multi-currency account: one Ingest folder,
+          an Account for the main currency now, and one for each further currency when a statement first contains
+          it. Its total balance is shown in the main currency.
+        </p>
+      )}
       <SelectField
-        label="Currency"
+        label={multiCurrency ? 'Main currency' : 'Currency'}
         name="currency"
         value={currency}
-        errors={errors.currency}
+        errors={multiCurrency ? errors.mainCurrency : errors.currency}
         onChange={e => setCurrency(e.target.value as Currency)}
       >
         {currencies.map(c => (
@@ -424,7 +561,7 @@ function NewAccountForm({
         ))}
       </SelectField>
       <FormField
-        label="Opening balance"
+        label={multiCurrency ? 'Opening balance (main currency)' : 'Opening balance'}
         name="openingBalance"
         inputMode="decimal"
         required
@@ -457,7 +594,7 @@ function NewAccountForm({
       )}
       <div className="form-actions">
         <button type="submit" className="button-primary" disabled={busy || integrations.length === 0}>
-          Create Account
+          {multiCurrency ? 'Create Multi-currency account' : 'Create Account'}
         </button>
         <button type="button" className="button-secondary" onClick={onCancel}>
           Cancel

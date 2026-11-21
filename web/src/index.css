@@ -353,6 +353,14 @@ h1 {
   flex: 1 1 200px;
 }
 
+/* A Multi-currency account: its Accounts nested under it. */
+.account-group {
+  flex-basis: 100%;
+  margin-top: 4px;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+}
+
 /* ---- Import (Accounts page) ---- */
 .import-panel {
   margin-top: 10px;

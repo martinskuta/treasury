@@ -9,6 +9,7 @@ import {
   listMembers,
   resetMemberPassword,
   setMemberAdmin,
+  type Handover,
   type HandoverAccount,
   type MemberSummary,
   type Owner,
@@ -310,12 +311,12 @@ function DeactivateForm({
     e.preventDefault()
     setBusy(true)
     setErrors({})
-    const handover = Object.entries(targets)
-      .filter(([, target]) => target !== KEEP)
-      .map(([accountId, target]) => ({
-        accountId,
-        owner: ownerRefFromValue(target),
-      }))
+    const handover: Handover[] = (accounts ?? [])
+      .filter(a => (targets[a.id] ?? FAMILY) !== KEEP)
+      .map(a => {
+        const owner = ownerRefFromValue(targets[a.id] ?? FAMILY)
+        return a.isMultiCurrencyAccount ? { multiCurrencyAccountId: a.id, owner } : { accountId: a.id, owner }
+      })
     try {
       await deactivateMember(member.id, handover)
       onDone()
@@ -335,7 +336,11 @@ function DeactivateForm({
       {accounts?.map(a => (
         <OwnerSelect
           key={a.id}
-          label={`Hand “${a.name}” (${a.currency}) to`}
+          label={
+            a.isMultiCurrencyAccount
+              ? `Hand “${a.name}” (Multi-currency account, all its Accounts) to`
+              : `Hand “${a.name}” (${a.currency}) to`
+          }
           name={`handover-${a.id}`}
           owners={targetOwners}
           value={targets[a.id] ?? FAMILY}
