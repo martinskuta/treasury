@@ -24,6 +24,10 @@ _Avoid_: Superuser, root, administrator account
 A place where the Family holds money in a single currency, such as a bank account, card or cash wallet. Every Account has exactly one Owner.
 _Avoid_: Wallet, pocket, bank account (when meaning any Account)
 
+**Multi-currency account**:
+A group of Accounts of one Owner that one provider holds together, one Account per currency (for example a Revolut login with CHF, EUR and USD). It has a main currency, in which its total balance is shown, and gets an Account for a new currency automatically when a statement first contains that currency. It is not itself an Account, and the Accounts in it are ordinary Accounts.
+_Avoid_: Account group, parent account, wallet, sub-account (for the Accounts in it)
+
 **Owner**:
 The Member, or the Family as a whole, that an Account or Transaction belongs to. A Transaction's Owner defaults to its Account's Owner but can be changed to the Family or any Member.
 _Avoid_: Payer, holder, assignee
@@ -77,7 +81,7 @@ A supported source of statements (such as a particular bank) whose exports Treas
 _Avoid_: Importer, connector, provider, plugin
 
 **Ingest folder**:
-The folder belonging to one Account where statement files are dropped to be imported into that Account.
+The folder belonging to one Account, or to one Multi-currency account, where statement files are dropped to be imported into it. For a Multi-currency account, each row goes to its Account in the row's currency.
 _Avoid_: Inbox, drop folder, import folder, consume folder
 
 **Source file**:
