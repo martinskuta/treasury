@@ -32,15 +32,17 @@ export function monthSoFar(today: Date): string {
 export const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
 /**
- * The Latest Tag: the Tag whose date range started most recently (ranges starting after `today` haven't started);
- * without such a Tag, the most recently created one. Tag ids are UUIDv7, so they sort by creation time.
+ * The Latest Tag: the Tag whose date range started most recently; without such a Tag, the most recently created one.
+ * Tags whose date range starts after `today` haven't started and are never chosen. Tag ids are UUIDv7, so they sort
+ * by creation time.
  */
 export function latestTag(tags: Tag[], today: string): Tag | null {
   const byCreation = (a: Tag, b: Tag) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
-  const started = tags
-    .filter(t => t.dateFrom !== null && t.dateFrom <= today)
+  const candidates = tags.filter(t => t.dateFrom === null || t.dateFrom <= today)
+  const started = candidates
+    .filter(t => t.dateFrom !== null)
     .sort((a, b) => (a.dateFrom! < b.dateFrom! ? 1 : a.dateFrom! > b.dateFrom! ? -1 : byCreation(a, b)))
-  return started[0] ?? [...tags].sort(byCreation)[0] ?? null
+  return started[0] ?? candidates.sort(byCreation)[0] ?? null
 }
 
 /** "02.08. – 16.08.2026"; the year is shown once when both ends share it. */
@@ -75,10 +77,10 @@ export type AccountEntry =
 
 export type AccountsSummary = {
   entries: AccountEntry[]
-  /** Sum of every entry that has a CHF value. */
+  /** Sum of every entry's balance in CHF at today's exchange rates. */
   totalChf: number
-  /** Entries left out of the total: in another currency, or a Multi-currency account still missing a rate. */
-  notInTotal: number
+  /** Entries left out of the total because an exchange rate is still missing. */
+  withoutRate: number
 }
 
 const ownedBy = (owner: Account['owner'], filter: ReportOwner, me: Me) =>
@@ -99,22 +101,16 @@ export function accountsSummary(
   ].sort((a, b) => entryName(a).localeCompare(entryName(b)))
 
   let totalChf = 0
-  let notInTotal = 0
+  let withoutRate = 0
   for (const entry of entries) {
-    const chf = entryChf(entry)
-    if (chf === null) notInTotal++
+    const chf = entry.kind === 'account' ? entry.account.balanceChf : entry.multi.totalBalanceChf
+    if (chf === null) withoutRate++
     else totalChf += chf
   }
-  return { entries, totalChf, notInTotal }
+  return { entries, totalChf, withoutRate }
 }
 
 const entryName = (e: AccountEntry) => (e.kind === 'account' ? e.account.name : e.multi.name)
-
-/** The entry's balance in CHF, or null when it isn't in CHF (no exchange rates in the API for plain Accounts). */
-function entryChf(e: AccountEntry): number | null {
-  if (e.kind === 'account') return e.account.currency === 'CHF' ? e.account.balance : null
-  return e.multi.mainCurrency === 'CHF' ? e.multi.totalBalance : null
-}
 
 /** Short badge text for an Account icon: an all-caps first word ("TKB Privatkonto" -> "TKB"), else its initial. */
 export function accountBadge(name: string): string {

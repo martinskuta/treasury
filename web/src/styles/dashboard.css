@@ -240,17 +240,19 @@
   padding: 22px 26px 16px;
 }
 
-.dash-trend-head {
-  display: flex;
+.dash-trend .ui-component-title {
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 8px 36px;
   margin-bottom: 8px;
 }
 
-.dash-trend-head h2 {
-  margin: 0 auto 0 0;
-  font-size: 0.95rem;
+.dash-trend-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 36px;
+  font-weight: 400;
+  letter-spacing: normal;
 }
 
 .dash-stat .label {
@@ -375,11 +377,12 @@
     padding: 20px 18px 12px;
   }
 
-  .dash-trend-head {
+  .dash-trend .ui-component-title,
+  .dash-trend-stats {
     gap: 10px 22px;
   }
 
-  .dash-trend-head h2 {
+  .dash-trend .ui-component-title h2 {
     width: 100%;
   }
 }

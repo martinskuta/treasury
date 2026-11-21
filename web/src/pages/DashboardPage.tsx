@@ -18,6 +18,7 @@ import {
   listTags,
   listUncategorised,
   type ReportOwner,
+  type TagReport,
 } from '../lib/api'
 import { useMe } from '../lib/auth'
 import {
@@ -65,8 +66,8 @@ export function DashboardPage() {
   const tagReport = useLoad(tag ? `tag|${tag.id}|${owner}` : null, signal =>
     getTagReport(tag!.id, owner, 'default', signal),
   )
-  const latest: Load<{ report: Awaited<ReturnType<typeof getTagReport>> } | null> =
-    tags.status !== 'ready' ? tags : tag === null ? { status: 'ready', data: null } : mapLoad(tagReport, report => ({ report }))
+  const latest: Load<TagReport | null> =
+    tags.status !== 'ready' ? tags : tag === null ? { status: 'ready', data: null } : tagReport
 
   const setOwner = (next: ReportOwner) => {
     const updated = new URLSearchParams(params)
