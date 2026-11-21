@@ -49,7 +49,7 @@ export function FilterBar({
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Search Transactions"
+          placeholder="Search"
           aria-label="Search (description, note, counterparty, …)"
         />
         <button type="submit" className="button-secondary button-small">
@@ -99,10 +99,6 @@ export function FilterBar({
             ))}
           </select>
         )}
-        <select className="input" aria-label="Owner" value={value('owner')} onChange={e => onChange({ owner: e.target.value })}>
-          <option value="">Any Owner</option>
-          <OwnerOptions owners={owners} />
-        </select>
         <div className="tx-dates">
           <label className="input tx-date">
             <span>From</span>
@@ -113,6 +109,10 @@ export function FilterBar({
             <input type="date" name="to" value={value('to')} onChange={e => onChange({ to: e.target.value })} />
           </label>
         </div>
+        <select className="input" aria-label="Owner" value={value('owner')} onChange={e => onChange({ owner: e.target.value })}>
+          <option value="">Any Owner</option>
+          <OwnerOptions owners={owners} />
+        </select>
         <select
           className="input"
           aria-label="Sort"

@@ -45,7 +45,7 @@ export function RowAmount({ transaction: t }: { transaction: Transaction }) {
       </span>
       {t.originalAmount !== null && t.originalCurrency !== null && (
         <small title="Paid in the original currency">
-          {t.originalCurrency} {formatAmount(t.originalAmount)}
+          {t.originalCurrency} {formatAmount(Math.abs(t.originalAmount))}
         </small>
       )}
       {t.currency !== 'CHF' && (

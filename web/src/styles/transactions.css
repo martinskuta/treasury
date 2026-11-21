@@ -102,7 +102,11 @@
     display: contents;
   }
 
-  .tx-dates,
+  /* The date range takes the wide first column of the second row. */
+  .tx-dates {
+    grid-column: 1;
+  }
+
   .tx-filters-clear {
     grid-column: auto;
   }
@@ -335,11 +339,27 @@
     font-size: 0.82rem;
   }
 
+  /* Two lines at most, as airy as on a wide screen; Edit shows everything. */
+  .tx-sub {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
   .tx-actions,
   .tx-category-picker {
     order: 1;
     flex: 1 1 calc(100% - var(--tx-indent));
-    margin-left: calc(var(--tx-indent) - 12px);
+    margin-left: var(--tx-indent);
+  }
+
+  .tx-actions {
+    margin-top: -2px;
+  }
+
+  .tx-category-picker {
+    width: auto;
   }
 
   .tx-extra {
@@ -347,7 +367,7 @@
   }
 }
 
-/* With a mouse the actions stay out of the way until the row is hovered, focused or selected. */
+/* With a mouse the actions stay out of the way until the row is hovered or focused. */
 @media (min-width: 700px) and (hover: hover) {
   .tx:hover {
     background: var(--brown-hover);
@@ -363,8 +383,7 @@
   }
 
   .tx:hover .tx-actions,
-  .tx:focus-within .tx-actions,
-  .tx.selected .tx-actions {
+  .tx:focus-within .tx-actions {
     opacity: 1;
   }
 }
