@@ -60,21 +60,16 @@ public static class AccountEndpoints
             var errors = new Dictionary<string, string[]>();
 
             var name = request.Name?.Trim();
-            ValidateName(name, errors);
-
-            var owner = request.Owner?.ToOwner();
-            if (owner is null) errors["owner"] = ["Choose yourself or the Family as the Owner."];
+            AccountValidation.Name(name, MaxNameLength, errors);
+            var owner = AccountValidation.Owner(request.Owner, errors);
 
             var integration = integrations.Find(request.IntegrationKey);
             if (integration is null) errors["integrationKey"] = ["Choose an Integration."];
             else if (integration.HoldsSeveralCurrencies)
                 errors["integrationKey"] = ["This Integration holds several currencies; create a Multi-currency account for it."];
 
-            if (request.Currency is null || !Currencies.All.Contains(request.Currency))
-                errors["currency"] = [$"Choose one of {string.Join(", ", Currencies.All)}."];
-
-            if (request.OpeningBalance is null) errors["openingBalance"] = ["Enter the opening balance."];
-            if (request.OpeningDate is null) errors["openingDate"] = ["Enter the date of the opening balance."];
+            AccountValidation.Currency(request.Currency, "currency", errors);
+            AccountValidation.Opening(request.OpeningBalance, request.OpeningDate, errors);
 
             var identifier = string.IsNullOrWhiteSpace(request.Identifier) ? null : request.Identifier.Trim();
             if (identifier is not null && integration is { CanProvideIdentifier: false })
@@ -115,7 +110,7 @@ public static class AccountEndpoints
 
             var errors = new Dictionary<string, string[]>();
             var name = request.Name?.Trim();
-            ValidateName(name, errors);
+            AccountValidation.Name(name, MaxNameLength, errors);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
             account.Name = name!;
@@ -133,12 +128,6 @@ public static class AccountEndpoints
 
     private static Task<Account?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Accounts.OwnedByViewerOrFamily(viewer).SingleOrDefaultAsync(a => a.Id == id);
-
-    internal static void ValidateName(string? name, Dictionary<string, string[]> errors, int maxLength = MaxNameLength)
-    {
-        if (string.IsNullOrEmpty(name)) errors["name"] = ["Enter a name."];
-        else if (name.Length > maxLength) errors["name"] = [$"Use at most {maxLength} characters."];
-    }
 
     private static Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts) =>
         db.MemberNamesAsync(accounts.Select(a => a.OwnerMemberId));

@@ -27,26 +27,26 @@ public static class MultiCurrencyAccountEndpoints
 
     public static void MapMultiCurrencyAccounts(this RouteGroupBuilder api)
     {
-        var groups = api.MapGroup("/multi-currency-accounts");
+        var multiCurrencyAccounts = api.MapGroup("/multi-currency-accounts");
 
-        groups.MapGet("/", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter converter,
+        multiCurrencyAccounts.MapGet("/", async (ClaimsPrincipal user, TreasuryDbContext db, ChfConverter converter,
             TimeProvider clock) =>
         {
-            var list = await db.MultiCurrencyAccounts.Include(g => g.Accounts)
-                .OwnedByViewerOrFamily(user.MemberId()).OrderBy(g => g.Name).ToListAsync();
+            var list = await db.MultiCurrencyAccounts.Include(m => m.Accounts)
+                .OwnedByViewerOrFamily(user.MemberId()).OrderBy(m => m.Name).ToListAsync();
             return Results.Ok(await ToResponsesAsync(db, converter, clock, list));
         });
 
-        groups.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
+        multiCurrencyAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
             ChfConverter converter, TimeProvider clock) =>
         {
-            var group = await FindVisibleAsync(db, id, user.MemberId());
-            return group is null
+            var multiCurrencyAccount = await FindVisibleAsync(db, id, user.MemberId());
+            return multiCurrencyAccount is null
                 ? Results.NotFound()
-                : Results.Ok((await ToResponsesAsync(db, converter, clock, [group])).Single());
+                : Results.Ok((await ToResponsesAsync(db, converter, clock, [multiCurrencyAccount])).Single());
         });
 
-        groups.MapPost("/", async (CreateMultiCurrencyAccountRequest request, ClaimsPrincipal user,
+        multiCurrencyAccounts.MapPost("/", async (CreateMultiCurrencyAccountRequest request, ClaimsPrincipal user,
             TreasuryDbContext db, IntegrationRegistry integrations, IngestFolders folders, ChfConverter converter,
             TimeProvider clock) =>
         {
@@ -54,28 +54,23 @@ public static class MultiCurrencyAccountEndpoints
             var errors = new Dictionary<string, string[]>();
 
             var name = request.Name?.Trim();
-            ValidateName(name, errors, MaxNameLength);
-
-            var owner = request.Owner?.ToOwner();
-            if (owner is null) errors["owner"] = ["Choose yourself or the Family as the Owner."];
+            AccountValidation.Name(name, MaxNameLength, errors);
+            var owner = AccountValidation.Owner(request.Owner, errors);
 
             var integration = integrations.Find(request.IntegrationKey);
             if (integration is null) errors["integrationKey"] = ["Choose an Integration."];
             else if (!integration.HoldsSeveralCurrencies)
                 errors["integrationKey"] = ["This Integration holds one currency; create a plain Account for it."];
 
-            if (request.MainCurrency is null || !Currencies.All.Contains(request.MainCurrency))
-                errors["mainCurrency"] = [$"Choose one of {string.Join(", ", Currencies.All)}."];
-
-            if (request.OpeningBalance is null) errors["openingBalance"] = ["Enter the opening balance."];
-            if (request.OpeningDate is null) errors["openingDate"] = ["Enter the date of the opening balance."];
+            AccountValidation.Currency(request.MainCurrency, "mainCurrency", errors);
+            AccountValidation.Opening(request.OpeningBalance, request.OpeningDate, errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!owner!.Value.IsManageableBy(viewer)) return Results.Forbid();
 
             var slug = await folders.UniqueSlugAsync(db, name!);
             var accountName = $"{name} {request.MainCurrency}";
-            var group = new MultiCurrencyAccount
+            var multiCurrencyAccount = new MultiCurrencyAccount
             {
                 Name = name!,
                 Slug = slug,
@@ -95,56 +90,56 @@ public static class MultiCurrencyAccountEndpoints
                     },
                 },
             };
-            group.SetOwner(owner.Value);
+            multiCurrencyAccount.SetOwner(owner.Value);
             folders.Create(slug);
-            db.MultiCurrencyAccounts.Add(group);
+            db.MultiCurrencyAccounts.Add(multiCurrencyAccount);
             await db.SaveChangesAsync();
 
-            return Results.Created($"/api/multi-currency-accounts/{group.Id}",
-                (await ToResponsesAsync(db, converter, clock, [group])).Single());
+            return Results.Created($"/api/multi-currency-accounts/{multiCurrencyAccount.Id}",
+                (await ToResponsesAsync(db, converter, clock, [multiCurrencyAccount])).Single());
         });
 
-        groups.MapPatch("/{id:guid}", async (Guid id, RenameMultiCurrencyAccountRequest request, ClaimsPrincipal user,
-            TreasuryDbContext db, ChfConverter converter, TimeProvider clock) =>
+        multiCurrencyAccounts.MapPatch("/{id:guid}", async (Guid id, RenameMultiCurrencyAccountRequest request,
+            ClaimsPrincipal user, TreasuryDbContext db, ChfConverter converter, TimeProvider clock) =>
         {
             var viewer = user.MemberId();
-            var group = await FindVisibleAsync(db, id, viewer);
-            if (group is null) return Results.NotFound();
-            if (!group.Owner.IsManageableBy(viewer)) return Results.Forbid();
+            var multiCurrencyAccount = await FindVisibleAsync(db, id, viewer);
+            if (multiCurrencyAccount is null) return Results.NotFound();
+            if (!multiCurrencyAccount.Owner.IsManageableBy(viewer)) return Results.Forbid();
 
             var errors = new Dictionary<string, string[]>();
             var name = request.Name?.Trim();
-            ValidateName(name, errors, MaxNameLength);
+            AccountValidation.Name(name, MaxNameLength, errors);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-            group.Name = name!;
+            multiCurrencyAccount.Name = name!;
             await db.SaveChangesAsync();
-            return Results.Ok((await ToResponsesAsync(db, converter, clock, [group])).Single());
+            return Results.Ok((await ToResponsesAsync(db, converter, clock, [multiCurrencyAccount])).Single());
         });
     }
 
     private static Task<MultiCurrencyAccount?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
-        db.MultiCurrencyAccounts.Include(g => g.Accounts).OwnedByViewerOrFamily(viewer)
-            .SingleOrDefaultAsync(g => g.Id == id);
+        db.MultiCurrencyAccounts.Include(m => m.Accounts).OwnedByViewerOrFamily(viewer)
+            .SingleOrDefaultAsync(m => m.Id == id);
 
     private static async Task<List<MultiCurrencyAccountResponse>> ToResponsesAsync(TreasuryDbContext db,
-        ChfConverter converter, TimeProvider clock, IReadOnlyCollection<MultiCurrencyAccount> groups)
+        ChfConverter converter, TimeProvider clock, IReadOnlyCollection<MultiCurrencyAccount> multiCurrencyAccounts)
     {
-        var accounts = groups.SelectMany(g => g.Accounts).ToList();
-        var names = await db.MemberNamesAsync(groups.Select(g => g.OwnerMemberId));
-        var balances = await AccountBalances.CurrentAsync(db, accounts);
-        var mismatches = await AccountBalances.MismatchesAsync(db, accounts);
+        var allAccounts = multiCurrencyAccounts.SelectMany(m => m.Accounts).ToList();
+        var names = await db.MemberNamesAsync(multiCurrencyAccounts.Select(m => m.OwnerMemberId));
+        var balances = await AccountBalances.CurrentAsync(db, allAccounts);
+        var mismatches = await AccountBalances.MismatchesAsync(db, allAccounts);
         var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
         var rates = await converter.LoadAsync(today, today);
 
-        return groups.Select(g =>
+        return multiCurrencyAccounts.Select(m =>
         {
-            var members = g.Accounts.OrderBy(a => a.Currency != g.MainCurrency).ThenBy(a => a.Name)
+            var accounts = m.Accounts.OrderBy(a => a.Currency != m.MainCurrency).ThenBy(a => a.Name)
                 .Select(a => ToResponse(a, names, balances, mismatches)).ToList();
-            var converted = members.Select(a => rates.Convert(a.Balance, a.Currency, g.MainCurrency, today)).ToList();
+            var converted = accounts.Select(a => rates.Convert(a.Balance, a.Currency, m.MainCurrency, today)).ToList();
             decimal? total = converted.Any(c => c is null) ? null : converted.Sum(c => c!.Value);
-            return new MultiCurrencyAccountResponse(g.Id, g.Name, g.Slug, OwnerResponse.From(g.Owner, names),
-                g.IntegrationKey, g.MainCurrency, members, total);
+            return new MultiCurrencyAccountResponse(m.Id, m.Name, m.Slug, OwnerResponse.From(m.Owner, names),
+                m.IntegrationKey, m.MainCurrency, accounts, total);
         }).ToList();
     }
 }
