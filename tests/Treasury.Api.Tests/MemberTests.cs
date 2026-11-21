@@ -22,11 +22,14 @@ public class MemberTests : ApiTestBase
     {
         await LoginAsAdminAsync();
 
-        var res = await Client.PostAsJsonAsync("/api/admin/members", new { userName = "anna", password = "Anna-Pa55word" });
+        var res = await Client.PostAsJsonAsync("/api/admin/members",
+            new { userName = "anna", firstName = " Anna ", lastName = " Škutová ", password = "Anna-Pa55word" });
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var created = await res.Content.ReadFromJsonAsync<MemberRow>();
         await Assert.That(created!.UserName).IsEqualTo("anna");
+        await Assert.That(created.FirstName).IsEqualTo("Anna");
+        await Assert.That(created.LastName).IsEqualTo("Škutová");
         await Assert.That(created.IsAdmin).IsFalse();
         await Assert.That(created.IsActive).IsTrue();
         using var anna = NewClient();
@@ -42,13 +45,18 @@ public class MemberTests : ApiTestBase
         await LoginAsAdminAsync();
 
         var taken = await Client.PostAsJsonAsync("/api/admin/members",
-            new { userName = TreasuryApiFactory.AdminUserName, password = "Anna-Pa55word" });
-        var weak = await Client.PostAsJsonAsync("/api/admin/members", new { userName = "anna", password = "short" });
-        var blank = await Client.PostAsJsonAsync("/api/admin/members", new { userName = " ", password = "Anna-Pa55word" });
+            new { userName = TreasuryApiFactory.AdminUserName, firstName = "Anna", password = "Anna-Pa55word" });
+        var weak = await Client.PostAsJsonAsync("/api/admin/members", new { userName = "anna", firstName = "Anna", password = "short" });
+        var blank = await Client.PostAsJsonAsync("/api/admin/members", new { userName = " ", firstName = "Anna", password = "Anna-Pa55word" });
+        var noFirstName = await Client.PostAsJsonAsync("/api/admin/members", new { userName = "anna", firstName = " ", password = "Anna-Pa55word" });
+        var longLastName = await Client.PostAsJsonAsync("/api/admin/members",
+            new { userName = "anna", firstName = "Anna", lastName = new string('x', 101), password = "Anna-Pa55word" });
 
         await AssertValidationErrorAsync(taken, "userName");
         await AssertValidationErrorAsync(weak, "password");
         await AssertValidationErrorAsync(blank, "userName");
+        await AssertValidationErrorAsync(noFirstName, "firstName");
+        await AssertValidationErrorAsync(longLastName, "lastName");
         var members = await Client.GetFromJsonAsync<List<MemberRow>>("/api/admin/members");
         await Assert.That(members!).Count().IsEqualTo(1);
     }
@@ -208,7 +216,7 @@ public class MemberTests : ApiTestBase
         await LoginAsync(bob, "bob", MemberPassword);
         var bobs = await bob.GetFromJsonAsync<AccountRow>($"/api/accounts/{savings}");
         await Assert.That(bobs!.Owner.MemberId).IsEqualTo(bobId);
-        await Assert.That(bobs.Owner.Name).IsEqualTo("bob");
+        await Assert.That(bobs.Owner.Name).IsEqualTo("Bob (bob)");
     }
 
     [Test]
@@ -346,6 +354,54 @@ public class MemberTests : ApiTestBase
         await Assert.That(members.Single(m => m.UserName == "bob").IsActive).IsTrue();
     }
 
+    [Test]
+    public async Task The_first_admin_starts_with_their_username_as_first_name()
+    {
+        await LoginAsAdminAsync();
+
+        var admin = (await Client.GetFromJsonAsync<List<MemberRow>>("/api/admin/members"))!.Single();
+
+        await Assert.That(admin.FirstName).IsEqualTo(TreasuryApiFactory.AdminUserName);
+        await Assert.That(admin.LastName).IsNull();
+    }
+
+    [Test]
+    public async Task An_admin_can_rename_any_member_including_a_deactivated_one_and_their_label_follows()
+    {
+        var annaId = await AddMemberAsync("anna");
+        var bobId = await AddMemberAsync("bob");
+        await LoginAsAdminAsync();
+        await Client.PostAsJsonAsync($"/api/admin/members/{bobId}/deactivate", new { handover = Array.Empty<object>() });
+
+        var anna = await Client.PutAsJsonAsync($"/api/admin/members/{annaId}/name", new { firstName = "Anička", lastName = "Škutová" });
+        var bob = await Client.PutAsJsonAsync($"/api/admin/members/{bobId}/name", new { firstName = "Robert", lastName = "" });
+
+        await Assert.That(anna.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var renamed = await anna.Content.ReadFromJsonAsync<MemberRow>();
+        await Assert.That(renamed!.FirstName).IsEqualTo("Anička");
+        await Assert.That(renamed.LastName).IsEqualTo("Škutová");
+        await Assert.That(bob.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await bob.Content.ReadFromJsonAsync<MemberRow>())!.LastName).IsNull();
+        var owners = (await Client.GetFromJsonAsync<List<OwnerRow>>("/api/owners"))!;
+        await Assert.That(owners.Select(o => o.Name)).IsEquivalentTo(["Family", "admin (admin)", "Anička Š. (anna)"]);
+    }
+
+    [Test]
+    public async Task Renaming_a_member_needs_a_first_name_the_admin_role_and_a_known_member()
+    {
+        var annaId = await AddMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        await LoginAsAdminAsync();
+
+        var blank = await Client.PutAsJsonAsync($"/api/admin/members/{annaId}/name", new { firstName = "  ", lastName = "Muster" });
+        var unknown = await Client.PutAsJsonAsync($"/api/admin/members/{Guid.NewGuid()}/name", new { firstName = "Anna" });
+        var asMember = await bob.PutAsJsonAsync($"/api/admin/members/{annaId}/name", new { firstName = "Anna" });
+
+        await AssertValidationErrorAsync(blank, "firstName");
+        await Assert.That(unknown.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That(asMember.StatusCode).IsEqualTo(HttpStatusCode.Forbidden);
+    }
+
     private static async Task AssertValidationErrorAsync(HttpResponseMessage res, string field)
     {
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
@@ -357,5 +413,5 @@ public class MemberTests : ApiTestBase
 
     private record Me(Guid Id, string UserName, List<string> Roles);
 
-    private record MemberRow(Guid Id, string UserName, bool IsAdmin, bool IsActive);
+    private record MemberRow(Guid Id, string UserName, string FirstName, string? LastName, bool IsAdmin, bool IsActive);
 }

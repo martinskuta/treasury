@@ -43,11 +43,13 @@ public abstract class ApiTestBase : IAsyncDisposable
     }
 
     /// Adds a (non-Admin) Member with MemberPassword as the Admin (in a separate session) and returns their id.
+    /// Their first name is the username capitalised ("anna" -> "Anna"), so they are labelled "Anna (anna)".
     protected async Task<Guid> AddMemberAsync(string userName)
     {
+        var firstName = char.ToUpperInvariant(userName[0]) + userName[1..];
         using var admin = NewClient();
         await LoginAsync(admin, TreasuryApiFactory.AdminUserName, TreasuryApiFactory.AdminPassword);
-        var res = await admin.PostAsJsonAsync("/api/admin/members", new { userName, password = MemberPassword });
+        var res = await admin.PostAsJsonAsync("/api/admin/members", new { userName, firstName, password = MemberPassword });
         if (res.StatusCode != HttpStatusCode.Created)
             throw new InvalidOperationException($"Adding Member {userName} failed: {(int)res.StatusCode}");
         return (await res.Content.ReadFromJsonAsync<CreatedMember>())!.Id;

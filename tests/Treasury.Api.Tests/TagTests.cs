@@ -89,7 +89,7 @@ public class TagTests : ApiTestBase
 
         await Assert.That(tag.DateFrom).IsEqualTo(new DateOnly(2026, 7, 1));
         await Assert.That(tag.DateTo).IsEqualTo(new DateOnly(2026, 7, 14));
-        await Assert.That(tag.Owners.Select(o => o.Name)).IsEquivalentTo(["Family", "anna"]);
+        await Assert.That(tag.Owners.Select(o => o.Name)).IsEquivalentTo(["Family", "Anna (anna)"]);
 
         var cleared = await anna.PutAsJsonAsync($"/api/tags/{tag.Id}", new { name = "holiday" });
         var reloaded = (await cleared.Content.ReadFromJsonAsync<Tag>())!;

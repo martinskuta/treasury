@@ -11,7 +11,7 @@ The group of people whose finances Treasury tracks together. An installation of 
 _Avoid_: Household, group, tenant, organization
 
 **Member**:
-An adult who belongs to the Family and whose finances can be tracked individually. Members are never deleted; an Admin **deactivates** a Member, which stops their login but keeps their data, and can hand their Accounts to the Family or another Member.
+An adult who belongs to the Family and whose finances can be tracked individually. A Member logs in with a **username** and has a required **first name** and an optional **last name**, which they or an Admin can change; wherever Members are listed, Treasury identifies one as first name, last-name initial and username (for example "Martin Š. (martin)"), so two Members with the same first name stay distinguishable. Members are never deleted; an Admin **deactivates** a Member, which stops their login but keeps their data, and can hand their Accounts to the Family or another Member.
 _Avoid_: User, person, family member
 
 **Admin**:

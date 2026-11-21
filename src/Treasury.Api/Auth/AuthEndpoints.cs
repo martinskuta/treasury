@@ -9,9 +9,9 @@ public static class AuthEndpoints
 
     public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
-    public record MeResponse(Guid Id, string UserName, IReadOnlyList<string> Roles);
+    public record MeResponse(Guid Id, string UserName, string FirstName, string? LastName, IReadOnlyList<string> Roles);
 
-    /// /api/auth/*: login, logout, the current Member, changing one's own password.
+    /// /api/auth/*: login, logout, the current Member, changing one's own name and password.
     public static void MapAuth(this RouteGroupBuilder api)
     {
         var auth = api.MapGroup("/auth");
@@ -48,6 +48,19 @@ public static class AuthEndpoints
             return Results.NoContent();
         });
 
+        auth.MapPut("/name", async (Members.MemberEndpoints.NameRequest request, ClaimsPrincipal user, UserManager<Member> members) =>
+        {
+            var member = await members.GetUserAsync(user);
+            if (member is null) return Results.Unauthorized();
+            if (Members.MemberNames.Validate(request.FirstName, request.LastName, out var firstName, out var lastName) is { } errors)
+                return Results.ValidationProblem(errors);
+
+            member.FirstName = firstName;
+            member.LastName = lastName;
+            await members.UpdateAsync(member);
+            return Results.Ok(await ToMeAsync(member, members));
+        });
+
         auth.MapGet("/me", async (ClaimsPrincipal user, UserManager<Member> members) =>
         {
             var member = await members.GetUserAsync(user);
@@ -56,5 +69,5 @@ public static class AuthEndpoints
     }
 
     private static async Task<MeResponse> ToMeAsync(Member member, UserManager<Member> members) =>
-        new(member.Id, member.UserName!, [.. await members.GetRolesAsync(member)]);
+        new(member.Id, member.UserName!, member.FirstName, member.LastName, [.. await members.GetRolesAsync(member)]);
 }

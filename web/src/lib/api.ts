@@ -66,7 +66,7 @@ export async function getHealth(signal?: AbortSignal): Promise<Health> {
 // ---- Auth ----
 
 /** The logged-in Member. */
-export type Me = { id: string; userName: string; roles: string[] }
+export type Me = { id: string; userName: string; firstName: string; lastName: string | null; roles: string[] }
 
 export const isAdmin = (me: Me) => me.roles.includes('Admin')
 
@@ -83,6 +83,10 @@ export async function getMe(signal?: AbortSignal): Promise<Me | null> {
   return (await res.json()) as Me
 }
 
+/** Change the logged-in Member's own name; returns the updated Member. */
+export const changeMyName = (firstName: string, lastName: string) =>
+  apiFetch<Me>('/api/auth/name', { method: 'PUT', body: { firstName, lastName } })
+
 export const changePassword = (currentPassword: string, newPassword: string) =>
   apiFetch<void>('/api/auth/password', { method: 'POST', body: { currentPassword, newPassword } })
 
@@ -91,7 +95,7 @@ export const changePassword = (currentPassword: string, newPassword: string) =>
 /** Who something belongs to: a Member or the Family. Requests send `{ kind: 'family' }` or `{ kind: 'member', memberId }`. */
 export type OwnerRef = { kind: 'family' } | { kind: 'member'; memberId: string }
 
-/** An Owner as the API returns it; `name` is the Member's user name or "Family". */
+/** An Owner as the API returns it; `name` is the Member's label ("Martin Š. (martin)") or "Family". */
 export type Owner = { kind: 'family' | 'member'; memberId: string | null; name: string }
 
 // ---- Integrations ----
@@ -548,7 +552,14 @@ export const suggestRule = (transactionId: string, signal?: AbortSignal) =>
 // ---- Members (Admin only: /api/admin/members) ----
 
 /** A Member as the Admin sees them in member management. */
-export type MemberSummary = { id: string; userName: string; isAdmin: boolean; isActive: boolean }
+export type MemberSummary = {
+  id: string
+  userName: string
+  firstName: string
+  lastName: string | null
+  isAdmin: boolean
+  isActive: boolean
+}
 
 /**
  * One of a Member's Accounts, just enough to choose who gets it on deactivation. A Multi-currency account is
@@ -562,8 +573,14 @@ export type Handover =
 
 export const listMembers = (signal?: AbortSignal) => apiFetch<MemberSummary[]>('/api/admin/members', { signal })
 
-export const addMember = (userName: string, password: string) =>
-  apiFetch<MemberSummary>('/api/admin/members', { method: 'POST', body: { userName, password } })
+export type NewMember = { userName: string; firstName: string; lastName: string; password: string }
+
+export const addMember = (member: NewMember) =>
+  apiFetch<MemberSummary>('/api/admin/members', { method: 'POST', body: member })
+
+/** Rename any Member, deactivated ones included. */
+export const setMemberName = (id: string, firstName: string, lastName: string) =>
+  apiFetch<MemberSummary>(`/api/admin/members/${id}/name`, { method: 'PUT', body: { firstName, lastName } })
 
 export const resetMemberPassword = (id: string, newPassword: string) =>
   apiFetch<void>(`/api/admin/members/${id}/password`, { method: 'POST', body: { newPassword } })

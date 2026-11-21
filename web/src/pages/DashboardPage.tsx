@@ -23,7 +23,6 @@ import {
 import { useMe } from '../lib/auth'
 import {
   accountsSummary,
-  greetingName,
   isoDate,
   lastMonths,
   latestTag,
@@ -78,7 +77,7 @@ export function DashboardPage() {
   return (
     <div className="dash-bento">
       <WelcomeStrip
-        name={greetingName(me.userName)}
+        name={me.firstName}
         subtitle={monthSoFar(today)}
         owner={owner}
         onOwnerChange={setOwner}

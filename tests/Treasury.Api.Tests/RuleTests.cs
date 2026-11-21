@@ -38,7 +38,7 @@ public class RuleTests : ApiTestBase
         var coop = await CreateRuleAsync(bob, new { field = "description", match = "contains", text = "coop", owner = Family });
 
         await Assert.That(migros.Text).IsEqualTo("Migros");
-        await Assert.That(migros.Author.Name).IsEqualTo("anna");
+        await Assert.That(migros.Author.Name).IsEqualTo("Anna (anna)");
         await Assert.That(migros.Category?.Path).IsEqualTo("Food › Groceries");
         await Assert.That(sbb.Tags.Select(t => t.Name)).IsEquivalentTo(["holiday"]);
         await Assert.That(coop.Owner!.Kind).IsEqualTo("family");
@@ -49,7 +49,7 @@ public class RuleTests : ApiTestBase
         await Assert.That(edited.Text).IsEqualTo("SBB CFF");
         await Assert.That(edited.Match).IsEqualTo("contains");
         await Assert.That(edited.Tags).IsEmpty();
-        await Assert.That(edited.Author.Name).IsEqualTo("bob");
+        await Assert.That(edited.Author.Name).IsEqualTo("Bob (bob)");
         await Assert.That(edited.Priority).IsEqualTo(1);
 
         var reordered = await bob.PutAsJsonAsync("/api/rules/order", new { ruleIds = new[] { coop.Id, migros.Id, sbb.Id } });

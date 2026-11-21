@@ -128,5 +128,32 @@ public class AuthTests : ApiTestBase
         await Assert.That(me.Roles).IsEmpty();
     }
 
-    private sealed record Me(string UserName, List<string> Roles);
+    [Test]
+    public async Task A_member_can_change_their_own_name()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var res = await anna.PutAsJsonAsync("/api/auth/name", new { firstName = " Anna ", lastName = "Muster" });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        var me = await anna.GetFromJsonAsync<Me>("/api/auth/me");
+        await Assert.That(me!.FirstName).IsEqualTo("Anna");
+        await Assert.That(me.LastName).IsEqualTo("Muster");
+        await Assert.That(me.UserName).IsEqualTo("anna");
+    }
+
+    [Test]
+    public async Task Changing_ones_own_name_needs_a_first_name()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+
+        var res = await anna.PutAsJsonAsync("/api/auth/name", new { firstName = "", lastName = "Muster" });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var me = await anna.GetFromJsonAsync<Me>("/api/auth/me");
+        await Assert.That(me!.FirstName).IsEqualTo("Anna");
+        await Assert.That(me.LastName).IsNull();
+    }
+
+    private sealed record Me(string UserName, string FirstName, string? LastName, List<string> Roles);
 }

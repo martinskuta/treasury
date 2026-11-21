@@ -118,6 +118,3 @@ export function accountBadge(name: string): string {
   if (/^[A-Z0-9]{2,4}$/.test(first)) return first
   return (first[0] ?? '?').toUpperCase()
 }
-
-/** "martin" -> "Martin" for the greeting. */
-export const greetingName = (userName: string) => userName.charAt(0).toUpperCase() + userName.slice(1)

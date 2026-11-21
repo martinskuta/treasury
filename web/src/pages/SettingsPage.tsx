@@ -37,12 +37,12 @@ export function SettingsPage() {
         <SettingsTile to="/settings/rules" icon="R" title="Rules">
           Categorise, tag and assign imported Transactions automatically
         </SettingsTile>
-        <SettingsTile to="/account/password" icon="P" title="Change your password">
-          The password you log in with
+        <SettingsTile to="/account" icon="Y" title="Your account">
+          Your name and the password you log in with
         </SettingsTile>
         {isAdmin(me) && (
           <SettingsTile to="/settings/members" icon="M" title="Members">
-            Add Members, reset passwords, Admin role, deactivate
+            Add Members, names, reset passwords, Admin role, deactivate
           </SettingsTile>
         )}
       </nav>
