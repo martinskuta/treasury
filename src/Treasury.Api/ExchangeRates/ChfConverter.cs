@@ -45,6 +45,15 @@ public sealed class ChfRates
         return Math.Round(amount / fromRate * chfRate, 2, MidpointRounding.AwayFromZero);
     }
 
+    /// <paramref name="amount"/> in <paramref name="to"/>, rounded like <see cref="ToChf"/>; null when a rate is missing.
+    /// Amounts already in <paramref name="to"/> are returned unchanged.
+    public decimal? Convert(decimal amount, string from, string to, DateOnly date)
+    {
+        if (from == to) return amount;
+        if (PerEur(from, date) is not { } fromRate || PerEur(to, date) is not { } toRate) return null;
+        return Math.Round(amount / fromRate * toRate, 2, MidpointRounding.AwayFromZero);
+    }
+
     /// Units of <paramref name="currency"/> per EUR on the most recent stored day on or before <paramref name="date"/>.
     private decimal? PerEur(string currency, DateOnly date)
     {

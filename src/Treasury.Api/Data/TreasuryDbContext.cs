@@ -23,6 +23,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
 
     public DbSet<Account> Accounts => Set<Account>();
 
+    public DbSet<MultiCurrencyAccount> MultiCurrencyAccounts => Set<MultiCurrencyAccount>();
+
     public DbSet<Transaction> Transactions => Set<Transaction>();
 
     public DbSet<SourceFile> SourceFiles => Set<SourceFile>();
@@ -56,6 +58,20 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             a.Property(x => x.Identifier).HasMaxLength(AccountEndpoints.MaxIdentifierLength);
             // Owner: null = the Family. A Member who owns Accounts can't be deleted (handover first, #5).
             a.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<MultiCurrencyAccount>(g =>
+        {
+            g.Ignore(x => x.Owner);
+            g.Property(x => x.Name).HasMaxLength(AccountEndpoints.MaxNameLength);
+            g.Property(x => x.Slug).HasMaxLength(64);
+            g.HasIndex(x => x.Slug).IsUnique();
+            g.Property(x => x.IntegrationKey).HasMaxLength(64);
+            g.Property(x => x.MainCurrency).HasMaxLength(3);
+            g.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
+            // Its Accounts are never detached; a group with Accounts can't be deleted.
+            g.HasMany(x => x.Accounts).WithOne().HasForeignKey(x => x.MultiCurrencyAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<Transaction>(t =>

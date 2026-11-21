@@ -14,6 +14,8 @@ public sealed class TkbIntegration : IIntegration
 
     public bool CanProvideIdentifier => true;
 
+    public bool HoldsSeveralCurrencies => false;
+
     public ParsedStatement Read(SourceFileContent file)
     {
         var statements = Camt053Reader.Read(file, ExportHint);
