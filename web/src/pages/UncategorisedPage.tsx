@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { CategoryOptions } from '../components/CategoryOptions'
-import { OwnerSelect } from '../components/OwnerSelect'
+import { OwnerOptions } from '../components/OwnerSelect'
 import { RuleOffer } from '../components/RuleOffer'
-import { HIDDEN_ACCOUNT } from '../components/transactions/shared'
+import { DayGroups, KindIcon, RowAmount } from '../components/transactions/RowParts'
+import { HIDDEN_ACCOUNT, kindClass } from '../components/transactions/shared'
 import {
   listCategories,
   listOwners,
@@ -13,7 +14,7 @@ import {
   type Owner,
   type Transaction,
 } from '../lib/api'
-import { formatAmount, formatDate } from '../lib/format'
+import '../styles/transactions.css'
 
 /**
  * The Uncategorised queue: every visible Income and Expense without a Category; picking one categorises it.
@@ -52,38 +53,51 @@ export function UncategorisedPage() {
 
   return (
     <>
-      <h1>Uncategorised</h1>
-      <div className="report-controls">
-        <OwnerSelect
-          owners={owners}
+      <div className="page-header">
+        <h1>Uncategorised</h1>
+        <select
+          className="input tx-owner-filter"
+          aria-label="Owner"
           value={owner}
-          before={
-            <>
-              <option value="">Everyone’s</option>
-              <option value="me">Mine</option>
-            </>
-          }
-          onChange={value => setParams(value ? { owner: value } : {})}
-        />
+          onChange={e => setParams(e.target.value ? { owner: e.target.value } : {})}
+        >
+          <option value="">Everyone’s</option>
+          <option value="me">Mine</option>
+          <OwnerOptions owners={owners} />
+        </select>
       </div>
       {loadError && <p className="status status-bad">Couldn’t load the Uncategorised Transactions.</p>}
-      {transactions === null && !loadError && <p>Loading…</p>}
+      {transactions === null && !loadError && <p className="page-loading">Loading…</p>}
       {transactions !== null && (
-        <section className="ui-component">
-          {transactions.length === 0 ? (
-            <p>
-              {owner
-                ? 'Nothing to review for this Owner.'
-                : 'Nothing to review: every Income and Expense has a Category.'}
-            </p>
-          ) : (
-            <ul className="transaction-list">
-              {transactions.map(t => (
-                <UncategorisedRow key={t.id} transaction={t} categories={categories} onCategorised={() => done(t.id)} />
-              ))}
-            </ul>
+        <>
+          {transactions.length > 0 && (
+            <div className="tx-summary">
+              <span>
+                <b className="num">{transactions.length}</b> to review: pick a Category for each
+              </span>
+            </div>
           )}
-        </section>
+          <section className="ui-component tx-box" aria-label="Uncategorised Transactions">
+            {transactions.length === 0 ? (
+              <p className="empty">
+                {owner
+                  ? 'Nothing to review for this Owner.'
+                  : 'Nothing to review: every Income and Expense has a Category.'}
+              </p>
+            ) : (
+              <DayGroups items={transactions} grouped>
+                {t => (
+                  <UncategorisedRow
+                    key={t.id}
+                    transaction={t}
+                    categories={categories}
+                    onCategorised={() => done(t.id)}
+                  />
+                )}
+              </DayGroups>
+            )}
+          </section>
+        </>
       )}
     </>
   )
@@ -116,33 +130,33 @@ function UncategorisedRow({
     }
   }
 
-  if (categorisedAs !== null)
-    return (
-      <li className="transaction-row">
-        <div className="transaction-date">{formatDate(t.date)}</div>
-        <div className="transaction-main">
-          <strong>{t.description}</strong>
-          <div className="account-meta">Categorised as {categorisedAs}</div>
-          <RuleOffer transactionId={t.id} onDismiss={onCategorised} />
-        </div>
-        <div className={`amount transaction-amount ${t.type}`}>
-          {formatAmount(t.amount)} {t.currency}
-        </div>
-      </li>
-    )
+  const details: ReactNode[] = [
+    t.counterparty,
+    categorisedAs === null ? <span className="tx-uncat">Uncategorised</span> : `Categorised as ${categorisedAs}`,
+    `${t.accountName ?? HIDDEN_ACCOUNT} · ${t.owner.name}`,
+    t.note,
+  ].filter(Boolean)
 
   return (
-    <li className="transaction-row">
-      <div className="transaction-date">{formatDate(t.date)}</div>
-      <div className="transaction-main">
-        <strong>{t.description}</strong>
-        <div className="account-meta">
-          {t.accountName ?? HIDDEN_ACCOUNT} · {t.owner.name}
-          {t.note && <> · {t.note}</>}
+    <li className={`tx ${categorisedAs === null ? kindClass(t) : `tx-${t.type}`}`}>
+      <KindIcon transaction={t} />
+      <div className="tx-main">
+        <div className="tx-name">
+          <span className="tx-name-text">{t.displayName ?? t.description}</span>
         </div>
+        <div className="tx-sub">
+          {details.map((d, i) => (
+            <Fragment key={i}>
+              {i > 0 && ' · '}
+              {d}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+      {categorisedAs === null && (
         <select
-          className="category-picker"
-          aria-label={`Category for ${t.description}`}
+          className="input tx-category-picker"
+          aria-label={`Category for ${t.displayName ?? t.description}`}
           value=""
           disabled={busy}
           onChange={e => void categorise(e.target.value)}
@@ -150,15 +164,18 @@ function UncategorisedRow({
           <option value="">Choose a Category…</option>
           <CategoryOptions categories={categories} />
         </select>
-        {error && (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-      <div className={`amount transaction-amount ${t.type}`}>
-        {formatAmount(t.amount)} {t.currency}
-      </div>
+      )}
+      <RowAmount transaction={t} />
+      {(categorisedAs !== null || error) && (
+        <div className="tx-extra">
+          {categorisedAs !== null && <RuleOffer transactionId={t.id} onDismiss={onCategorised} />}
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
     </li>
   )
 }
