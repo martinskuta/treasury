@@ -27,6 +27,29 @@ import {
 import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
 import { formatAmount, formatDate } from '../lib/format'
+import './accounts.css'
+
+/** Rounded square before an Account: brown for a Multi-currency account, teal for the Family's, neutral otherwise. */
+function AccountIcon({ label, tone }: { label: string; tone: 'multi' | 'family' | 'member' | 'currency' }) {
+  return (
+    <span className={`acct-ico acct-ico-${tone}`} aria-hidden="true">
+      {label}
+    </span>
+  )
+}
+
+/** First letter of a name for the icon. */
+const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?'
+
+/** Balance in a list: small muted currency code, Swiss number, Expense red when negative. */
+function Balance({ value, currency }: { value: number | null; currency: string }) {
+  return (
+    <span className={`acct-amount num${value !== null && value < 0 ? ' exp' : ''}`}>
+      <span className="acct-cur">{currency}</span>
+      {value === null ? '–' : formatAmount(value)}
+    </span>
+  )
+}
 
 /**
  * The Accounts the Member can see (their own and the Family's) with balances; create and rename. The Accounts of a
@@ -78,15 +101,33 @@ export function AccountsPage() {
 
   return (
     <>
-      <h1>Accounts</h1>
+      <div className="page-header">
+        <h1 className="page-title">Accounts</h1>
+        {!creating && (
+          <button type="button" className="button-primary" onClick={() => setCreating(true)}>
+            New Account
+          </button>
+        )}
+      </div>
+      {creating && (
+        <NewAccountForm
+          integrations={integrations}
+          currencies={currencies}
+          onCancel={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false)
+            void reloadAccounts()
+          }}
+        />
+      )}
       {loadError && <p className="status status-bad">Couldn’t load the Accounts.</p>}
-      {accounts === null && !loadError && <p>Loading…</p>}
+      {accounts === null && !loadError && <p className="page-loading">Loading…</p>}
       {accounts !== null && (
-        <section className="ui-component">
+        <section className="ui-component accounts-panel">
           {rows.length === 0 ? (
-            <p>No Accounts yet.</p>
+            <p className="empty">No Accounts yet.</p>
           ) : (
-            <ul className="account-list">
+            <ul className="acct-list">
               {rows.map(({ account, multiCurrencyAccount }) =>
                 multiCurrencyAccount ? (
                   <MultiCurrencyAccountRow
@@ -110,21 +151,6 @@ export function AccountsPage() {
             </ul>
           )}
         </section>
-      )}
-      {creating ? (
-        <NewAccountForm
-          integrations={integrations}
-          currencies={currencies}
-          onCancel={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false)
-            void reloadAccounts()
-          }}
-        />
-      ) : (
-        <button type="button" className="button-primary" onClick={() => setCreating(true)}>
-          New Account
-        </button>
       )}
     </>
   )
@@ -159,7 +185,7 @@ function RenameForm({
   }
 
   return (
-    <form className="account-rename" onSubmit={save}>
+    <form className="acct-rename" onSubmit={save}>
       <FormField
         label="Name"
         name="name"
@@ -169,12 +195,14 @@ function RenameForm({
         errors={errors.name ?? errors.form}
         onChange={e => setName(e.target.value)}
       />
-      <button type="submit" className="button-primary" disabled={busy}>
-        Save
-      </button>
-      <button type="button" className="button-secondary" onClick={onClose}>
-        Cancel
-      </button>
+      <div className="form-actions">
+        <button type="submit" className="button-primary button-small" disabled={busy}>
+          Save
+        </button>
+        <button type="button" className="button-secondary button-small" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
     </form>
   )
 }
@@ -193,49 +221,55 @@ function MultiCurrencyAccountRow({
   const [importing, setImporting] = useState(false)
 
   return (
-    <li className="account-row">
-      <div className="account-main">
-        {editing ? (
-          <RenameForm
-            initialName={multiCurrencyAccount.name}
-            onSave={async name => {
-              await renameMultiCurrencyAccount(multiCurrencyAccount.id, name)
-              onChanged()
-            }}
-            onClose={() => setEditing(false)}
-          />
-        ) : (
+    <li className="acct-item acct-multi">
+      <div className="acct-line">
+        <AccountIcon label={initial(multiCurrencyAccount.name)} tone="multi" />
+        <div className="acct-name">
+          {editing ? (
+            <RenameForm
+              initialName={multiCurrencyAccount.name}
+              onSave={async name => {
+                await renameMultiCurrencyAccount(multiCurrencyAccount.id, name)
+                onChanged()
+              }}
+              onClose={() => setEditing(false)}
+            />
+          ) : (
+            <strong>{multiCurrencyAccount.name}</strong>
+          )}
+          <small>
+            {multiCurrencyAccount.owner.name} · {integrationName} · Multi-currency account
+          </small>
+        </div>
+        <div className="acct-bal">
+          <Balance value={multiCurrencyAccount.totalBalance} currency={multiCurrencyAccount.mainCurrency} />
+          <small>
+            {multiCurrencyAccount.totalBalance === null ? 'total: exchange rate missing' : 'total at today’s rates'}
+          </small>
+        </div>
+      </div>
+      <div className="acct-actions">
+        {!editing && (
           <>
-            <strong>{multiCurrencyAccount.name}</strong>{' '}
             <button type="button" className="button-link" onClick={() => setEditing(true)}>
               Rename
-            </button>{' '}
-            <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
+            </button>
+            <button type="button" className="button-link" aria-expanded={importing} onClick={() => setImporting(v => !v)}>
               {importing ? 'Close imports' : 'Imports'}
             </button>
           </>
         )}
-        <div className="account-meta">
-          {multiCurrencyAccount.owner.name} · {integrationName} · Multi-currency account · Ingest folder
-          ingest/{multiCurrencyAccount.slug}/
-        </div>
-        {importing && (
-          <ImportPanel
-            target={{ kind: 'multiCurrencyAccount', id: multiCurrencyAccount.id }}
-            slug={multiCurrencyAccount.slug}
-            integrationName={integrationName}
-            onImported={onChanged}
-          />
-        )}
+        <span className="acct-folder">Ingest folder ingest/{multiCurrencyAccount.slug}/</span>
       </div>
-      <div className="amount account-balance">
-        {multiCurrencyAccount.totalBalance === null ? '–' : formatAmount(multiCurrencyAccount.totalBalance)}{' '}
-        {multiCurrencyAccount.mainCurrency}
-        <div className="account-meta">
-          {multiCurrencyAccount.totalBalance === null ? 'total: exchange rate missing' : 'total at today’s rates'}
-        </div>
-      </div>
-      <ul className="account-list multi-currency-account-accounts">
+      {importing && (
+        <ImportPanel
+          target={{ kind: 'multiCurrencyAccount', id: multiCurrencyAccount.id }}
+          slug={multiCurrencyAccount.slug}
+          integrationName={integrationName}
+          onImported={onChanged}
+        />
+      )}
+      <ul className="acct-sub">
         {multiCurrencyAccount.accounts.map(a => (
           <AccountRow
             key={a.id}
@@ -268,62 +302,82 @@ function AccountRow({
   const inMultiCurrencyAccount = account.multiCurrencyAccountId !== null
 
   return (
-    <li className="account-row">
-      <div className="account-main">
-        {editing ? (
-          <RenameForm
-            initialName={account.name}
-            onSave={async name => onRenamed(await renameAccount(account.id, name))}
-            onClose={() => setEditing(false)}
-          />
+    <li className={`acct-item${inMultiCurrencyAccount ? ' acct-nested' : ''}`}>
+      <div className="acct-line">
+        {inMultiCurrencyAccount ? (
+          <AccountIcon label={account.currency} tone="currency" />
         ) : (
-          <>
-            <strong>{account.name}</strong>{' '}
-            <button type="button" className="button-link" onClick={() => setEditing(true)}>
-              Rename
-            </button>
-            {!inMultiCurrencyAccount && (
-              <>
-                {' '}
-                <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
-                  {importing ? 'Close imports' : 'Imports'}
-                </button>
-              </>
-            )}
-          </>
+          <AccountIcon label={initial(account.name)} tone={account.owner.kind === 'family' ? 'family' : 'member'} />
         )}
-        <div className="account-meta">
-          {inMultiCurrencyAccount ? (
-            account.currency
+        <div className="acct-name">
+          {editing ? (
+            <RenameForm
+              initialName={account.name}
+              onSave={async name => onRenamed(await renameAccount(account.id, name))}
+              onClose={() => setEditing(false)}
+            />
           ) : (
             <>
-              {account.owner.name} · {integrationName}
-              {account.identifier && <> · {account.identifier}</>} · Ingest folder ingest/{account.slug}/
+              <strong>{account.name}</strong>
+              {inMultiCurrencyAccount && (
+                <button type="button" className="button-link acct-inline-action" onClick={() => setEditing(true)}>
+                  Rename
+                </button>
+              )}
             </>
           )}
+          <small>
+            {inMultiCurrencyAccount ? (
+              account.currency
+            ) : (
+              <>
+                {account.owner.name} · {integrationName}
+                {account.identifier && <> · {account.identifier}</>}
+              </>
+            )}
+          </small>
         </div>
-        {account.balanceWarning && (
-          <p className="status status-bad account-warning" role="alert">
-            Balance mismatch: {account.balanceWarning.sourceFile.fileName} says{' '}
-            {formatAmount(account.balanceWarning.statementBalance)} {account.currency} on{' '}
-            {formatDate(account.balanceWarning.date)}, but the calculated balance on that date is{' '}
-            {formatAmount(account.balanceWarning.calculatedBalance)} {account.currency}. An import may be missing or
-            doubled.
-          </p>
-        )}
-        {importing && (
-          <ImportPanel
-            target={{ kind: 'account', id: account.id }}
-            slug={account.slug}
-            integrationName={integrationName}
-            onImported={onImported}
-          />
-        )}
+        <div className="acct-bal">
+          <Balance value={account.balance} currency={account.currency} />
+          <small>opening {formatDate(account.openingDate)}</small>
+        </div>
       </div>
-      <div className="amount account-balance">
-        {formatAmount(account.balance)} {account.currency}
-        <div className="account-meta">opening {formatDate(account.openingDate)}</div>
-      </div>
+      {!inMultiCurrencyAccount && (
+        <div className="acct-actions">
+          {!editing && (
+            <>
+              <button type="button" className="button-link" onClick={() => setEditing(true)}>
+                Rename
+              </button>
+              <button type="button" className="button-link" aria-expanded={importing} onClick={() => setImporting(v => !v)}>
+                {importing ? 'Close imports' : 'Imports'}
+              </button>
+            </>
+          )}
+          <span className="acct-folder">Ingest folder ingest/{account.slug}/</span>
+        </div>
+      )}
+      {account.balanceWarning && (
+        <p className="acct-warning" role="alert">
+          <strong>Balance mismatch:</strong> {account.balanceWarning.sourceFile.fileName} says{' '}
+          <span className="num">
+            {formatAmount(account.balanceWarning.statementBalance)} {account.currency}
+          </span>{' '}
+          on {formatDate(account.balanceWarning.date)}, but the calculated balance on that date is{' '}
+          <span className="num">
+            {formatAmount(account.balanceWarning.calculatedBalance)} {account.currency}
+          </span>
+          . An import may be missing or doubled.
+        </p>
+      )}
+      {importing && (
+        <ImportPanel
+          target={{ kind: 'account', id: account.id }}
+          slug={account.slug}
+          integrationName={integrationName}
+          onImported={onImported}
+        />
+      )}
     </li>
   )
 }
@@ -423,8 +477,8 @@ function ImportPanel({
   return (
     <div className="import-panel">
       <form className="import-form" onSubmit={upload}>
-        <label className="field">
-          <span>Statement file ({integrationName})</span>
+        <label className="import-file">
+          <span className="label">Statement file ({integrationName})</span>
           <input key={inputKey} type="file" name="file" onChange={e => setFile(e.target.files?.[0] ?? null)} />
         </label>
         <button type="submit" className="button-primary" disabled={busy || !file}>
@@ -432,48 +486,50 @@ function ImportPanel({
         </button>
       </form>
       {error && (
-        <p className="form-error" role="alert">
+        <p className="import-message import-bad" role="alert">
           Not imported: {error} The file was moved to ingest/{slug}/failed/.
         </p>
       )}
       {result && (
-        <p className="status status-good" role="status">
+        <p className="import-message import-good" role="status">
           Imported {result.importedCount} Transaction{result.importedCount === 1 ? '' : 's'} from{' '}
           {result.sourceFile.fileName}
           {result.skippedCount > 0 && <>, skipped {result.skippedCount} already imported</>}.
         </p>
       )}
       {result?.createdAccounts.map(a => (
-        <p key={a.id} className="status status-good">
+        <p key={a.id} className="import-message import-good">
           Created Account {a.name}.
         </p>
       ))}
       {result?.warnings.map(w => (
-        <p key={w} className="status status-bad">
+        <p key={w} className="import-message import-bad">
           {w}
         </p>
       ))}
       {undone && (
-        <p className="status status-good" role="status">
+        <p className="import-message import-good" role="status">
           Undid the import of {undone}. You can import the file again.
         </p>
       )}
       {undoError && (
-        <p className="form-error" role="alert">
+        <p className="import-message import-bad" role="alert">
           {undoError}
         </p>
       )}
       {sourceFiles && sourceFiles.length > 0 && (
         <>
-          <h3 className="source-file-heading">Imported files</h3>
-          <ul className="source-file-list">
+          <h3 className="source-files-title">Imported files</h3>
+          <ul className="source-files">
             {sourceFiles.map(f => (
               <li key={f.id}>
-                <a href={sourceFileContentUrl(f.id)}>{f.fileName}</a>{' '}
-                <span className="account-meta">
-                  {formatDate(f.importedAt.slice(0, 10))} · {f.transactionCount} Transaction
-                  {f.transactionCount === 1 ? '' : 's'}
-                </span>{' '}
+                <div className="source-file-name">
+                  <a href={sourceFileContentUrl(f.id)}>{f.fileName}</a>
+                  <small>
+                    {formatDate(f.importedAt.slice(0, 10))} · {f.transactionCount} Transaction
+                    {f.transactionCount === 1 ? '' : 's'}
+                  </small>
+                </div>
                 <button type="button" className="button-link" disabled={busy} onClick={() => undo(f)}>
                   Undo import
                 </button>
@@ -553,7 +609,7 @@ function NewAccountForm({
   }
 
   return (
-    <form className="ui-component form" onSubmit={submit}>
+    <form className="ui-component acct-new" onSubmit={submit}>
       <h2>New Account</h2>
       {integrations.length === 0 && (
         <p className="status status-bad">No Integrations are installed yet, so no Account can be created.</p>
@@ -584,7 +640,7 @@ function NewAccountForm({
         ))}
       </SelectField>
       {multiCurrency && (
-        <p className="account-meta">
+        <p className="acct-new-note">
           {integration?.name} holds several currencies, so this creates a Multi-currency account: one Ingest folder,
           an Account for the main currency now, and one for each further currency when a statement first contains
           it. Its total balance is shown in the main currency.
