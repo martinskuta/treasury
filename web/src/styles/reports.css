@@ -1,0 +1,314 @@
+/*
+ * Reports: Monthly overview and Tag report (pages/MonthlyOverviewPage.tsx, pages/TagReportPage.tsx) and their
+ * shared building blocks in components/ReportViews.tsx. Tokens only (styles/tokens.css).
+ *
+ *   .report-toolbar       controls at the right of the page header (Owner toggle, month switcher)
+ *   .report-filters       a row of fields on the cream page (Tag report: Tag, From, To, period)
+ *   .report-grid          Income and Expense (narrow) beside the breakdown (wide); stacked below 1000px
+ *   .report-totals        <ReportTotals>: pill bars and Net
+ *   .breakdown            <ReportBreakdown>: donut + list of Categories with share bars
+ */
+
+/* ---- Header controls ---- */
+.report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.month-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.month-step {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.month-label {
+  min-width: 9em;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* ---- Tag report filters ---- */
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+  margin-bottom: var(--gap);
+}
+
+.report-filters .field {
+  margin: 0;
+  flex: 0 1 180px;
+  min-width: 140px;
+}
+
+.report-filters .field:first-child {
+  flex-basis: 220px;
+}
+
+.report-period {
+  margin-bottom: 4px;
+}
+
+/* Phones: Tag on its own row, From and To side by side, then the period. */
+@media (max-width: 600px) {
+  .report-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-filters .field {
+    min-width: 0;
+  }
+
+  .report-filters .field:first-child,
+  .report-period {
+    grid-column: 1 / -1;
+  }
+
+  .report-period {
+    justify-self: start;
+  }
+}
+
+.report-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 4px 12px;
+  font-size: 0.9rem;
+}
+
+/* ---- Layout ---- */
+.report-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: start;
+  gap: var(--gap);
+}
+
+.report-grid > .ui-component {
+  margin-bottom: 0;
+}
+
+@media (max-width: 1000px) {
+  .report-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- Income and Expense ---- */
+.report-bar + .report-bar {
+  margin-top: 18px;
+}
+
+.report-bar-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.report-bar-top .label {
+  font-size: 0.85rem;
+}
+
+.report-net {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding-top: 26px;
+}
+
+.report-net .label {
+  font-size: 0.85rem;
+}
+
+.report-note {
+  margin: 14px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.report-note + .report-note {
+  margin-top: 6px;
+}
+
+.report-pending {
+  color: var(--exp-ink);
+}
+
+/* ---- Breakdown by Category ---- */
+.report-breakdown-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.report-breakdown-head .segmented button {
+  white-space: nowrap;
+}
+
+/* Phones: the side toggle spans the UI component so both labels fit on one line. */
+@media (max-width: 480px) {
+  .report-breakdown-head .segmented {
+    display: flex;
+    width: 100%;
+  }
+
+  .report-breakdown-head .segmented button {
+    flex: 1 1 0;
+    padding: 5px 6px;
+    font-size: 0.78rem;
+  }
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px;
+  margin: 0 0 18px 2px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.breadcrumb [aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.breadcrumb .button-link {
+  font-size: inherit;
+}
+
+.breadcrumb-sep {
+  margin: 0 6px;
+}
+
+.breakdown {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 18px 32px;
+}
+
+.breakdown-chart {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .breakdown {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.breakdown-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breakdown-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.breakdown-name {
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.breakdown-name .dot {
+  margin-right: 8px;
+  vertical-align: 0.1em;
+}
+
+.breakdown-name .chip {
+  margin-left: 8px;
+}
+
+.breakdown-drill {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.breakdown-drill:hover {
+  color: var(--tr-ink);
+}
+
+.breakdown-direct .breakdown-name {
+  color: var(--muted);
+}
+
+.breakdown-share {
+  min-width: 3em;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.breakdown-amount {
+  min-width: 6em;
+  text-align: right;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.breakdown-bar {
+  height: 10px;
+  margin: 8px 0 0 16px;
+  border-radius: 99px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.breakdown-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  transition: width 250ms ease-out;
+}
+
+.breakdown-total {
+  padding-top: 6px;
+}
+
+.breakdown-total .breakdown-name {
+  font-weight: 600;
+}
+
+.breakdown-total .breakdown-amount {
+  font-size: 1.15rem;
+}
