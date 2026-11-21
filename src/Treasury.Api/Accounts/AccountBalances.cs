@@ -35,14 +35,25 @@ public static class AccountBalances
         IReadOnlyCollection<Account> accounts)
     {
         var ids = accounts.Select(a => a.Id).ToList();
-        var latest = await db.SourceFiles
-            .Where(f => ids.Contains(f.AccountId) && f.ClosingBalanceDate != null && f.ClosingBalanceAmount != null
-                && f.ClosingBalanceDate >= f.Account.OpeningDate)
-            .GroupBy(f => f.AccountId)
+        var single = await db.SourceFiles
+            .Where(f => f.AccountId != null && ids.Contains(f.AccountId.Value) && f.ClosingBalanceDate != null
+                && f.ClosingBalanceAmount != null && f.ClosingBalanceDate >= f.Account!.OpeningDate)
+            .GroupBy(f => f.AccountId!.Value)
             .Select(g => g.OrderByDescending(f => f.ClosingBalanceDate).ThenByDescending(f => f.ImportedAt).ThenByDescending(f => f.Id)
-                .Select(f => new { f.AccountId, f.Id, f.FileName, Date = f.ClosingBalanceDate!.Value, Amount = f.ClosingBalanceAmount!.Value })
+                .Select(f => new StatementBalance(f.AccountId!.Value, f.Id, f.FileName, f.ImportedAt,
+                    f.ClosingBalanceDate!.Value, f.ClosingBalanceAmount!.Value))
                 .First())
             .ToListAsync();
+        // A Multi-currency account's Source file has one closing balance per currency, each for its Account (#25).
+        var perCurrency = await (
+                from b in db.SourceFileClosingBalances
+                join f in db.SourceFiles on b.SourceFileId equals f.Id
+                join a in db.Accounts on b.AccountId equals a.Id
+                where ids.Contains(b.AccountId) && b.Date >= a.OpeningDate
+                select new StatementBalance(b.AccountId, f.Id, f.FileName, f.ImportedAt, b.Date, b.Amount))
+            .ToListAsync();
+        var latest = single.Concat(perCurrency).GroupBy(s => s.AccountId)
+            .Select(g => g.OrderByDescending(s => s.Date).ThenByDescending(s => s.ImportedAt).ThenByDescending(s => s.Id).First());
 
         var result = new Dictionary<Guid, BalanceMismatch>();
         foreach (var statement in latest)
@@ -54,6 +65,9 @@ public static class AccountBalances
         }
         return result;
     }
+
+    private sealed record StatementBalance(Guid AccountId, Guid Id, string FileName, DateTimeOffset ImportedAt,
+        DateOnly Date, decimal Amount);
 }
 
 /// A statement's closing balance that doesn't match the Account's calculated balance on the same date.

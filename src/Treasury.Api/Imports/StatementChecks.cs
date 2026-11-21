@@ -43,10 +43,21 @@ public sealed class ClosingBalanceCheck : IImportStep
     public async Task RunAsync(ImportContext context, CancellationToken ct)
     {
         if (context.Statement.ClosingBalance is not { } closing) return;
-        context.SourceFile.ClosingBalanceDate = closing.Date;
-        context.SourceFile.ClosingBalanceAmount = closing.Amount;
-
         var account = context.Account;
+        if (context.SourceFile.MultiCurrencyAccountId is null)
+        {
+            context.SourceFile.ClosingBalanceDate = closing.Date;
+            context.SourceFile.ClosingBalanceAmount = closing.Amount;
+        }
+        else
+        {
+            // One per currency, each for the group's Account in that currency (#25).
+            context.SourceFile.CurrencyClosingBalances.Add(new SourceFileClosingBalance
+            {
+                SourceFileId = context.SourceFile.Id, AccountId = account.Id, Date = closing.Date, Amount = closing.Amount,
+            });
+        }
+
         if (closing.Date < account.OpeningDate) return; // before the opening balance: nothing to compare with
         var calculated = await AccountBalances.OnAsync(context.Db, account, closing.Date, ct);
         if (calculated != closing.Amount)

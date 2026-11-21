@@ -4,7 +4,7 @@ namespace Treasury.Api.Accounts;
 
 /// A group of one Owner's single-currency Accounts that one provider holds together (GLOSSARY: Multi-currency
 /// account, ADR-0009). It has the Ingest folder; its Accounts have none of their own. It is not itself an Account.
-public class MultiCurrencyAccount : IOwned
+public class MultiCurrencyAccount : IOwned, IImportTarget
 {
     public Guid Id { get; init; } = Guid.CreateVersion7();
 

@@ -13,8 +13,9 @@ public sealed class ImportUndo(TreasuryDbContext db, ImportLocks locks, ImportFi
     /// Deletes the Source file. Permission checks are the caller's job.
     public async Task UndoAsync(SourceFile sourceFile, CancellationToken ct)
     {
-        // Same lock as imports: an undo never interleaves with an import into the same Account.
-        using var _ = await locks.AcquireAsync(sourceFile.AccountId, ct);
+        // Same lock as imports: an undo never interleaves with an import into the same Account (or Multi-currency
+        // account: then the file's Transactions in every currency go, and Accounts the import created stay).
+        using var _ = await locks.AcquireAsync((sourceFile.AccountId ?? sourceFile.MultiCurrencyAccountId)!.Value, ct);
 
         List<Guid> survivors = [];
         await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>

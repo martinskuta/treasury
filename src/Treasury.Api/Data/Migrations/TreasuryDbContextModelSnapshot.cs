@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261121014953_MultiCurrencyAccounts";
+    public override string LastMigrationId => "20261121020352_MultiCurrencyImports";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -390,7 +390,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .ValueGeneratedOnAdd()
                     .HasColumnType("uuid");
 
-                b.Property<Guid>("AccountId")
+                b.Property<Guid?>("AccountId")
                     .HasColumnType("uuid");
 
                 b.Property<decimal?>("ClosingBalanceAmount")
@@ -416,6 +416,9 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Property<Guid?>("ImportedByMemberId")
                     .HasColumnType("uuid");
 
+                b.Property<Guid?>("MultiCurrencyAccountId")
+                    .HasColumnType("uuid");
+
                 b.Property<long>("Size")
                     .HasColumnType("bigint");
 
@@ -430,7 +433,34 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
 
                 b.HasIndex("AccountId", "ImportedAt");
 
-                b.ToTable("SourceFiles");
+                b.HasIndex("MultiCurrencyAccountId", "ImportedAt");
+
+                b.ToTable("SourceFiles", t =>
+                    {
+                        t.HasCheckConstraint("CK_SourceFiles_AccountOrMultiCurrencyAccount", "(\"AccountId\" IS NULL) <> (\"MultiCurrencyAccountId\" IS NULL)");
+                    });
+            });
+
+        modelBuilder.Entity("Treasury.Api.Imports.SourceFileClosingBalance", b =>
+            {
+                b.Property<Guid>("SourceFileId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("AccountId")
+                    .HasColumnType("uuid");
+
+                b.Property<decimal>("Amount")
+                    .HasPrecision(19, 4)
+                    .HasColumnType("numeric(19,4)");
+
+                b.Property<DateOnly>("Date")
+                    .HasColumnType("date");
+
+                b.HasKey("SourceFileId", "AccountId");
+
+                b.HasIndex("AccountId");
+
+                b.ToTable("SourceFileClosingBalances");
             });
 
         modelBuilder.Entity("Treasury.Api.Rules.Rule", b =>
@@ -736,15 +766,36 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.HasOne("Treasury.Api.Accounts.Account", "Account")
                     .WithMany()
                     .HasForeignKey("AccountId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
+                    .OnDelete(DeleteBehavior.Cascade);
 
                 b.HasOne("Treasury.Api.Auth.Member", null)
                     .WithMany()
                     .HasForeignKey("ImportedByMemberId")
                     .OnDelete(DeleteBehavior.SetNull);
 
+                b.HasOne("Treasury.Api.Accounts.MultiCurrencyAccount", "MultiCurrencyAccount")
+                    .WithMany()
+                    .HasForeignKey("MultiCurrencyAccountId")
+                    .OnDelete(DeleteBehavior.Restrict);
+
                 b.Navigation("Account");
+
+                b.Navigation("MultiCurrencyAccount");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Imports.SourceFileClosingBalance", b =>
+            {
+                b.HasOne("Treasury.Api.Accounts.Account", null)
+                    .WithMany()
+                    .HasForeignKey("AccountId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Treasury.Api.Imports.SourceFile", null)
+                    .WithMany("CurrencyClosingBalances")
+                    .HasForeignKey("SourceFileId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Treasury.Api.Rules.Rule", b =>
@@ -847,6 +898,11 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
         modelBuilder.Entity("Treasury.Api.Accounts.MultiCurrencyAccount", b =>
             {
                 b.Navigation("Accounts");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Imports.SourceFile", b =>
+            {
+                b.Navigation("CurrencyClosingBalances");
             });
 
         modelBuilder.Entity("Treasury.Api.Rules.Rule", b =>
