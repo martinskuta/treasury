@@ -67,8 +67,11 @@ export function WelcomeStrip({
         {net.status === 'ready' ? (
           <Amount value={net.data} signed tone="auto" size="l" />
         ) : (
-          <span className="amount-display size-l dash-net-pending" aria-label={net.status === 'failed' ? 'Couldn’t load' : 'Loading'}>
-            –
+          <span className="amount-display size-l dash-net-pending" role="status">
+            <span aria-hidden="true">–</span>
+            <span className="visually-hidden">
+              {net.status === 'failed' ? 'Couldn’t load the net' : 'Loading the net'}
+            </span>
           </span>
         )}
       </div>
