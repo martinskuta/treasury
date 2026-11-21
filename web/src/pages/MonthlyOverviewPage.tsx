@@ -92,7 +92,7 @@ export function MonthlyOverviewPage() {
       {shown !== null && (
         <>
           <ReportTotals report={shown} />
-          <section className="card">
+          <section className="ui-component">
             <ReportSideToggle side={side} onChange={s => update({ side: s })} />
             <ReportBreakdown
               section={shown[side]}

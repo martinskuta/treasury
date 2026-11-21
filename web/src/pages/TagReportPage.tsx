@@ -164,7 +164,7 @@ export function TagReportPage() {
             <span className="tag-chip">{shown.tag.name}</span> · {describePeriod(shown.from, shown.to)}
           </p>
           <ReportTotals report={shown} />
-          <section className="card">
+          <section className="ui-component">
             <ReportSideToggle side={side} onChange={s => update({ side: s })} />
             <ReportBreakdown
               section={shown[side]}

@@ -32,6 +32,11 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 | `--tr-ink` | `#3E8790` | Transfer text and amounts |
 | `--track` | `#EAEDD5` | empty part of progress bars |
 | `--grid` | `#ECEFD9` | chart gridlines |
+| `--nav-ink` | `#7B6758` | nav link text (between `--muted` and `--ink`) |
+| `--beige-soft` | `#EFEBDB` | Expense icon background in Transaction rows |
+| `--welcome-tint` | `#EEF5CC` | end of the Dashboard welcome strip's gradient |
+| `--brown-tint` / `--brown-hover` | brown at 7% / 6% | segmented track, secondary button inside a UI component / hover |
+| `--shadow-tiny` / `--shadow-float` | brown-tinted shadows | selected segment / floating bars (bulk edit) |
 
 - **Meaning is fixed**: lime = Income / positive, coral = Expense / negative / needs attention, teal = Transfer / neutral movement, brown = brand and primary action. Don't reuse a semantic colour for decoration.
 - Text on a colour uses its `-ink` variant, never the fill colour itself (lime and teal fills are too light for text).
@@ -57,7 +62,7 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 ## Controls
 
 - **Buttons**: pills (`border-radius: 99px`, padding 10px 20px, weight 600). Primary = `--brown` with cream text; secondary = `--panel` on cream or a soft tint.
-- **Inputs and selects**: pills on `--panel`, no border, focus = 2px `--teal` ring, custom chevron in `--muted`.
+- **Inputs and selects**: pills on `--panel`, no border, focus = 2px `--teal` ring, custom chevron in `--muted`. Inside a UI component (already `--panel`) they sit on `--bg` instead, and secondary buttons on `--brown-tint`, so they stay visible.
 - **Segmented controls** (e.g. mood switcher, toggles): a pill track tinted `rgba(113,77,58,.07)`; the selected segment is `--panel` with a tiny shadow.
 - **Chips / Tag pills**: small (0.72rem, 600), `--lime-soft` background with `--inc-ink` text for Tags; Owner hints as muted chips.
 - **Transaction rows** (Transactions, Uncategorised): grouped by day under a small muted date header; a round 38px icon tinted by kind (Income lime-soft, Expense neutral beige, Transfer teal-soft, Uncategorised coral-soft), Display name (or description) 600, counterparty / Category / Account · Owner on a muted second line, amount right-aligned with an optional muted original amount below.
@@ -71,6 +76,16 @@ Inline SVG, no chart library, styled from the tokens. Charts are smooth and soft
 - **Bars and progress**: 10–12px pill tracks (`--track`) with fully rounded fills; stacked bars have 4px gaps and rounded segments.
 - Legends: 8px dots + muted labels, values right-aligned in tabular figures.
 - Every chart has a text fallback (`<title>` per point or segment, or the numbers shown beside it).
+
+## In code
+
+The foundation lives in `web/src/styles/` (`tokens.css`, `base.css`, `shell.css`, `controls.css`, `charts.css`, imported by `index.css`) and `web/src/components/`; each file starts with a short usage note.
+
+- UI component: `<UiComponent title actions>` or `.ui-component`; `.ui-grid` / `.stack` for the gap.
+- Amounts: `<Amount value currency signed tone size>` for key amounts; `formatAmount()` with `.num` / `.amount` in lists.
+- Controls: `.button-primary`, `.button-secondary`, `.button-link`, `.button-small`; `FormField` / `SelectField` or `.input`; `<SegmentedControl>`; chips `.chip`, `.chip-tag` (`.tag-chip`), `.chip-uncategorised`.
+- Charts (`components/charts`): `<TrendChart>`, `<Donut>`, `<ProgressBar>`, `<StackedBar>`, `<ChartLegend>`, colours via `toneColors` and `seriesColor(i)`.
+- Text helpers: `.page-title` / `.page-header`, `.section-title`, `.label`, `.muted`, `.inc` / `.exp` / `.tr`.
 
 ## Frankie
 

@@ -36,7 +36,7 @@ export function ChangePasswordPage() {
   return (
     <>
       <h1>Change password</h1>
-      <form className="card form" onSubmit={submit}>
+      <form className="ui-component form" onSubmit={submit}>
         <FormField
           label="Current password"
           name="currentPassword"

@@ -1,0 +1,74 @@
+/*
+ * Design tokens (docs/design-guidelines.md, "Colour" and "Layout and spacing").
+ * Light theme only. Every colour in the app comes from here: use var(--token), never a hex value in a component.
+ * Meaning is fixed: lime = Income, coral = Expense / needs attention, teal = Transfer, brown = brand / primary action.
+ * Coloured text uses the -ink variant (--inc-ink, --exp-ink, --tr-ink), never the fill colour.
+ */
+:root {
+  color-scheme: light;
+
+  /* Surfaces and text */
+  --cream: #f0f4dc;
+  --bg: var(--cream);
+  --panel: #fafbf2;
+  --ink: #3a2a21;
+  --muted: #9c8b7d;
+  --brown: #714d3a;
+  /* Nav link text: between --muted and --ink (prototype). */
+  --nav-ink: #7b6758;
+
+  /* Income */
+  --lime: #c6e36b;
+  --lime-line: #adcf45;
+  --lime-soft: #e3efb4;
+  --inc-ink: #5f7d16;
+
+  /* Expense, Uncategorised, errors */
+  --coral: #f46060;
+  --coral-soft: #fbd9d3;
+  --exp-ink: #d24646;
+
+  /* Transfer, focus ring */
+  --teal: #95c8ce;
+  --teal-soft: #d8ecee;
+  --tr-ink: #3e8790;
+
+  /* Neutral beige for Expense icons (Transaction rows) */
+  --beige-soft: #efebdb;
+
+  /* Charts and bars */
+  --track: #eaedd5;
+  --grid: #ecefd9;
+
+  /* Category series, in order (donuts, stacked bars). Use seriesColor(i) from components/charts. */
+  --c1: #714d3a;
+  --c2: #95c8ce;
+  --c3: #c6e36b;
+  --c4: #f59a8e;
+  --c5: #c7a48c;
+  --c6: #c9e3e6;
+  --c7: #dcd9b0;
+
+  /* Brand tints: hover, segmented track, tiny shadows */
+  --brown-tint: rgb(113 77 58 / 7%);
+  --brown-hover: rgb(113 77 58 / 6%);
+  --shadow-tiny: 0 1px 3px rgb(113 77 58 / 12%);
+  --shadow-float: 0 -4px 16px rgb(113 77 58 / 12%);
+
+  /* Gradient end of the Dashboard welcome strip */
+  --welcome-tint: #eef5cc;
+
+  /* Layout */
+  --r: 22px;
+  --pad: 22px 24px;
+  --gap: 14px;
+  --sidebar-width: 216px;
+  --content-max: 1300px;
+  --focus-ring: 0 0 0 2px var(--teal);
+}
+
+@media (max-width: 700px) {
+  :root {
+    --pad: 20px;
+  }
+}

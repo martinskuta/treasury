@@ -1,35 +1,28 @@
 import type { CategoryTotal, ReportOwner, ReportSection } from '../lib/api'
 import { formatAmount } from '../lib/format'
 import type { ReportSide } from '../lib/reportParams'
+import { SegmentedControl, type SegmentedOption } from './SegmentedControl'
 
 export type { ReportSide }
 
+const ownerOptions = [
+  { value: 'me', label: 'Mine' },
+  { value: 'family', label: 'Family' },
+] as const satisfies readonly SegmentedOption<ReportOwner>[]
+
+const sideOptions = [
+  { value: 'expense', label: 'Expenses by Category' },
+  { value: 'income', label: 'Income by Category' },
+] as const satisfies readonly SegmentedOption<ReportSide>[]
+
 /** "Mine" / "Family" toggle of a report (?owner=). */
 export function ReportOwnerToggle({ owner, onChange }: { owner: ReportOwner; onChange: (owner: ReportOwner) => void }) {
-  return (
-    <div className="segmented" role="group" aria-label="Owner">
-      <button type="button" aria-pressed={owner === 'me'} onClick={() => onChange('me')}>
-        Mine
-      </button>
-      <button type="button" aria-pressed={owner === 'family'} onClick={() => onChange('family')}>
-        Family
-      </button>
-    </div>
-  )
+  return <SegmentedControl label="Owner" value={owner} options={ownerOptions} onChange={onChange} />
 }
 
 /** "Expenses by Category" / "Income by Category" toggle of a report (?side=). */
 export function ReportSideToggle({ side, onChange }: { side: ReportSide; onChange: (side: ReportSide) => void }) {
-  return (
-    <div className="segmented" role="group" aria-label="Breakdown">
-      <button type="button" aria-pressed={side === 'expense'} onClick={() => onChange('expense')}>
-        Expenses by Category
-      </button>
-      <button type="button" aria-pressed={side === 'income'} onClick={() => onChange('income')}>
-        Income by Category
-      </button>
-    </div>
-  )
+  return <SegmentedControl label="Breakdown" value={side} options={sideOptions} onChange={onChange} />
 }
 
 /** What every report has at the top: both sides plus Net (MonthlyReport, TagReport). */
@@ -39,7 +32,7 @@ export type ReportFigures = { income: ReportSection; expense: ReportSection; net
 export function ReportTotals({ report }: { report: ReportFigures }) {
   const pending = report.income.pendingConversion + report.expense.pendingConversion
   return (
-    <section className="card">
+    <section className="ui-component">
       <dl className="report-totals">
         <div>
           <dt>Income</dt>

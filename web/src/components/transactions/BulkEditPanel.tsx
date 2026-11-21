@@ -64,7 +64,7 @@ export function BulkEditPanel({
   const generalError = errors.form ?? errors.transactionIds ?? errors.change
 
   return (
-    <form className="card form bulk-edit" onSubmit={submit} aria-label="Change selected Transactions">
+    <form className="ui-component form bulk-edit" onSubmit={submit} aria-label="Change selected Transactions">
       <div className="bulk-edit-header">
         <strong>
           {selected.length} selected

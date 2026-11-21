@@ -133,7 +133,7 @@ export function TransactionsPage() {
         </p>
       )}
       {transactions !== null && page !== null && (
-        <section className="card">
+        <section className="ui-component">
           {transactions.length === 0 ? (
             <p>{filtered ? 'No Transactions match these filters.' : 'No Transactions yet.'}</p>
           ) : (

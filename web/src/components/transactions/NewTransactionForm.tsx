@@ -67,7 +67,7 @@ export function NewTransactionForm({
   }
 
   return (
-    <form className="card form" onSubmit={submit}>
+    <form className="ui-component form" onSubmit={submit}>
       <h2>New Transaction</h2>
       <SelectField
         label="Account"

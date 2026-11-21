@@ -69,7 +69,7 @@ export function UncategorisedPage() {
       {loadError && <p className="status status-bad">Couldn’t load the Uncategorised Transactions.</p>}
       {transactions === null && !loadError && <p>Loading…</p>}
       {transactions !== null && (
-        <section className="card">
+        <section className="ui-component">
           {transactions.length === 0 ? (
             <p>
               {owner

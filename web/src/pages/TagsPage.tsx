@@ -59,11 +59,11 @@ export function TagsPage() {
       {tags === null && !loadError && <p>Loading…</p>}
       {tags !== null && (
         <>
-          <section className="card">
+          <section className="ui-component">
             <h2>New Tag</h2>
             <TagForm owners={owners} submitLabel="Add Tag" onSubmit={createTag} onDone={() => void load()} resetOnDone />
           </section>
-          <section className="card">
+          <section className="ui-component">
             {tags.length === 0 ? (
               <p>No Tags yet.</p>
             ) : (

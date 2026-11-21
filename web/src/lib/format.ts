@@ -8,6 +8,29 @@ export function formatAmount(value: number): string {
   return `${sign}${int.replace(/\B(?=(\d{3})+(?!\d))/g, "'")}.${frac}`
 }
 
+/** An amount split for the large amount display (see <Amount>): 1234.5 -> { sign: '', integer: "1'234", cents: '.50' }. */
+export type AmountParts = { sign: '' | '+' | '−'; integer: string; cents: string }
+
+/**
+ * Splits an amount into sign, Swiss-formatted integer part and cents.
+ * The sign is a typographic minus (U+2212) so it is as wide as a digit; with `signed`, positive amounts get '+'.
+ * Amounts that round to zero carry no sign.
+ */
+export function amountParts(value: number, { signed = false }: { signed?: boolean } = {}): AmountParts {
+  const unsigned = formatAmount(Math.abs(value))
+  const dot = unsigned.lastIndexOf('.')
+  const zero = Number(Math.abs(value).toFixed(2)) === 0
+  const sign = zero ? '' : value < 0 ? '−' : signed ? '+' : ''
+  return { sign, integer: unsigned.slice(0, dot), cents: unsigned.slice(dot) }
+}
+
+/** Short amount for chart axes: 12000 -> "12k", 12500 -> "12.5k", 800 -> "800". */
+export function formatCompactAmount(value: number): string {
+  if (Math.abs(value) < 1000) return String(Math.round(value))
+  const k = value / 1000
+  return `${Number.isInteger(k) ? k : k.toFixed(1)}k`
+}
+
 /**
  * Formats a date as dd.MM.yyyy.
  * Accepts a Date (local calendar date) or an ISO string from the API ("2026-11-20" or "2026-11-20T…").
