@@ -354,7 +354,7 @@ h1 {
 }
 
 /* A Multi-currency account: its Accounts nested under it. */
-.account-group {
+.multi-currency-account-accounts {
   flex-basis: 100%;
   margin-top: 4px;
   padding-left: 16px;
