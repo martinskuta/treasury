@@ -285,7 +285,7 @@ public class MultiCurrencyAccountTests : ApiTestBase
         await Assert.That(bobs.Owner.MemberId).IsEqualTo(bobId);
         await Assert.That(bobs.Accounts.Select(a => a.Owner.MemberId)).IsEquivalentTo([(Guid?)bobId, bobId]);
         var bobsDollars = (await bob.GetFromJsonAsync<Account>($"/api/accounts/{dollars}"))!;
-        await Assert.That(bobsDollars.Owner.Name).IsEqualTo("bob");
+        await Assert.That(bobsDollars.Owner.Name).IsEqualTo("Bob (bob)");
     }
 
     [Test]

@@ -9,7 +9,11 @@ namespace Treasury.Api.Members;
 
 public static class MemberEndpoints
 {
-    public record MemberResponse(Guid Id, string UserName, bool IsAdmin, bool IsActive);
+    public record MemberResponse(Guid Id, string UserName, string FirstName, string? LastName, bool IsAdmin, bool IsActive)
+    {
+        public static MemberResponse From(Member m, bool isAdmin) =>
+            new(m.Id, m.UserName!, m.FirstName, m.LastName, isAdmin, m.IsActive);
+    }
 
     /// /api/admin/members: the Admin manages the Members' logins. Admin role only (403 for other Members).
     /// Nothing here exposes a Member's personal finances.
@@ -20,8 +24,8 @@ public static class MemberEndpoints
         members.MapGet("/", async (UserManager<Member> users) =>
         {
             var admins = (await users.GetUsersInRoleAsync(Roles.Admin)).Select(m => m.Id).ToHashSet();
-            var all = await users.Users.OrderBy(m => m.UserName).ToListAsync();
-            return Results.Ok(all.Select(m => new MemberResponse(m.Id, m.UserName!, admins.Contains(m.Id), m.IsActive)));
+            var all = await users.Users.OrderBy(m => m.FirstName).ThenBy(m => m.LastName).ThenBy(m => m.UserName).ToListAsync();
+            return Results.Ok(all.Select(m => MemberResponse.From(m, admins.Contains(m.Id))));
         });
 
         members.MapPost("/", async (AddMemberRequest request, UserManager<Member> users) =>
@@ -29,14 +33,30 @@ public static class MemberEndpoints
             var userName = request.UserName?.Trim();
             if (string.IsNullOrEmpty(userName))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["userName"] = ["Enter a user name."] });
+            if (MemberNames.Validate(request.FirstName, request.LastName, out var firstName, out var lastName) is { } nameErrors)
+                return Results.ValidationProblem(nameErrors);
             if (string.IsNullOrEmpty(request.Password))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["password"] = ["Enter an initial password."] });
 
-            var member = new Member(userName);
+            var member = new Member(userName, firstName, lastName);
             var created = await users.CreateAsync(member, request.Password);
             if (!created.Succeeded) return IdentityProblem(created, "password");
 
-            return Results.Created($"/api/admin/members/{member.Id}", new MemberResponse(member.Id, userName, false, true));
+            return Results.Created($"/api/admin/members/{member.Id}", MemberResponse.From(member, false));
+        });
+
+        // Any Member's name, deactivated ones included (their name still labels their data).
+        members.MapPut("/{id:guid}/name", async (Guid id, NameRequest request, UserManager<Member> users) =>
+        {
+            var member = await users.FindByIdAsync(id.ToString());
+            if (member is null) return Results.NotFound();
+            if (MemberNames.Validate(request.FirstName, request.LastName, out var firstName, out var lastName) is { } errors)
+                return Results.ValidationProblem(errors);
+
+            member.FirstName = firstName;
+            member.LastName = lastName;
+            await users.UpdateAsync(member);
+            return Results.Ok(MemberResponse.From(member, await users.IsInRoleAsync(member, Roles.Admin)));
         });
 
         // A new password also changes the security stamp, which ends the Member's existing sessions.
@@ -70,7 +90,7 @@ public static class MemberEndpoints
 
             if (isAdmin && !wasAdmin) await users.AddToRoleAsync(member, Roles.Admin);
             if (!isAdmin && wasAdmin) await users.RemoveFromRoleAsync(member, Roles.Admin);
-            return Results.Ok(new MemberResponse(member.Id, member.UserName!, isAdmin, member.IsActive));
+            return Results.Ok(MemberResponse.From(member, isAdmin));
         });
 
         // The handover lookup (ADR 0007): only what the Admin needs to choose a new Owner for each Account while
@@ -144,7 +164,9 @@ public static class MemberEndpoints
         });
     }
 
-    public record AddMemberRequest(string? UserName, string? Password);
+    public record AddMemberRequest(string? UserName, string? Password, string? FirstName = null, string? LastName = null);
+
+    public record NameRequest(string? FirstName, string? LastName);
 
     public record ResetPasswordRequest(string? NewPassword);
 

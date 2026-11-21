@@ -2,16 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router'
 import { listUncategorised } from '../lib/api'
 import { useAuth, useMe } from '../lib/auth'
+import { initials } from '../lib/members'
 import { Layout, type NavItem } from './Layout'
-
-/** Initials for the avatar: "anna.muster" -> "AM", "martin" -> "M". */
-function initials(userName: string): string {
-  const parts = userName.split(/[^\p{L}\p{N}]+/u).filter(Boolean)
-  return parts
-    .slice(0, 2)
-    .map(p => p[0].toUpperCase())
-    .join('')
-}
 
 /** Size of the Uncategorised queue (everyone's visible Transactions), refreshed on every navigation. */
 function useUncategorisedCount(): number | undefined {
@@ -53,10 +45,10 @@ export function AppShell() {
       nav={nav}
       user={
         <>
-          <Link to="/account/password" className="shell-user-link" title="Change password" aria-label={`${me.userName}, change password`}>
-            <span className="shell-user-name">{me.userName}</span>
+          <Link to="/account" className="shell-user-link" title="Your account" aria-label={`${me.firstName}, your account`}>
+            <span className="shell-user-name">{me.firstName}</span>
             <span className="avatar" aria-hidden="true">
-              {initials(me.userName)}
+              {initials(me)}
             </span>
           </Link>
           <button type="button" className="shell-logout" onClick={() => void logout()}>

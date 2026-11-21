@@ -9,6 +9,7 @@ import {
   listMembers,
   resetMemberPassword,
   setMemberAdmin,
+  setMemberName,
   type Handover,
   type HandoverAccount,
   type MemberSummary,
@@ -16,20 +17,11 @@ import {
 } from '../lib/api'
 import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
+import { fullName, initials, memberLabel } from '../lib/members'
 import { ownerRefFromValue } from '../lib/owners'
 import '../styles/settings.css'
 
-/** Initials for the avatar: "anna.muster" -> "AM", "martin" -> "M". */
-function initials(userName: string): string {
-  return userName
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(p => p[0].toUpperCase())
-    .join('')
-}
-
-/** Settings › Members (Admin only): add Members, reset passwords, give/remove the Admin role, deactivate. */
+/** Settings › Members (Admin only): add Members, change names, reset passwords, give/remove the Admin role, deactivate. */
 export function MembersPage() {
   const me = useMe()
   const [members, setMembers] = useState<MemberSummary[] | null>(null)
@@ -96,7 +88,7 @@ export function MembersPage() {
   )
 }
 
-type Panel = 'none' | 'password' | 'deactivate'
+type Panel = 'none' | 'name' | 'password' | 'deactivate'
 
 function MemberRow({
   member,
@@ -132,34 +124,51 @@ function MemberRow({
     <li className={`settings-row member-row${member.isActive ? '' : ' member-inactive'}`}>
       <div className="settings-row-main">
         <span className="member-avatar" aria-hidden="true">
-          {initials(member.userName)}
+          {initials(member)}
         </span>
-        <span className="settings-row-name">{member.userName}</span>
+        <span className="settings-row-name">
+          {fullName(member)} <span className="muted">({member.userName})</span>
+        </span>
         <span className="member-chips">
           {member.isAdmin && <span className="chip">Admin</span>}
           {!member.isActive && <span className="chip">Deactivated</span>}
           {isMe && <span className="chip">you</span>}
         </span>
-        {member.isActive && (
-          <div className="settings-row-actions">
-            <button type="button" className="button-link" onClick={() => setPanel('password')}>
-              Reset password
-            </button>
-            <button type="button" className="button-link" disabled={busy} onClick={() => void toggleAdmin()}>
-              {member.isAdmin ? 'Remove Admin role' : 'Make Admin'}
-            </button>
-            {!isMe && (
-              <button type="button" className="button-link" onClick={() => setPanel('deactivate')}>
-                Deactivate
+        <div className="settings-row-actions">
+          <button type="button" className="button-link" onClick={() => setPanel('name')}>
+            Edit name
+          </button>
+          {member.isActive && (
+            <>
+              <button type="button" className="button-link" onClick={() => setPanel('password')}>
+                Reset password
               </button>
-            )}
-          </div>
-        )}
+              <button type="button" className="button-link" disabled={busy} onClick={() => void toggleAdmin()}>
+                {member.isAdmin ? 'Remove Admin role' : 'Make Admin'}
+              </button>
+              {!isMe && (
+                <button type="button" className="button-link" onClick={() => setPanel('deactivate')}>
+                  Deactivate
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
       {(errors.isAdmin ?? errors.form) && (
         <p className="form-error" role="alert">
           {(errors.isAdmin ?? errors.form)[0]}
         </p>
+      )}
+      {panel === 'name' && (
+        <EditNameForm
+          member={member}
+          onCancel={close}
+          onDone={() => {
+            close()
+            onChanged()
+          }}
+        />
       )}
       {panel === 'password' && <ResetPasswordForm member={member} onDone={close} />}
       {panel === 'deactivate' && (
@@ -179,6 +188,8 @@ function MemberRow({
 
 function AddMemberForm({ onCancel, onAdded }: { onCancel: () => void; onAdded: () => void }) {
   const [userName, setUserName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
@@ -188,7 +199,7 @@ function AddMemberForm({ onCancel, onAdded }: { onCancel: () => void; onAdded: (
     setBusy(true)
     setErrors({})
     try {
-      await addMember(userName, password)
+      await addMember({ userName, firstName, lastName, password })
       onAdded()
     } catch (err) {
       setErrors(toErrors(err))
@@ -210,6 +221,23 @@ function AddMemberForm({ onCancel, onAdded }: { onCancel: () => void; onAdded: (
         onChange={e => setUserName(e.target.value)}
       />
       <FormField
+        label="First name"
+        name="firstName"
+        autoComplete="off"
+        required
+        value={firstName}
+        errors={errors.firstName}
+        onChange={e => setFirstName(e.target.value)}
+      />
+      <FormField
+        label="Last name (optional)"
+        name="lastName"
+        autoComplete="off"
+        value={lastName}
+        errors={errors.lastName}
+        onChange={e => setLastName(e.target.value)}
+      />
+      <FormField
         label="Initial password"
         name="password"
         type="password"
@@ -227,6 +255,56 @@ function AddMemberForm({ onCancel, onAdded }: { onCancel: () => void; onAdded: (
       <div className="form-actions">
         <button type="submit" className="button-primary" disabled={busy}>
           Add Member
+        </button>
+        <button type="button" className="button-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function EditNameForm({ member, onCancel, onDone }: { member: MemberSummary; onCancel: () => void; onDone: () => void }) {
+  const [firstName, setFirstName] = useState(member.firstName)
+  const [lastName, setLastName] = useState(member.lastName ?? '')
+  const [errors, setErrors] = useState<Errors>({})
+  const [busy, setBusy] = useState(false)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setErrors({})
+    try {
+      await setMemberName(member.id, firstName, lastName)
+      onDone()
+    } catch (err) {
+      setErrors(toErrors(err))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="settings-edit" onSubmit={submit}>
+      <FormField
+        label={`First name of ${member.userName}`}
+        name="firstName"
+        autoComplete="off"
+        required
+        value={firstName}
+        errors={errors.firstName ?? errors.form}
+        onChange={e => setFirstName(e.target.value)}
+      />
+      <FormField
+        label="Last name (optional)"
+        name="lastName"
+        autoComplete="off"
+        value={lastName}
+        errors={errors.lastName}
+        onChange={e => setLastName(e.target.value)}
+      />
+      <div className="form-actions">
+        <button type="submit" className="button-primary" disabled={busy}>
+          Save name
         </button>
         <button type="button" className="button-secondary" onClick={onCancel}>
           Cancel
@@ -260,7 +338,7 @@ function ResetPasswordForm({ member, onDone }: { member: MemberSummary; onDone: 
   return (
     <form className="settings-edit" onSubmit={submit}>
       <FormField
-        label={`New password for ${member.userName}`}
+        label={`New password for ${memberLabel(member)}`}
         name="newPassword"
         type="password"
         autoComplete="new-password"
@@ -271,7 +349,7 @@ function ResetPasswordForm({ member, onDone }: { member: MemberSummary; onDone: 
       />
       {done && (
         <p className="status status-good" role="status">
-          Password reset. {member.userName}’s open sessions have ended.
+          Password reset. {member.firstName}’s open sessions have ended.
         </p>
       )}
       <div className="form-actions">
@@ -310,7 +388,7 @@ function DeactivateForm({
     { kind: 'family', memberId: null, name: 'Family' },
     ...members
       .filter(m => m.isActive && m.id !== member.id)
-      .map(m => ({ kind: 'member' as const, memberId: m.id, name: m.userName })),
+      .map(m => ({ kind: 'member' as const, memberId: m.id, name: memberLabel(m) })),
   ]
 
   useEffect(() => {
@@ -348,10 +426,10 @@ function DeactivateForm({
   return (
     <form className="settings-edit" onSubmit={submit}>
       <p>
-        Deactivate <strong>{member.userName}</strong>? They won’t be able to log in any more; their data is kept.
+        Deactivate <strong>{memberLabel(member)}</strong>? They won’t be able to log in any more; their data is kept.
       </p>
       {accounts === null && !errors.form && <p>Loading Accounts…</p>}
-      {accounts !== null && accounts.length === 0 && <p>{member.userName} owns no Accounts.</p>}
+      {accounts !== null && accounts.length === 0 && <p>{member.firstName} owns no Accounts.</p>}
       {accounts?.map(a => (
         <OwnerSelect
           key={a.id}
@@ -363,7 +441,7 @@ function DeactivateForm({
           name={`handover-${a.id}`}
           owners={targetOwners}
           value={targets[a.id] ?? FAMILY}
-          after={<option value={KEEP}>Nobody (keep with {member.userName})</option>}
+          after={<option value={KEEP}>Nobody (keep with {memberLabel(member)})</option>}
           onChange={value => setTargets(t => ({ ...t, [a.id]: value }))}
         />
       ))}

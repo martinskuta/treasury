@@ -9,6 +9,8 @@ export type AuthState =
 export type Auth = AuthState & {
   login: (userName: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  /** Replace the signed-in Member after they changed their own details (e.g. their name). */
+  updateMe: (me: Me) => void
 }
 
 export const AuthContext = createContext<Auth | null>(null)

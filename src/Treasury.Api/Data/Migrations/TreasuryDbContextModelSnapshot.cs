@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261121021844_MultiCurrencyAccountNameLength";
+    public override string LastMigrationId => "20261121155329_MemberNames";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -292,6 +292,15 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
 
                 b.Property<bool>("EmailConfirmed")
                     .HasColumnType("boolean");
+
+                b.Property<string>("FirstName")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)");
+
+                b.Property<string>("LastName")
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)");
 
                 b.Property<bool>("LockoutEnabled")
                     .HasColumnType("boolean");

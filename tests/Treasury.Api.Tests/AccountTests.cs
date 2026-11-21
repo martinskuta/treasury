@@ -28,7 +28,7 @@ public class AccountTests : ApiTestBase
         await Assert.That(account!.Name).IsEqualTo("TKB Private");
         await Assert.That(account.Owner.Kind).IsEqualTo("member");
         await Assert.That(account.Owner.MemberId).IsEqualTo(annaId);
-        await Assert.That(account.Owner.Name).IsEqualTo("anna");
+        await Assert.That(account.Owner.Name).IsEqualTo("Anna (anna)");
         await Assert.That(account.IntegrationKey).IsEqualTo("test");
         await Assert.That(account.Currency).IsEqualTo("CHF");
         await Assert.That(account.OpeningBalance).IsEqualTo(1234.50m);

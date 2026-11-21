@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Treasury.Api.Auth;
 using Treasury.Api.Data;
 
 namespace Treasury.Api.Ownership;
@@ -12,9 +13,11 @@ public static class OwnerEndpoints
         api.MapGet("/owners", async (TreasuryDbContext db) =>
         {
             // Deactivated Members can't be given anything new (their existing data keeps their name).
-            var members = await db.Users.Where(m => m.DeactivatedAt == null).OrderBy(m => m.UserName).Select(m => new { m.Id, m.UserName }).ToListAsync();
+            var members = await db.Users.Where(m => m.DeactivatedAt == null)
+                .OrderBy(m => m.FirstName).ThenBy(m => m.LastName).ThenBy(m => m.UserName)
+                .Select(m => new { m.Id, m.UserName, m.FirstName, m.LastName }).ToListAsync();
             return Results.Ok(members
-                .Select(m => new OwnerResponse(OwnerKinds.Member, m.Id, m.UserName!))
+                .Select(m => new OwnerResponse(OwnerKinds.Member, m.Id, Member.Label(m.FirstName, m.LastName, m.UserName!)))
                 .Prepend(new OwnerResponse(OwnerKinds.Family, null, "Family")));
         });
     }

@@ -59,7 +59,7 @@ public static class AuthSetup
             return;
         }
 
-        var admin = new Member(userName);
+        var admin = new Member(userName, firstName: userName);
         var created = await members.CreateAsync(admin, password);
         if (!created.Succeeded)
             throw new InvalidOperationException(

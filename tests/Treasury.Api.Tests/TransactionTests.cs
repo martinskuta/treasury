@@ -111,7 +111,7 @@ public class TransactionTests : ApiTestBase
         var personal = await AddAsync(anna, wallet.Id, -5m);
         var shared = await AddAsync(anna, joint.Id, -5m);
 
-        await Assert.That(personal.Owner).IsEqualTo(new OwnerDto("member", annaId, "anna"));
+        await Assert.That(personal.Owner).IsEqualTo(new OwnerDto("member", annaId, "Anna (anna)"));
         await Assert.That(shared.Owner).IsEqualTo(new OwnerDto("family", null, "Family"));
     }
 
@@ -191,7 +191,7 @@ public class TransactionTests : ApiTestBase
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.OK);
         var seenByBob = await ListAsync(bob);
         await Assert.That(seenByBob.Select(t => t.Description)).IsEquivalentTo(["Concert ticket for Bob"]);
-        await Assert.That(seenByBob[0].Owner).IsEqualTo(new OwnerDto("member", bobId, "bob"));
+        await Assert.That(seenByBob[0].Owner).IsEqualTo(new OwnerDto("member", bobId, "Bob (bob)"));
         await Assert.That((await bob.GetAsync($"/api/accounts/{alicesCard.Id}")).StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         await Assert.That((await bob.GetFromJsonAsync<List<Account>>("/api/accounts"))!).IsEmpty();
         // Alice still sees it (she owns the Account), and her balance still counts it.
@@ -221,7 +221,7 @@ public class TransactionTests : ApiTestBase
         await Assert.That(await ListAsync(bob)).IsEmpty();
 
         var back = await PatchOkAsync(alice, t.Id, new { owner = new { kind = "member", memberId = aliceId } });
-        await Assert.That(back.Owner).IsEqualTo(new OwnerDto("member", aliceId, "alice"));
+        await Assert.That(back.Owner).IsEqualTo(new OwnerDto("member", aliceId, "Alice (alice)"));
         await Assert.That(await ListAsync(carol)).IsEmpty();
         await Assert.That(await ListAsync(bob)).IsEmpty();
     }
@@ -383,9 +383,9 @@ public class TransactionTests : ApiTestBase
 
         var owners = (await anna.GetFromJsonAsync<List<OwnerDto>>("/api/owners"))!;
 
-        await Assert.That(owners.Select(o => o.Name)).IsEquivalentTo(["Family", "admin", "anna", "bob"]);
+        await Assert.That(owners.Select(o => o.Name)).IsEquivalentTo(["Family", "admin (admin)", "Anna (anna)", "Bob (bob)"]);
         await Assert.That(owners[0]).IsEqualTo(new OwnerDto("family", null, "Family"));
-        await Assert.That(owners.Single(o => o.Name == "bob").MemberId).IsEqualTo(await MemberIdAsync(bob));
+        await Assert.That(owners.Single(o => o.Name == "Bob (bob)").MemberId).IsEqualTo(await MemberIdAsync(bob));
     }
 
     [Test]
@@ -397,7 +397,7 @@ public class TransactionTests : ApiTestBase
 
         var owners = (await anna.GetFromJsonAsync<List<OwnerDto>>("/api/owners"))!;
 
-        await Assert.That(owners.Select(o => o.Name)).IsEquivalentTo(["Family", "admin", "anna"]);
+        await Assert.That(owners.Select(o => o.Name)).IsEquivalentTo(["Family", "admin (admin)", "Anna (anna)"]);
     }
 
     [Test]

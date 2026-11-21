@@ -48,6 +48,12 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<Member>(m =>
+        {
+            m.Property(x => x.FirstName).HasMaxLength(Member.MaxNameLength);
+            m.Property(x => x.LastName).HasMaxLength(Member.MaxNameLength);
+        });
+
         builder.Entity<Account>(a =>
         {
             a.Ignore(x => x.Owner);
