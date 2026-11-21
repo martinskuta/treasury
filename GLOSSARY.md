@@ -25,7 +25,7 @@ A place where the Family holds money in a single currency, such as a bank accoun
 _Avoid_: Wallet, pocket, bank account (when meaning any Account)
 
 **Multi-currency account**:
-A group of Accounts of one Owner that one provider holds together, one Account per currency (for example a Revolut login with CHF, EUR and USD). It has a main currency, in which its total balance is shown, and gets an Account for a new currency automatically when a statement first contains that currency. It is not itself an Account, and the Accounts in it are ordinary Accounts.
+A group of Accounts of one Owner that one provider holds together, one Account per currency (for example a Revolut login with CHF, EUR and USD). It has a main currency, in which its total balance is shown, and gets an Account for a new currency automatically when a statement first shows money in that currency (a Transaction or a balance other than zero). It is not itself an Account, and the Accounts in it are ordinary Accounts.
 _Avoid_: Account group, parent account, wallet, sub-account (for the Accounts in it)
 
 **Owner**:
