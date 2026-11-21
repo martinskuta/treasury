@@ -5,7 +5,8 @@ using Treasury.Api.Storage;
 namespace Treasury.Api.Imports;
 
 /// The files around an import:
-/// - the kept copy of every Source file, under source-files/&lt;account-slug&gt;/&lt;source-file-id&gt;/&lt;name&gt;
+/// - the kept copy of every Source file, under source-files/&lt;slug&gt;/&lt;source-file-id&gt;/&lt;name&gt; (the slug of
+///   the Account or Multi-currency account it was imported into, see <see cref="IImportTarget"/>)
 ///   (owned by Treasury; downloads and undo use it, whatever Members do in the Ingest folder);
 /// - the file placed in the Account's Ingest folder: processed/&lt;name&gt; after a successful import, or
 ///   failed/&lt;name&gt; plus failed/&lt;name&gt;.error.txt with the reason. An existing name gets " (2)", " (3)"...
@@ -14,9 +15,9 @@ public sealed class ImportFiles(DataRoot dataRoot, IngestFolders folders, TimePr
     public const string ErrorNoteSuffix = ".error.txt";
 
     /// Writes the kept copy and returns its path relative to source-files/ (stored on the SourceFile).
-    public string Keep(Account account, Guid sourceFileId, SourceFileContent content)
+    public string Keep(IImportTarget target, Guid sourceFileId, SourceFileContent content)
     {
-        var relative = Path.Combine(account.Slug, sourceFileId.ToString("N"), content.FileName);
+        var relative = Path.Combine(target.Slug, sourceFileId.ToString("N"), content.FileName);
         var full = KeptPath(relative);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         File.WriteAllBytes(full, content.Bytes);
@@ -35,30 +36,33 @@ public sealed class ImportFiles(DataRoot dataRoot, IngestFolders folders, TimePr
     }
 
     /// Puts the file into processed/ and returns where it ended up.
-    public string PlaceProcessed(Account account, SourceFileContent content, string? droppedAt) =>
-        Place(account, IngestFolders.Processed, content, droppedAt);
+    public string PlaceProcessed(IImportTarget target, SourceFileContent content, string? droppedAt) =>
+        Place(target, IngestFolders.Processed, content, droppedAt);
 
     /// Puts the file into failed/ with an error note next to it and returns where the file ended up.
-    public string PlaceFailed(Account account, SourceFileContent content, string? droppedAt, string reason)
+    public string PlaceFailed(IImportTarget target, SourceFileContent content, string? droppedAt, string reason)
     {
-        var placed = Place(account, IngestFolders.Failed, content, droppedAt);
+        var placed = Place(target, IngestFolders.Failed, content, droppedAt);
         File.WriteAllText(placed + ErrorNoteSuffix,
-            $"Treasury could not import {Path.GetFileName(placed)} into the Account \"{account.Name}\".{Environment.NewLine}" +
+            $"Treasury could not import {Path.GetFileName(placed)} into {Describe(target)}.{Environment.NewLine}" +
             $"{Environment.NewLine}{reason}{Environment.NewLine}{Environment.NewLine}" +
             $"Nothing was imported. Fix the file (or move it to the right Account's folder) and drop it into the " +
             $"Ingest folder again.{Environment.NewLine}Time: {clock.GetUtcNow():yyyy-MM-dd HH:mm:ss} UTC{Environment.NewLine}");
         return placed;
     }
 
-    private string Place(Account account, string subfolder, SourceFileContent content, string? droppedAt)
+    private string Place(IImportTarget target, string subfolder, SourceFileContent content, string? droppedAt)
     {
-        var folder = Path.Combine(folders.PathFor(account.Slug), subfolder);
+        var folder = Path.Combine(folders.PathFor(target.Slug), subfolder);
         Directory.CreateDirectory(folder);
-        var target = FreeName(folder, content.FileName);
-        if (droppedAt is not null && File.Exists(droppedAt)) File.Move(droppedAt, target);
-        else File.WriteAllBytes(target, content.Bytes);
-        return target;
+        var placed = FreeName(folder, content.FileName);
+        if (droppedAt is not null && File.Exists(droppedAt)) File.Move(droppedAt, placed);
+        else File.WriteAllBytes(placed, content.Bytes);
+        return placed;
     }
+
+    private static string Describe(IImportTarget target) =>
+        target is MultiCurrencyAccount ? $"the Multi-currency account \"{target.Name}\"" : $"the Account \"{target.Name}\"";
 
     /// folder/name, or "name (2).ext", "name (3).ext"... when taken (also by an error note).
     private static string FreeName(string folder, string fileName)

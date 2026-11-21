@@ -38,3 +38,14 @@ public sealed class IngestFolders(DataRoot dataRoot)
         return slug.Length == 0 ? "account" : slug;
     }
 }
+
+/// What files are imported into, with an Ingest folder named after its <see cref="Slug"/>: an Account, or a
+/// Multi-currency account (ADR-0009). Its kept Source files are stored under the same slug.
+public interface IImportTarget
+{
+    Guid Id { get; }
+
+    string Name { get; }
+
+    string Slug { get; }
+}

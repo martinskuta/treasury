@@ -3,7 +3,7 @@ using Treasury.Api.Ownership;
 namespace Treasury.Api.Accounts;
 
 /// A place where the Family holds money in one currency (GLOSSARY: Account).
-public class Account : IOwned
+public class Account : IOwned, IImportTarget
 {
     public Guid Id { get; init; } = Guid.CreateVersion7();
 

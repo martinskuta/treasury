@@ -6,8 +6,8 @@ using Treasury.Api.Ownership;
 namespace Treasury.Api.Imports;
 
 /// Imports the files Members drop into Ingest folders (ADR-0002, spec #1 "Folder scanning"): every file directly
-/// inside ingest/&lt;account-slug&gt;/ goes through the <see cref="ImportPipeline"/> into that Account, which moves it
-/// to processed/ or failed/. Scans run one at a time (the background job and on-demand scans share this singleton).
+/// inside ingest/&lt;slug&gt;/ goes through the <see cref="ImportPipeline"/> into that Account or Multi-currency account
+/// (#25), which moves it to processed/ or failed/. Scans run one at a time (the background job and on-demand scans share this singleton).
 public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders folders, IngestScanOptions options,
     ILogger<IngestScanner> logger)
 {
@@ -22,16 +22,19 @@ public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders fol
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<TreasuryDbContext>();
             var pipeline = scope.ServiceProvider.GetRequiredService<ImportPipeline>();
-            var found = new List<(Account Account, string Path, FileState State)>();
-            // An Account in a Multi-currency account has no Ingest folder of its own (ADR-0009); importing from the
-            // group's folder is #25.
-            foreach (var account in await db.Accounts.AsNoTracking().Where(a => a.MultiCurrencyAccountId == null)
-                         .OrderBy(a => a.Slug).ToListAsync(ct))
+            var found = new List<(IImportTarget Target, string Path, FileState State)>();
+            // An Account in a Multi-currency account has no Ingest folder of its own: files go into the group's
+            // (ADR-0009, #25).
+            IEnumerable<IImportTarget> targets = [
+                .. await db.Accounts.AsNoTracking().Where(a => a.MultiCurrencyAccountId == null).ToListAsync(ct),
+                .. await db.MultiCurrencyAccounts.AsNoTracking().Include(g => g.Accounts).ToListAsync(ct),
+            ];
+            foreach (var target in targets.OrderBy(t => t.Slug, StringComparer.Ordinal))
             {
-                var folder = folders.PathFor(account.Slug);
+                var folder = folders.PathFor(target.Slug);
                 if (!Directory.Exists(folder)) continue;
                 foreach (var path in Directory.EnumerateFiles(folder).Where(IsCandidate).Order(StringComparer.Ordinal))
-                    if (FileState.Of(path) is { } state) found.Add((account, path, state));
+                    if (FileState.Of(path) is { } state) found.Add((target, path, state));
             }
             if (found.Count == 0) return [];
 
@@ -40,16 +43,22 @@ public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders fol
             await Task.Delay(options.SettleTime, ct);
 
             var results = new List<ScannedFile>();
-            foreach (var (account, path, state) in found)
+            foreach (var (target, path, state) in found)
             {
                 if (FileState.Of(path) != state || TryReadExclusively(path) is not { } bytes)
                 {
                     logger.LogDebug("{File} is still being written; leaving it for the next scan", path);
                     continue;
                 }
-                var result = await pipeline.ImportAsync(account,
-                    new IncomingFile(Path.GetFileName(path), bytes, ImportedByMemberId: null, DroppedAtPath: path), ct);
-                results.Add(new ScannedFile(account.Id, account.Owner, Path.GetFileName(path), result));
+                var file = new IncomingFile(Path.GetFileName(path), bytes, ImportedByMemberId: null, DroppedAtPath: path);
+                results.Add(target switch
+                {
+                    MultiCurrencyAccount group => new ScannedFile(null, group.Id, group.Owner, file.FileName,
+                        await pipeline.ImportAsync(group, file, ct)),
+                    Account account => new ScannedFile(account.Id, null, account.Owner, file.FileName,
+                        await pipeline.ImportAsync(account, file, ct)),
+                    _ => throw new InvalidOperationException($"Unknown import target {target.GetType()}"),
+                });
             }
             return results;
         }
@@ -139,8 +148,10 @@ public sealed class IngestScanJob(IngestScanner scanner, IngestScanOptions optio
     }
 }
 
-/// One file a scan picked up, and what the import made of it.
-public sealed record ScannedFile(Guid AccountId, Owner AccountOwner, string FileName, ImportResult Result);
+/// One file a scan picked up, and what the import made of it. Exactly one of AccountId and MultiCurrencyAccountId
+/// is set: whose Ingest folder it was in.
+public sealed record ScannedFile(Guid? AccountId, Guid? MultiCurrencyAccountId, Owner Owner, string FileName,
+    ImportResult Result);
 
 public static class IngestScanSetup
 {
@@ -156,8 +167,9 @@ public static class IngestScanSetup
         builder.Services.AddHostedService<IngestScanJob>();
     }
 
-    public record ScannedFileResponse(Guid AccountId, string FileName, bool Succeeded, int ImportedCount,
-        int SkippedCount, IReadOnlyList<string> Warnings, string? Error);
+    public record ScannedFileResponse(Guid? AccountId, Guid? MultiCurrencyAccountId, string FileName, bool Succeeded,
+        int ImportedCount, int SkippedCount, IReadOnlyList<string> Warnings, string? Error,
+        IReadOnlyList<ImportEndpoints.CreatedAccountResponse> CreatedAccounts);
 
     /// POST /api/ingest/scan: scans every Ingest folder now (instead of waiting for the next scheduled scan) and
     /// returns the files it imported or failed, for the Accounts the Member can see.
@@ -168,9 +180,11 @@ public static class IngestScanSetup
         {
             var viewer = user.MemberId();
             var scanned = await scanner.ScanAsync(ct);
-            return Results.Ok(scanned.Where(f => f.AccountOwner.IsVisibleTo(viewer))
-                .Select(f => new ScannedFileResponse(f.AccountId, f.FileName, f.Result.Succeeded, f.Result.ImportedCount,
-                    f.Result.SkippedCount, f.Result.Warnings, f.Result.Error)));
+            return Results.Ok(scanned.Where(f => f.Owner.IsVisibleTo(viewer))
+                .Select(f => new ScannedFileResponse(f.AccountId, f.MultiCurrencyAccountId, f.FileName,
+                    f.Result.Succeeded, f.Result.ImportedCount, f.Result.SkippedCount, f.Result.Warnings, f.Result.Error,
+                    f.Result.CreatedAccounts.Select(a => new ImportEndpoints.CreatedAccountResponse(a.Id, a.Name, a.Currency))
+                        .ToList())));
         });
     }
 }

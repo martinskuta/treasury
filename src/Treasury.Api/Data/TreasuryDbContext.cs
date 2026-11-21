@@ -29,6 +29,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
 
     public DbSet<SourceFile> SourceFiles => Set<SourceFile>();
 
+    public DbSet<SourceFileClosingBalance> SourceFileClosingBalances => Set<SourceFileClosingBalance>();
+
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
@@ -124,7 +126,23 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             f.Property(x => x.ClosingBalanceAmount).HasPrecision(19, 4);
             f.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
             f.HasIndex(x => new { x.AccountId, x.ImportedAt });
+            // A Multi-currency account with Source files can't be deleted (its Accounts can't be either).
+            f.HasOne(x => x.MultiCurrencyAccount).WithMany().HasForeignKey(x => x.MultiCurrencyAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            f.HasIndex(x => new { x.MultiCurrencyAccountId, x.ImportedAt });
+            f.ToTable(t => t.HasCheckConstraint("CK_SourceFiles_AccountOrMultiCurrencyAccount",
+                "(\"AccountId\" IS NULL) <> (\"MultiCurrencyAccountId\" IS NULL)"));
             f.HasOne<Member>().WithMany().HasForeignKey(x => x.ImportedByMemberId).OnDelete(DeleteBehavior.SetNull);
+            f.HasMany(x => x.CurrencyClosingBalances).WithOne().HasForeignKey(x => x.SourceFileId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SourceFileClosingBalance>(b =>
+        {
+            b.HasKey(x => new { x.SourceFileId, x.AccountId });
+            b.Property(x => x.Amount).HasPrecision(19, 4);
+            b.HasOne<Account>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.AccountId);
         });
 
         builder.Entity<Tag>(t =>

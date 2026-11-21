@@ -18,6 +18,7 @@ import {
   type Account,
   type Currency,
   type ImportResult,
+  type ImportTarget,
   type Integration,
   type MultiCurrencyAccount,
   type OwnerRef,
@@ -185,6 +186,7 @@ function GroupRow({
   onChanged: () => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   return (
     <li className="account-row">
@@ -203,12 +205,23 @@ function GroupRow({
             <strong>{group.name}</strong>{' '}
             <button type="button" className="button-link" onClick={() => setEditing(true)}>
               Rename
+            </button>{' '}
+            <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
+              {importing ? 'Close imports' : 'Imports'}
             </button>
           </>
         )}
         <div className="account-meta">
           {group.owner.name} · {integrationName} · Multi-currency account · Ingest folder ingest/{group.slug}/
         </div>
+        {importing && (
+          <ImportPanel
+            target={{ kind: 'multiCurrencyAccount', id: group.id }}
+            slug={group.slug}
+            integrationName={integrationName}
+            onImported={onChanged}
+          />
+        )}
       </div>
       <div className="amount account-balance">
         {group.totalBalance === null ? '–' : formatAmount(group.totalBalance)} {group.mainCurrency}
@@ -291,7 +304,14 @@ function AccountRow({
             doubled.
           </p>
         )}
-        {importing && <ImportPanel account={account} integrationName={integrationName} onImported={onImported} />}
+        {importing && (
+          <ImportPanel
+            target={{ kind: 'account', id: account.id }}
+            slug={account.slug}
+            integrationName={integrationName}
+            onImported={onImported}
+          />
+        )}
       </div>
       <div className="amount account-balance">
         {formatAmount(account.balance)} {account.currency}
@@ -301,13 +321,20 @@ function AccountRow({
   )
 }
 
-/** Upload a statement into the Account (through its Integration) and list the files imported so far. */
+/**
+ * Upload a statement into an Account or a Multi-currency account (through its Integration) and list the files
+ * imported so far, with undo. Into a Multi-currency account, rows go to the Account of their currency and the result
+ * names the Accounts the import created.
+ */
 function ImportPanel({
-  account,
+  target,
+  slug,
   integrationName,
   onImported,
 }: {
-  account: Account
+  target: ImportTarget
+  /** Of the Ingest folder failed files are moved to. */
+  slug: string
   integrationName: string
   onImported: () => void
 }) {
@@ -324,13 +351,13 @@ function ImportPanel({
 
   useEffect(() => {
     const controller = new AbortController()
-    listSourceFiles(account.id, controller.signal)
+    listSourceFiles({ kind: target.kind, id: target.id }, controller.signal)
       .then(setSourceFiles)
       .catch(() => {
         if (!controller.signal.aborted) setSourceFiles([])
       })
     return () => controller.abort()
-  }, [account.id, reloads])
+  }, [target.kind, target.id, reloads])
 
   async function upload(e: FormEvent) {
     e.preventDefault()
@@ -344,7 +371,7 @@ function ImportPanel({
     setUndone(null)
     setUndoError(null)
     try {
-      setResult(await importStatement(account.id, file))
+      setResult(await importStatement(target, file))
       setFile(null)
       setInputKey(k => k + 1)
       onImported()
@@ -362,7 +389,9 @@ function ImportPanel({
 
   async function undo(f: SourceFile) {
     const count = `${f.transactionCount} Transaction${f.transactionCount === 1 ? '' : 's'}`
-    if (!window.confirm(`Undo the import of ${f.fileName}? This deletes the file from Treasury and its ${count}.`)) return
+    const where = target.kind === 'multiCurrencyAccount' ? ' in every currency (Accounts it created stay)' : ''
+    if (!window.confirm(`Undo the import of ${f.fileName}? This deletes the file from Treasury and its ${count}${where}.`))
+      return
     setBusy(true)
     setUndoError(null)
     setUndone(null)
@@ -374,7 +403,7 @@ function ImportPanel({
     } catch (err) {
       setUndoError(
         err instanceof ApiError && (err.status === 403 || err.status === 404)
-          ? 'You can’t undo imports into this Account.'
+          ? 'You can’t undo this import.'
           : 'Something went wrong, try again.',
       )
     } finally {
@@ -397,7 +426,7 @@ function ImportPanel({
       </form>
       {error && (
         <p className="form-error" role="alert">
-          Not imported: {error} The file was moved to ingest/{account.slug}/failed/.
+          Not imported: {error} The file was moved to ingest/{slug}/failed/.
         </p>
       )}
       {result && (
@@ -407,6 +436,11 @@ function ImportPanel({
           {result.skippedCount > 0 && <>, skipped {result.skippedCount} already imported</>}.
         </p>
       )}
+      {result?.createdAccounts.map(a => (
+        <p key={a.id} className="status status-good">
+          Created Account {a.name}.
+        </p>
+      ))}
       {result?.warnings.map(w => (
         <p key={w} className="status status-bad">
           {w}
