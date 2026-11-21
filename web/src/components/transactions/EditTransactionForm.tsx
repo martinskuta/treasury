@@ -78,7 +78,7 @@ export function EditTransactionForm({
   }
 
   return (
-    <form className="form transaction-edit" onSubmit={submit}>
+    <form className="form tx-edit" onSubmit={submit}>
       {canEditFacts ? (
         <FactFields
           date={date}
@@ -100,7 +100,7 @@ export function EditTransactionForm({
             </>
           )}
           <br />
-          <span className="account-meta">
+          <span className="tx-hint">
             {t.origin === 'imported'
               ? 'Imported from the bank: date, amount and description can’t be changed.'
               : 'Only the Members who manage this Account can change its date, amount and description.'}
@@ -118,7 +118,7 @@ export function EditTransactionForm({
       <FormField label="Note (optional)" name="note" value={note} errors={errors.note} onChange={e => setNote(e.target.value)} />
       <OwnerSelect owners={owners} current={t.owner} value={owner} errors={errors.owner} onChange={setOwner} />
       {t.type === 'transfer' ? (
-        <p className="account-meta">A Transfer has no Category. Unlink it to make it an Income or Expense.</p>
+        <p className="tx-hint">A Transfer has no Category. Unlink it to make it an Income or Expense.</p>
       ) : (
         <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
       )}

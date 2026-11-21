@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router'
 import { BulkEditPanel } from '../components/transactions/BulkEditPanel'
 import { FilterBar } from '../components/transactions/FilterBar'
 import { NewTransactionForm } from '../components/transactions/NewTransactionForm'
-import { FILTER_KEYS, filterFromParams, PAGE_SIZE, pageFromParams } from '../components/transactions/shared'
+import { DayGroups } from '../components/transactions/RowParts'
+import { FILTER_KEYS, filterFromParams, isDateSort, PAGE_SIZE, pageFromParams } from '../components/transactions/shared'
 import { TransactionRow } from '../components/transactions/TransactionRow'
 import {
   listAccounts,
@@ -17,6 +18,7 @@ import {
   type Tag,
   type Transaction,
 } from '../lib/api'
+import '../styles/transactions.css'
 
 /**
  * The Transactions the Member can see (theirs, the Family's and everything in their Accounts), filtered and paged;
@@ -88,12 +90,24 @@ export function TransactionsPage() {
   // The Accounts listed are exactly the ones the Member can manage (own + Family).
   const manageable = new Set(accounts.map(a => a.id))
 
+  const grouped = isDateSort(params)
+
   return (
     <>
-      <h1>Transactions</h1>
-      {loadError && <p className="status status-bad">Couldn’t load the Transactions.</p>}
-      {transactions === null && !loadError && <p>Loading…</p>}
-      {adding ? (
+      <div className="page-header">
+        <h1>Transactions</h1>
+        {!adding && (
+          <button
+            type="button"
+            className="button-primary"
+            disabled={accounts.length === 0}
+            onClick={() => setAdding(true)}
+          >
+            + New Transaction
+          </button>
+        )}
+      </div>
+      {adding && (
         <NewTransactionForm
           accounts={accounts}
           owners={owners}
@@ -105,17 +119,6 @@ export function TransactionsPage() {
             void load()
           }}
         />
-      ) : (
-        <p>
-          <button
-            type="button"
-            className="button-primary"
-            disabled={accounts.length === 0}
-            onClick={() => setAdding(true)}
-          >
-            New Transaction
-          </button>
-        </p>
       )}
       <FilterBar
         params={params}
@@ -127,32 +130,36 @@ export function TransactionsPage() {
         onChange={update}
         onClear={() => update(Object.fromEntries(FILTER_KEYS.map(k => [k, ''])))}
       />
+      {loadError && <p className="status status-bad">Couldn’t load the Transactions.</p>}
+      {transactions === null && !loadError && <p className="page-loading">Loading…</p>}
       {bulkMessage && (
         <p className="status status-good" role="status">
           {bulkMessage}
         </p>
       )}
       {transactions !== null && page !== null && (
-        <section className="ui-component">
-          {transactions.length === 0 ? (
-            <p>{filtered ? 'No Transactions match these filters.' : 'No Transactions yet.'}</p>
-          ) : (
-            <>
-              <div className="transaction-list-header">
-                <label className="checkbox-field">
-                  <input
-                    type="checkbox"
-                    checked={transactions.every(t => selectedIds.includes(t.id))}
-                    onChange={e => setSelected(e.target.checked ? transactions.map(t => t.id) : [])}
-                  />{' '}
-                  Select all on this page
-                </label>
-                <span className="account-meta">
-                  {page.total} {page.total === 1 ? 'Transaction' : 'Transactions'}
-                </span>
-              </div>
-              <ul className="transaction-list">
-                {transactions.map(t => (
+        <>
+          {transactions.length > 0 && (
+            <div className="tx-summary">
+              <span>
+                <b className="num">{page.total}</b> {page.total === 1 ? 'Transaction' : 'Transactions'}
+              </span>
+              <label className="tx-select-all">
+                <input
+                  type="checkbox"
+                  checked={transactions.every(t => selectedIds.includes(t.id))}
+                  onChange={e => setSelected(e.target.checked ? transactions.map(t => t.id) : [])}
+                />
+                Select all on this page
+              </label>
+            </div>
+          )}
+          <section className="ui-component tx-box" aria-label="Transactions">
+            {transactions.length === 0 ? (
+              <p className="empty">{filtered ? 'No Transactions match these filters.' : 'No Transactions yet.'}</p>
+            ) : (
+              <DayGroups items={transactions} grouped={grouped}>
+                {t => (
                   <TransactionRow
                     key={t.id}
                     transaction={t}
@@ -162,17 +169,18 @@ export function TransactionsPage() {
                     tags={tags}
                     canEditFacts={t.origin === 'manual' && t.accountId !== null && manageable.has(t.accountId)}
                     selected={selectedIds.includes(t.id)}
+                    showDate={!grouped}
                     onSelect={checked =>
                       setSelected(checked ? [...selectedIds, t.id] : selectedIds.filter(id => id !== t.id))
                     }
                     onChanged={() => void load()}
                   />
-                ))}
-              </ul>
-            </>
-          )}
+                )}
+              </DayGroups>
+            )}
+          </section>
           {pageCount > 1 && (
-            <nav className="pager" aria-label="Pages">
+            <nav className="tx-pager" aria-label="Pages">
               <button
                 type="button"
                 className="button-secondary"
@@ -181,7 +189,7 @@ export function TransactionsPage() {
               >
                 Previous
               </button>
-              <span>
+              <span className="muted">
                 Page {pageNumber} of {pageCount}
               </span>
               <button
@@ -194,7 +202,7 @@ export function TransactionsPage() {
               </button>
             </nav>
           )}
-        </section>
+        </>
       )}
       {selectedIds.length > 0 && transactions !== null && (
         <BulkEditPanel

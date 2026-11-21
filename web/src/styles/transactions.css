@@ -1,0 +1,581 @@
+/*
+ * Transactions and Uncategorised (docs/design-guidelines.md, "Transaction rows"; prototype cream-v3.html, Transactions
+ * view). Imported by the two pages; the row markup comes from components/transactions/RowParts.tsx.
+ *
+ *   .tx-summary        muted line above the list (count, select all)
+ *   .tx-box            the UI component holding the list; .tx-day / .tx-day-head group rows by day
+ *   .tx                one row: [.tx-select] .tx-icon .tx-main (.tx-name, .tx-sub) [.tx-actions] .tx-amount [.tx-extra]
+ *                      kind classes .tx-income / .tx-expense / .tx-transfer / .tx-uncategorised tint icon and amount
+ *   .tx-filters        pill filter bar (search + fields; folds under a toggle below 768px)
+ *   .tx-bulk           floating bulk-edit bar at the bottom of the screen
+ *   .tag-picker        Tag checkboxes as toggle pills (forms in this area)
+ */
+
+/* ---- Filters ---- */
+.tx-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: var(--gap);
+}
+
+.tx-search {
+  position: relative;
+  min-width: 0;
+}
+
+.tx-search .input {
+  padding-right: 96px;
+}
+
+.tx-search .button-small {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+}
+
+.tx-filter-fields {
+  display: none;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tx-filters.open .tx-filter-fields {
+  display: grid;
+}
+
+.tx-dates {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tx-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 0;
+  padding-bottom: 0;
+  cursor: text;
+}
+
+.tx-date span {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.tx-date input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+}
+
+.tx-date:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.tx-filters-clear {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 2px 6px;
+}
+
+@media (min-width: 768px) {
+  /* Search plus three filters on the first row (as in the prototype), the rest on the second. */
+  .tx-filters {
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  }
+
+  .tx-filters-toggle {
+    display: none;
+  }
+
+  .tx-filter-fields,
+  .tx-filters.open .tx-filter-fields {
+    display: contents;
+  }
+
+  .tx-dates,
+  .tx-filters-clear {
+    grid-column: auto;
+  }
+
+  .tx-filters-clear {
+    align-self: center;
+  }
+}
+
+/* ---- List ---- */
+.tx-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 22px;
+  margin: 0 4px 10px;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.tx-summary b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tx-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.tx-select-all input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.tx-box {
+  padding: 6px 24px 14px;
+}
+
+.tx-day-head {
+  margin: 0;
+  padding: 14px 0 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+
+.tx-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Rows reach 10px into the UI component's padding so the selected / hovered tint has room around the content. */
+.tx {
+  --tx-indent: 50px; /* icon + gap: where the text column starts */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0 -10px;
+  padding: 9px 10px;
+  border-radius: 14px;
+  transition: background-color 150ms ease-out;
+}
+
+.tx:has(> .tx-select) {
+  --tx-indent: 80px; /* checkbox + gap + icon + gap */
+}
+
+.tx.selected {
+  background: var(--brown-tint);
+}
+
+/* Big enough to hit with a thumb. */
+.tx-select {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.tx-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.tx-income .tx-icon {
+  background: var(--lime-soft);
+  color: var(--inc-ink);
+}
+
+.tx-expense .tx-icon {
+  background: var(--beige-soft);
+  color: var(--brown);
+}
+
+.tx-transfer .tx-icon {
+  background: var(--teal-soft);
+  color: var(--tr-ink);
+}
+
+.tx-uncategorised .tx-icon {
+  background: var(--coral-soft);
+  color: var(--exp-ink);
+}
+
+.tx-main {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tx-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+  font-size: 0.93rem;
+  font-weight: 600;
+}
+
+.tx-name-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tx-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tx-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.tx-sub a {
+  color: inherit;
+}
+
+.tx-uncat {
+  font-weight: 600;
+  color: var(--exp-ink);
+}
+
+.tx-amount {
+  margin-left: auto;
+  font-size: 0.93rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.tx-amount small {
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.tx-cur {
+  font-size: 0.8em;
+}
+
+.tx-income .tx-amount {
+  color: var(--inc-ink);
+}
+
+.tx-transfer .tx-amount {
+  color: var(--tr-ink);
+}
+
+.tx-actions {
+  display: flex;
+  gap: 14px;
+}
+
+.tx-actions .button-link {
+  font-size: 0.82rem;
+}
+
+.tx-delete {
+  color: var(--exp-ink);
+}
+
+/* Rule offer, link form, errors: under the text column. */
+.tx-extra {
+  flex: 1 0 100%;
+  min-width: 0;
+  padding-left: var(--tx-indent);
+}
+
+.tx-extra .form-error {
+  margin: 6px 0 0;
+}
+
+.tx-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: var(--gap);
+}
+
+/* Phones: actions get their own line under the text; the Category picker of Uncategorised too. */
+@media (max-width: 699px) {
+  .tx-box {
+    padding: 4px 16px 10px;
+  }
+
+  .tx-summary {
+    gap: 4px 14px;
+    font-size: 0.82rem;
+  }
+
+  .tx-actions,
+  .tx-category-picker {
+    order: 1;
+    flex: 1 1 calc(100% - var(--tx-indent));
+    margin-left: calc(var(--tx-indent) - 12px);
+  }
+
+  .tx-extra {
+    order: 2;
+  }
+}
+
+/* With a mouse the actions stay out of the way until the row is hovered, focused or selected. */
+@media (min-width: 700px) and (hover: hover) {
+  .tx:hover {
+    background: var(--brown-hover);
+  }
+
+  .tx.selected:hover {
+    background: var(--brown-tint);
+  }
+
+  .tx-actions {
+    opacity: 0;
+    transition: opacity 150ms ease-out;
+  }
+
+  .tx:hover .tx-actions,
+  .tx:focus-within .tx-actions,
+  .tx.selected .tx-actions {
+    opacity: 1;
+  }
+}
+
+/* ---- Inline editing and linking ---- */
+.tx-editing {
+  align-items: flex-start;
+}
+
+.tx-editing:hover {
+  background: none;
+}
+
+.tx-editing .tx-icon {
+  margin-top: -6px;
+}
+
+.tx-edit,
+.tx-link-form {
+  margin-top: 12px;
+}
+
+.tx-link-form {
+  max-width: 560px;
+}
+
+.tx-hint {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.tx-extra .rule-offer {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 8px 0 2px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: var(--lime-soft);
+  color: var(--inc-ink);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.tx-extra .rule-offer a {
+  font-weight: 600;
+  color: inherit;
+}
+
+/* ---- Uncategorised ---- */
+.tx-owner-filter {
+  width: auto;
+  min-width: 170px;
+}
+
+.tx-category-picker {
+  flex: none;
+  width: 240px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 0.88rem;
+}
+
+/* ---- Bulk edit: stays in reach at the bottom of the screen while scrolling the list ---- */
+.tx-bulk {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: grid;
+  gap: 12px 14px;
+  max-height: 70vh;
+  margin-top: var(--gap);
+  overflow-y: auto;
+  box-shadow: var(--shadow-float);
+}
+
+.tx-bulk .field {
+  margin: 0;
+}
+
+.tx-bulk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.tx-bulk-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  padding: 0 8px;
+  border-radius: 99px;
+  background: var(--brown);
+  color: var(--cream);
+  font-size: 0.85rem;
+}
+
+.tx-bulk-tags,
+.tx-bulk-error {
+  grid-column: 1 / -1;
+}
+
+.tx-bulk-tags summary {
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tx-bulk-tags .tag-picker {
+  margin-top: 10px;
+}
+
+.tx-bulk .form-error {
+  margin: 0;
+}
+
+.tx-bulk .form-error ul {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+
+@media (min-width: 900px) {
+  /* One row: count, Category, Owner, Apply; Tags and errors below. */
+  .tx-bulk {
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .tx-bulk-head {
+    align-self: end;
+    padding-bottom: 6px;
+  }
+
+  .tx-bulk-tags,
+  .tx-bulk-error {
+    order: 1;
+  }
+}
+
+/* ---- Tag picker: checkboxes as toggle pills ---- */
+.tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+
+.tag-picker legend {
+  margin: 0 0 6px 4px;
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.tag-picker-hint {
+  flex: 1 0 100%;
+  margin: 0 4px 2px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.tag-picker-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: var(--brown-tint);
+  color: var(--nav-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+/* The checkbox stays focusable and announced; the pill shows its state (with a mark, not only colour). */
+.tag-picker-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.tag-picker-option::before {
+  content: '+';
+  margin-right: 5px;
+  font-weight: 700;
+}
+
+.tag-picker-option:has(input:checked) {
+  background: var(--lime-soft);
+  color: var(--inc-ink);
+}
+
+.tag-picker-option:has(input:checked)::before {
+  content: '✓';
+}
+
+.tag-picker-option:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tag-picker .form-error {
+  flex: 1 0 100%;
+}
