@@ -17,6 +17,10 @@ public interface IIntegration
     /// checked against the Account's. Only then can an Account using it have an identifier.
     bool CanProvideIdentifier { get; }
 
+    /// Whether one login at this provider holds balances in several currencies (e.g. "revolut"). Such an
+    /// Integration is used only through a Multi-currency account, never by a plain Account (ADR-0009).
+    bool HoldsSeveralCurrencies { get; }
+
     /// Reads a Source file. Throws <see cref="StatementFormatException"/> (with a message a Member can act on)
     /// when the content isn't a statement in this Integration's format.
     ParsedStatement Read(SourceFileContent file);

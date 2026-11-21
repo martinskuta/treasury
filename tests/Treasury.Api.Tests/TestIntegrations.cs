@@ -12,11 +12,13 @@ namespace Treasury.Api.Tests;
 /// </code>
 /// Optional trailing fields may be empty or left out; blank lines are ignored; an empty currency means "the
 /// Account's". Anything else is a format error naming the line. Build files with <see cref="TestStatement"/>.
-public sealed class TestIntegration(string key, string name, bool canProvideIdentifier) : IIntegration
+public sealed class TestIntegration(string key, string name, bool canProvideIdentifier,
+    bool holdsSeveralCurrencies = false) : IIntegration
 {
     public string Key { get; } = key;
     public string Name { get; } = name;
     public bool CanProvideIdentifier { get; } = canProvideIdentifier;
+    public bool HoldsSeveralCurrencies { get; } = holdsSeveralCurrencies;
 
     public ParsedStatement Read(SourceFileContent file)
     {
@@ -78,7 +80,11 @@ public static class TestIntegrations
     /// Its format has no identifier.
     public static readonly TestIntegration WithoutIdentifier = new("test-noid", "Test bank without identifier", canProvideIdentifier: false);
 
-    public static IReadOnlyList<TestIntegration> All => [WithIdentifier, WithoutIdentifier];
+    /// Holds several currencies, so it is used only through a Multi-currency account (ADR-0009).
+    public static readonly TestIntegration MultiCurrency = new("test-multi", "Test multi-currency bank",
+        canProvideIdentifier: false, holdsSeveralCurrencies: true);
+
+    public static IReadOnlyList<TestIntegration> All => [WithIdentifier, WithoutIdentifier, MultiCurrency];
 }
 
 /// Builds Source file content in the test Integrations' format.

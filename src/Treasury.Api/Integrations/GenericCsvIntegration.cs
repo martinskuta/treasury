@@ -20,6 +20,8 @@ public sealed class GenericCsvIntegration : IIntegration
 
     public bool CanProvideIdentifier => false;
 
+    public bool HoldsSeveralCurrencies => false;
+
     private static readonly string[] Required = ["date", "amount", "description"];
 
     private static readonly string[] Known =

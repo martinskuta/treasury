@@ -122,7 +122,7 @@ public static class AccountEndpoints
         });
 
         api.MapGet("/integrations", (IntegrationRegistry integrations) =>
-            Results.Ok(integrations.All.OrderBy(i => i.Name).Select(i => new { i.Key, i.Name, i.CanProvideIdentifier })));
+            Results.Ok(integrations.All.OrderBy(i => i.Name).Select(i => new { i.Key, i.Name, i.CanProvideIdentifier, i.HoldsSeveralCurrencies })));
     }
 
     private static Guid ViewerId(ClaimsPrincipal user) => user.MemberId();
