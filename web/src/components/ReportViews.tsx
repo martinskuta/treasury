@@ -1,7 +1,19 @@
+/*
+ * Building blocks of the reports (Monthly overview, Tag report); styles in pages/reports.css (imported by the report pages).
+ *
+ *   <ReportOwnerToggle owner={owner} onChange={…} />        // Mine / Family segmented control
+ *   <ReportTotals report={report} />                        // UI component: Income and Expense bars, Net
+ *   <UiComponent title="By Category" actions={<ReportSideToggle side={side} onChange={…} />}>
+ *     <ReportBreakdown section={report[side]} … />          // donut + drillable list
+ *   </UiComponent>
+ */
 import type { CategoryTotal, ReportOwner, ReportSection } from '../lib/api'
 import { formatAmount } from '../lib/format'
 import type { ReportSide } from '../lib/reportParams'
+import { Amount } from './Amount'
+import { Donut, ProgressBar, seriesColor, toneColors } from './charts'
 import { SegmentedControl, type SegmentedOption } from './SegmentedControl'
+import { UiComponent } from './UiComponent'
 
 export type { ReportSide }
 
@@ -28,28 +40,34 @@ export function ReportSideToggle({ side, onChange }: { side: ReportSide; onChang
 /** What every report has at the top: both sides plus Net (MonthlyReport, TagReport). */
 export type ReportFigures = { income: ReportSection; expense: ReportSection; net: number }
 
-/** Income, Expense and Net in CHF, plus the Contributions and pending-conversion notes. */
+/** Income and Expense in CHF as pill bars, Net below, plus the Contributions and pending-conversion notes. */
 export function ReportTotals({ report }: { report: ReportFigures }) {
   const pending = report.income.pendingConversion + report.expense.pendingConversion
+  const max = Math.max(report.income.total, report.expense.total)
   return (
-    <section className="ui-component">
-      <dl className="report-totals">
-        <div>
-          <dt>Income</dt>
-          <dd className="amount income">{formatAmount(report.income.total)} CHF</dd>
+    <UiComponent title="Income and Expense" className="report-totals">
+      <div className="report-bar">
+        <div className="report-bar-top">
+          <span className="label">Income</span>
+          <Amount value={report.income.total} size="s" />
         </div>
-        <div>
-          <dt>Expense</dt>
-          <dd className="amount">{formatAmount(report.expense.total)} CHF</dd>
+        <ProgressBar label="Income" value={report.income.total} max={max} color={toneColors.income.fill} />
+      </div>
+      <div className="report-bar">
+        <div className="report-bar-top">
+          <span className="label">Expense</span>
+          <Amount value={report.expense.total} size="s" />
         </div>
-        <div>
-          <dt>Net</dt>
-          <dd className={`amount ${report.net >= 0 ? 'income' : 'expense'}`}>{formatAmount(report.net)} CHF</dd>
-        </div>
-      </dl>
+        <ProgressBar label="Expense" value={report.expense.total} max={max} color={toneColors.expense.fill} />
+      </div>
+      <div className="report-net">
+        <span className="label">Net</span>
+        <Amount value={report.net} signed tone="auto" size="l" />
+      </div>
       {report.expense.contributions > 0 && (
         <p className="report-note">
-          Expense without Contributions: {formatAmount(report.expense.total - report.expense.contributions)} CHF
+          Expense without Contributions:{' '}
+          <span className="num">CHF {formatAmount(report.expense.total - report.expense.contributions)}</span>
         </p>
       )}
       {pending > 0 && (
@@ -58,11 +76,13 @@ export function ReportTotals({ report }: { report: ReportFigures }) {
           these totals.
         </p>
       )}
-    </section>
+    </UiComponent>
   )
 }
 
-/** One side of a report by Category; each level with subcategories can be drilled into. */
+type Row = { key: string; label: string; amount: number; color: string; category?: CategoryTotal; kind?: 'direct' | 'uncategorised' }
+
+/** One side of a report by Category: a donut and a list; each level with subcategories can be drilled into. */
 export function ReportBreakdown({
   section,
   emptyText,
@@ -85,19 +105,31 @@ export function ReportBreakdown({
   const trail: CategoryTotal[] = []
   for (let c = current; c; c = c.parentId ? byId.get(c.parentId) : undefined) trail.unshift(c)
 
-  const rows: { key: string; label: string; amount: number; category?: CategoryTotal; muted?: boolean }[] = [
-    ...children.map(c => ({ key: c.id, label: c.name, amount: c.total, category: c })),
-  ]
+  const rows: Row[] = children.map((c, i) => ({ key: c.id, label: c.name, amount: c.total, color: seriesColor(i), category: c }))
   if (level && level.direct > 0 && children.length > 0)
-    rows.push({ key: 'direct', label: `${level.name} (not in a subcategory)`, amount: level.direct, muted: true })
+    rows.push({
+      key: 'direct',
+      label: `${level.name} (not in a subcategory)`,
+      amount: level.direct,
+      color: 'var(--muted)',
+      kind: 'direct',
+    })
   if (!level && section.uncategorised > 0)
-    rows.push({ key: 'uncategorised', label: 'Uncategorised', amount: section.uncategorised, muted: true })
+    rows.push({
+      key: 'uncategorised',
+      label: 'Uncategorised',
+      amount: section.uncategorised,
+      color: 'var(--coral-soft)',
+      kind: 'uncategorised',
+    })
+
+  const share = (amount: number) => (levelTotal > 0 ? Math.round((amount / levelTotal) * 100) : 0)
 
   return (
     <>
       <nav className="breadcrumb" aria-label="Category path">
         {trail.length === 0 ? (
-          <span>All Categories</span>
+          <span aria-current="page">All Categories</span>
         ) : (
           <>
             <button type="button" className="button-link" onClick={() => onDrill(null)}>
@@ -105,9 +137,11 @@ export function ReportBreakdown({
             </button>
             {trail.map((c, i) => (
               <span key={c.id}>
-                {' › '}
+                <span className="breadcrumb-sep" aria-hidden="true">
+                  ›
+                </span>
                 {i === trail.length - 1 ? (
-                  <span>{c.name}</span>
+                  <span aria-current="page">{c.name}</span>
                 ) : (
                   <button type="button" className="button-link" onClick={() => onDrill(c.id)}>
                     {c.name}
@@ -119,33 +153,54 @@ export function ReportBreakdown({
         )}
       </nav>
       {rows.length === 0 ? (
-        <p>{emptyText}</p>
+        <p className="empty">{emptyText}</p>
       ) : (
-        <ul className="breakdown-list">
-          {rows.map(r => (
-            <li key={r.key} className={`breakdown-row${r.muted ? ' muted' : ''}`}>
-              <span className="breakdown-name">
-                {r.category && hasChildren(r.category) ? (
-                  <button type="button" className="button-link" onClick={() => onDrill(r.category!.id)}>
-                    {r.label} ›
-                  </button>
-                ) : (
-                  r.label
-                )}
-                {r.category?.builtInKey && <span className="category-badge">Contribution</span>}
-              </span>
-              <span className="breakdown-share">
-                {levelTotal > 0 ? `${Math.round((r.amount / levelTotal) * 100)} %` : ''}
-              </span>
-              <span className="amount">{formatAmount(r.amount)} CHF</span>
+        <div className="breakdown">
+          <div className="breakdown-chart">
+            <Donut
+              ariaLabel={`${level?.name ?? 'All Categories'} by Category`}
+              segments={rows.map(r => ({ label: r.label, value: r.amount, color: r.color }))}
+              size={168}
+              thickness={18}
+              centreLabel="CHF"
+              centreValue={formatAmount(levelTotal).slice(0, -3)}
+            />
+          </div>
+          <ul className="breakdown-list">
+            {rows.map(r => (
+              <li key={r.key} className={`breakdown-row${r.kind ? ` breakdown-${r.kind}` : ''}`}>
+                <div className="breakdown-top">
+                  <span className="breakdown-name">
+                    <span className="dot" style={{ background: r.color }} />
+                    {r.category && hasChildren(r.category) ? (
+                      <button type="button" className="breakdown-drill" onClick={() => onDrill(r.category!.id)}>
+                        {r.label}
+                        <span aria-hidden="true"> ›</span>
+                      </button>
+                    ) : r.kind === 'uncategorised' ? (
+                      <span className="chip-uncategorised">{r.label}</span>
+                    ) : (
+                      <span>{r.label}</span>
+                    )}
+                    {r.category?.builtInKey && <span className="chip">Contribution</span>}
+                  </span>
+                  <span className="breakdown-share num">{levelTotal > 0 ? `${share(r.amount)} %` : ''}</span>
+                  <span className="breakdown-amount num">{formatAmount(r.amount)}</span>
+                </div>
+                <div className="breakdown-bar" aria-hidden="true">
+                  <span style={{ width: `${share(r.amount)}%`, background: r.color }} />
+                </div>
+              </li>
+            ))}
+            <li className="breakdown-row breakdown-total">
+              <div className="breakdown-top">
+                <span className="breakdown-name">Total</span>
+                <span className="breakdown-share" />
+                <Amount value={levelTotal} size="s" className="breakdown-amount" />
+              </div>
             </li>
-          ))}
-          <li className="breakdown-row breakdown-total">
-            <span className="breakdown-name">Total</span>
-            <span className="breakdown-share" />
-            <span className="amount">{formatAmount(levelTotal)} CHF</span>
-          </li>
-        </ul>
+          </ul>
+        </div>
       )}
     </>
   )

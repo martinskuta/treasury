@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router'
 import { ReportBreakdown, ReportOwnerToggle, ReportSideToggle, ReportTotals } from '../components/ReportViews'
 import { getMonthlyReport, type MonthlyReport } from '../lib/api'
 import { reportOwnerFromParams, reportSideFromParams } from '../lib/reportParams'
+import './reports.css'
 
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -63,37 +64,43 @@ export function MonthlyOverviewPage() {
 
   return (
     <>
-      <h1>Monthly overview</h1>
-      <div className="report-controls">
-        <ReportOwnerToggle owner={owner} onChange={o => update({ owner: o })} />
-        <div className="month-switcher">
-          <button
-            type="button"
-            className="button-secondary"
-            aria-label="Previous month"
-            onClick={() => update({ month: shiftMonth(month, -1) })}
-          >
-            ‹
-          </button>
-          <span className="month-label">{monthLabel(month)}</span>
-          <button
-            type="button"
-            className="button-secondary"
-            aria-label="Next month"
-            onClick={() => update({ month: shiftMonth(month, 1) })}
-          >
-            ›
-          </button>
+      <div className="page-header">
+        <h1 className="page-title">Monthly overview</h1>
+        <div className="report-toolbar">
+          <ReportOwnerToggle owner={owner} onChange={o => update({ owner: o })} />
+          <div className="month-switcher">
+            <button
+              type="button"
+              className="button-secondary month-step"
+              aria-label="Previous month"
+              onClick={() => update({ month: shiftMonth(month, -1) })}
+            >
+              ‹
+            </button>
+            <span className="month-label" aria-live="polite">
+              {monthLabel(month)}
+            </span>
+            <button
+              type="button"
+              className="button-secondary month-step"
+              aria-label="Next month"
+              onClick={() => update({ month: shiftMonth(month, 1) })}
+            >
+              ›
+            </button>
+          </div>
         </div>
       </div>
 
       {loadError && <p className="status status-bad">Couldn’t load the overview.</p>}
-      {shown === null && !loadError && <p>Loading…</p>}
+      {shown === null && !loadError && <p className="page-loading">Loading…</p>}
       {shown !== null && (
-        <>
+        <div className="report-grid">
           <ReportTotals report={shown} />
-          <section className="ui-component">
-            <ReportSideToggle side={side} onChange={s => update({ side: s })} />
+          <section className="ui-component report-breakdown" aria-label="Breakdown by Category">
+            <div className="report-breakdown-head">
+              <ReportSideToggle side={side} onChange={s => update({ side: s })} />
+            </div>
             <ReportBreakdown
               section={shown[side]}
               emptyText={side === 'expense' ? 'No Expenses this month.' : 'No Income this month.'}
@@ -101,7 +108,7 @@ export function MonthlyOverviewPage() {
               onDrill={setDrill}
             />
           </section>
-        </>
+        </div>
       )}
     </>
   )

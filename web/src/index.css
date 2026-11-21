@@ -276,7 +276,7 @@
   margin-top: 8px;
 }
 
-/* ---- Monthly overview ---- */
+/* ---- Report controls (Uncategorised) ---- */
 .report-controls {
   display: flex;
   flex-wrap: wrap;
@@ -284,108 +284,6 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
-}
-
-.month-switcher {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.month-label {
-  min-width: 9.5em;
-  text-align: center;
-  font-weight: 600;
-}
-
-.report-totals {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
-  margin: 0;
-}
-
-.report-totals dt {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.report-totals dd {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 600;
-  text-align: left;
-}
-
-.report-totals .income {
-  color: var(--inc-ink);
-}
-
-.report-totals .expense {
-  color: var(--exp-ink);
-}
-
-.report-note {
-  margin: 12px 0 0;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.report-pending {
-  color: var(--exp-ink);
-}
-
-.breadcrumb {
-  margin-bottom: 8px;
-  font-size: 0.9rem;
-}
-
-.breakdown-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.breakdown-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
-  align-items: baseline;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--track);
-}
-
-.breakdown-row.muted .breakdown-name {
-  color: var(--muted);
-}
-
-.breakdown-name {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: baseline;
-  overflow-wrap: anywhere;
-}
-
-.breakdown-name .button-link {
-  font-size: inherit;
-  text-align: left;
-}
-
-.breakdown-share {
-  min-width: 3.5em;
-  text-align: right;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.breakdown-row .amount {
-  white-space: nowrap;
-}
-
-.breakdown-total {
-  border-bottom: none;
-  font-weight: 600;
 }
 
 .transaction-amount.transfer {
@@ -574,15 +472,10 @@
   flex-wrap: wrap;
 }
 
-/* Tag report (#19): Tag picker + period controls reuse report-controls; chips link to the report. */
+/* Fields inside report-controls (Uncategorised). */
 .report-controls .field {
   margin: 0;
   min-width: 160px;
-}
-
-.tag-report-period {
-  justify-content: flex-start;
-  align-items: flex-end;
 }
 
 /* Settings → System (and the placeholder home page): API status + formatting check. */

@@ -14,6 +14,7 @@ import {
 } from '../lib/api'
 import { formatDate } from '../lib/format'
 import { reportOwnerFromParams, reportSideFromParams } from '../lib/reportParams'
+import './reports.css'
 
 const toPeriod = (allTime: boolean, from: string, to: string): TagReportPeriod =>
   allTime ? 'all' : from || to ? { from, to } : 'default'
@@ -100,8 +101,13 @@ export function TagReportPage() {
 
   return (
     <>
-      <h1>Tag report</h1>
-      <div className="report-controls">
+      <div className="page-header">
+        <h1 className="page-title">Tag report</h1>
+        <div className="report-toolbar">
+          <ReportOwnerToggle owner={owner} onChange={o => update({ owner: o })} />
+        </div>
+      </div>
+      <div className="report-filters">
         <SelectField
           label="Tag"
           value={tagId ?? ''}
@@ -116,63 +122,72 @@ export function TagReportPage() {
             </option>
           ))}
         </SelectField>
-        <ReportOwnerToggle owner={owner} onChange={o => update({ owner: o })} />
+        {tagId && (
+          <>
+            <FormField
+              label="From"
+              type="date"
+              value={from || (period === 'default' ? (shown?.from ?? '') : '')}
+              onChange={e => setBound('from', e.target.value)}
+            />
+            <FormField
+              label="To"
+              type="date"
+              value={to || (period === 'default' ? (shown?.to ?? '') : '')}
+              onChange={e => setBound('to', e.target.value)}
+            />
+            <div className="segmented report-period" role="group" aria-label="Period">
+              {hasRange && (
+                <button
+                  type="button"
+                  aria-pressed={period === 'default'}
+                  onClick={() => update({ period: null, from: null, to: null })}
+                >
+                  Tag’s dates
+                </button>
+              )}
+              <button
+                type="button"
+                aria-pressed={period === 'all' || (period === 'default' && !hasRange)}
+                onClick={() => update({ period: hasRange ? 'all' : null, from: null, to: null })}
+              >
+                All time
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {!tagId && tags !== null && (
-        <p>{tags.length === 0 ? 'There are no Tags yet. Create one under Settings › Tags.' : 'Choose a Tag to see its totals.'}</p>
-      )}
-
-      {tagId && (
-        <div className="report-controls tag-report-period">
-          <FormField
-            label="From"
-            type="date"
-            value={from || (period === 'default' ? (shown?.from ?? '') : '')}
-            onChange={e => setBound('from', e.target.value)}
-          />
-          <FormField
-            label="To"
-            type="date"
-            value={to || (period === 'default' ? (shown?.to ?? '') : '')}
-            onChange={e => setBound('to', e.target.value)}
-          />
-          <div className="segmented" role="group" aria-label="Period">
-            {hasRange && (
-              <button type="button" aria-pressed={period === 'default'} onClick={() => update({ period: null, from: null, to: null })}>
-                Tag’s dates
-              </button>
-            )}
-            <button
-              type="button"
-              aria-pressed={period === 'all' || (period === 'default' && !hasRange)}
-              onClick={() => update({ period: hasRange ? 'all' : null, from: null, to: null })}
-            >
-              All time
-            </button>
-          </div>
-        </div>
+        <p className="ui-component empty">
+          {tags.length === 0 ? 'There are no Tags yet. Create one under Settings › Tags.' : 'Choose a Tag to see its totals.'}
+        </p>
       )}
 
       {error && (
         <p className="status status-bad">{error.notFound ? 'This Tag doesn’t exist any more.' : 'Couldn’t load the report.'}</p>
       )}
-      {tagId && shown === null && !error && <p>Loading…</p>}
+      {tagId && shown === null && !error && <p className="page-loading">Loading…</p>}
       {shown !== null && (
         <>
-          <p className="report-note">
-            <span className="tag-chip">{shown.tag.name}</span> · {describePeriod(shown.from, shown.to)}
+          <p className="report-summary">
+            <span className="tag-chip">{shown.tag.name}</span>
+            <span className="muted">{describePeriod(shown.from, shown.to)}</span>
           </p>
-          <ReportTotals report={shown} />
-          <section className="ui-component">
-            <ReportSideToggle side={side} onChange={s => update({ side: s })} />
-            <ReportBreakdown
-              section={shown[side]}
-              emptyText={side === 'expense' ? 'No Expenses with this Tag.' : 'No Income with this Tag.'}
-              drill={drill}
-              onDrill={setDrill}
-            />
-          </section>
+          <div className="report-grid">
+            <ReportTotals report={shown} />
+            <section className="ui-component report-breakdown" aria-label="Breakdown by Category">
+              <div className="report-breakdown-head">
+                <ReportSideToggle side={side} onChange={s => update({ side: s })} />
+              </div>
+              <ReportBreakdown
+                section={shown[side]}
+                emptyText={side === 'expense' ? 'No Expenses with this Tag.' : 'No Income with this Tag.'}
+                drill={drill}
+                onDrill={setDrill}
+              />
+            </section>
+          </div>
         </>
       )}
     </>
