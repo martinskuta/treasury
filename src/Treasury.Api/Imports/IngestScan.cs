@@ -6,8 +6,8 @@ using Treasury.Api.Ownership;
 namespace Treasury.Api.Imports;
 
 /// Imports the files Members drop into Ingest folders (ADR-0002, spec #1 "Folder scanning"): every file directly
-/// inside ingest/&lt;account-slug&gt;/ goes through the <see cref="ImportPipeline"/> into that Account, which moves it
-/// to processed/ or failed/. Scans run one at a time (the background job and on-demand scans share this singleton).
+/// inside ingest/&lt;slug&gt;/ goes through the <see cref="ImportPipeline"/> into that Account or Multi-currency account
+/// (#25), which moves it to processed/ or failed/. Scans run one at a time (the background job and on-demand scans share this singleton).
 public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders folders, IngestScanOptions options,
     ILogger<IngestScanner> logger)
 {

@@ -371,31 +371,46 @@ export const unlinkTransaction = (id: string) =>
 
 // ---- Imports and Source files ----
 
-/** A statement file imported into an Account and kept. */
+/**
+ * A statement file imported and kept: into one Account, or into a Multi-currency account (then its Transactions sit
+ * in the group's Accounts of their currencies). Exactly one of the two ids is set.
+ */
 export type SourceFile = {
   id: string
-  accountId: string
+  accountId: string | null
+  multiCurrencyAccountId: string | null
   fileName: string
   size: number
   importedAt: string
   transactionCount: number
 }
 
+/** An Account an import into a Multi-currency account created for a currency it had no Account for yet. */
+export type CreatedAccount = { id: string; name: string; currency: Currency }
+
 export type ImportResult = {
   sourceFile: SourceFile
   importedCount: number
   skippedCount: number
   warnings: string[]
+  createdAccounts: CreatedAccount[]
 }
 
+/** What statements are imported into: a plain Account or a Multi-currency account. */
+export type ImportTarget = { kind: 'account' | 'multiCurrencyAccount'; id: string }
+
+const importTargetPath = (target: ImportTarget) =>
+  target.kind === 'account' ? `/api/accounts/${target.id}` : `/api/multi-currency-accounts/${target.id}`
+
 /**
- * Uploads a statement file into an Account; it is read by the Account's Integration.
+ * Uploads a statement file into an Account or a Multi-currency account; it is read by its Integration. Into a
+ * Multi-currency account, each row goes to the Account of its currency (created when missing).
  * A file that can't be imported throws ApiError 400 with `fieldErrors.file` saying why.
  */
-export async function importStatement(accountId: string, file: File): Promise<ImportResult> {
+export async function importStatement(target: ImportTarget, file: File): Promise<ImportResult> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`/api/accounts/${accountId}/imports`, { method: 'POST', body: form })
+  const res = await fetch(`${importTargetPath(target)}/imports`, { method: 'POST', body: form })
   if (!res.ok) {
     if (res.status === 401) unauthorizedHandler?.()
     const problem = await readProblem(res)
@@ -404,9 +419,9 @@ export async function importStatement(accountId: string, file: File): Promise<Im
   return (await res.json()) as ImportResult
 }
 
-/** The Source files of an Account, newest first. */
-export const listSourceFiles = (accountId: string, signal?: AbortSignal) =>
-  apiFetch<SourceFile[]>(`/api/accounts/${accountId}/source-files`, { signal })
+/** The Source files imported into an Account or a Multi-currency account, newest first. */
+export const listSourceFiles = (target: ImportTarget, signal?: AbortSignal) =>
+  apiFetch<SourceFile[]>(`${importTargetPath(target)}/source-files`, { signal })
 
 /** Link that downloads the original file. */
 export const sourceFileContentUrl = (id: string) => `/api/source-files/${id}/content`
