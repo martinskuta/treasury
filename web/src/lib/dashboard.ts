@@ -24,7 +24,8 @@ export const shortMonthLabel = (month: string) => shortMonthNames[Number(month.s
 /** "November so far · 1.–21.11.2026" */
 export function monthSoFar(today: Date): string {
   const m = today.getMonth()
-  return `${monthNames[m]} so far · 1.–${today.getDate()}.${pad(m + 1)}.${today.getFullYear()}`
+  // Word joiners keep the date range on one line when the greeting wraps on a phone.
+  return `${monthNames[m]} so far · 1.⁠–⁠${today.getDate()}.${pad(m + 1)}.${today.getFullYear()}`
 }
 
 /** ISO date as an ISO-comparable local yyyy-MM-dd. */
