@@ -16,7 +16,11 @@ public static class ImportEndpoints
         DateTimeOffset ImportedAt, int TransactionCount);
 
     /// An Account the import created for a new currency of a Multi-currency account (#25).
-    public record CreatedAccountResponse(Guid Id, string Name, string Currency);
+    public record CreatedAccountResponse(Guid Id, string Name, string Currency)
+    {
+        public static List<CreatedAccountResponse> From(ImportResult result) =>
+            result.CreatedAccounts.Select(a => new CreatedAccountResponse(a.Id, a.Name, a.Currency)).ToList();
+    }
 
     public record ImportResponse(SourceFileResponse SourceFile, int ImportedCount, int SkippedCount,
         IReadOnlyList<string> Warnings, IReadOnlyList<CreatedAccountResponse> CreatedAccounts);
@@ -49,11 +53,11 @@ public static class ImportEndpoints
             if (account is null) return Results.NotFound();
             if (!account.Owner.IsManageableBy(viewer)) return Results.Forbid();
             // Its statements hold every currency of the group: they are imported into the group (ADR-0009).
-            if (account.MultiCurrencyAccountId is { } groupId)
+            if (account.MultiCurrencyAccountId is { } multiCurrencyAccountId)
             {
-                var groupName = await db.MultiCurrencyAccounts.Where(g => g.Id == groupId).Select(g => g.Name)
-                    .SingleAsync(ct);
-                return FileError($"This Account belongs to the Multi-currency account \"{groupName}\". Import its " +
+                var name = await db.MultiCurrencyAccounts.Where(m => m.Id == multiCurrencyAccountId)
+                    .Select(m => m.Name).SingleAsync(ct);
+                return FileError($"This Account belongs to the Multi-currency account \"{name}\". Import its " +
                     "statements into the Multi-currency account; each row goes to the Account of its currency.");
             }
 
@@ -66,14 +70,14 @@ public static class ImportEndpoints
             ClaimsPrincipal user, TreasuryDbContext db, ImportPipeline pipeline, CancellationToken ct) =>
         {
             var viewer = user.MemberId();
-            var group = await db.MultiCurrencyAccounts.Include(g => g.Accounts).OwnedByViewerOrFamily(viewer)
-                .SingleOrDefaultAsync(g => g.Id == id, ct);
-            if (group is null) return Results.NotFound();
-            if (!group.Owner.IsManageableBy(viewer)) return Results.Forbid();
+            var multiCurrencyAccount = await db.MultiCurrencyAccounts.Include(m => m.Accounts)
+                .OwnedByViewerOrFamily(viewer).SingleOrDefaultAsync(m => m.Id == id, ct);
+            if (multiCurrencyAccount is null) return Results.NotFound();
+            if (!multiCurrencyAccount.Owner.IsManageableBy(viewer)) return Results.Forbid();
 
             var (upload, error) = await ReadUploadAsync(request, ct);
             if (error is not null) return error;
-            return Respond(await pipeline.ImportAsync(group, upload!.WithMember(viewer), ct));
+            return Respond(await pipeline.ImportAsync(multiCurrencyAccount, upload!.WithMember(viewer), ct));
         });
 
         api.MapGet("/accounts/{id:guid}/source-files", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db) =>
@@ -88,9 +92,9 @@ public static class ImportEndpoints
         api.MapGet("/multi-currency-accounts/{id:guid}/source-files", async (Guid id, ClaimsPrincipal user,
             TreasuryDbContext db) =>
         {
-            var group = await db.MultiCurrencyAccounts.OwnedByViewerOrFamily(user.MemberId())
-                .SingleOrDefaultAsync(g => g.Id == id);
-            if (group is null) return Results.NotFound();
+            var multiCurrencyAccount = await db.MultiCurrencyAccounts.OwnedByViewerOrFamily(user.MemberId())
+                .SingleOrDefaultAsync(m => m.Id == id);
+            if (multiCurrencyAccount is null) return Results.NotFound();
             var list = await Responses(db, db.SourceFiles.Where(f => f.MultiCurrencyAccountId == id)
                 .OrderByDescending(f => f.ImportedAt)).ToListAsync();
             return Results.Ok(list);
@@ -122,8 +126,7 @@ public static class ImportEndpoints
             var file = await VisibleSourceFiles(db, viewer).Include(f => f.Account).Include(f => f.MultiCurrencyAccount)
                 .AsNoTracking().SingleOrDefaultAsync(f => f.Id == id, ct);
             if (file is null) return Results.NotFound();
-            var owner = file.Account?.Owner ?? file.MultiCurrencyAccount!.Owner;
-            if (!owner.IsManageableBy(viewer)) return Results.Forbid();
+            if (!file.Target.Owner.IsManageableBy(viewer)) return Results.Forbid();
             await undo.UndoAsync(file, ct);
             return Results.NoContent();
         });
@@ -133,8 +136,7 @@ public static class ImportEndpoints
     {
         if (!result.Succeeded) return FileError(result.Error!);
         var response = new ImportResponse(ToResponse(result.SourceFile!, result.ImportedCount), result.ImportedCount,
-            result.SkippedCount, result.Warnings,
-            result.CreatedAccounts.Select(a => new CreatedAccountResponse(a.Id, a.Name, a.Currency)).ToList());
+            result.SkippedCount, result.Warnings, CreatedAccountResponse.From(result));
         return Results.Created($"/api/source-files/{result.SourceFile!.Id}", response);
     }
 
@@ -166,11 +168,14 @@ public static class ImportEndpoints
     private static IResult FileError(string message) =>
         Results.ValidationProblem(new Dictionary<string, string[]> { ["file"] = [message] });
 
-    private static IQueryable<SourceFile> VisibleSourceFiles(TreasuryDbContext db, Guid viewer) =>
-        db.SourceFiles.Where(f =>
-            (f.Account != null && (f.Account.OwnerMemberId == null || f.Account.OwnerMemberId == viewer))
-            || (f.MultiCurrencyAccount != null
-                && (f.MultiCurrencyAccount.OwnerMemberId == null || f.MultiCurrencyAccount.OwnerMemberId == viewer)));
+    /// Source files imported into an Account or Multi-currency account the viewer can see.
+    private static IQueryable<SourceFile> VisibleSourceFiles(TreasuryDbContext db, Guid viewer)
+    {
+        var accounts = db.Accounts.OwnedByViewerOrFamily(viewer).Select(a => (Guid?)a.Id);
+        var multiCurrencyAccounts = db.MultiCurrencyAccounts.OwnedByViewerOrFamily(viewer).Select(m => (Guid?)m.Id);
+        return db.SourceFiles.Where(f =>
+            accounts.Contains(f.AccountId) || multiCurrencyAccounts.Contains(f.MultiCurrencyAccountId));
+    }
 
     private static IQueryable<SourceFileResponse> Responses(TreasuryDbContext db, IQueryable<SourceFile> files) =>
         files.Select(f => new SourceFileResponse(f.Id, f.AccountId, f.MultiCurrencyAccountId, f.FileName, f.Size,

@@ -15,7 +15,7 @@ public sealed class ImportUndo(TreasuryDbContext db, ImportLocks locks, ImportFi
     {
         // Same lock as imports: an undo never interleaves with an import into the same Account (or Multi-currency
         // account: then the file's Transactions in every currency go, and Accounts the import created stay).
-        using var _ = await locks.AcquireAsync((sourceFile.AccountId ?? sourceFile.MultiCurrencyAccountId)!.Value, ct);
+        using var _ = await locks.AcquireAsync(sourceFile.TargetId, ct);
 
         List<Guid> survivors = [];
         await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>

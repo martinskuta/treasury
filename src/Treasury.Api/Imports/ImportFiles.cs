@@ -8,7 +8,7 @@ namespace Treasury.Api.Imports;
 /// - the kept copy of every Source file, under source-files/&lt;slug&gt;/&lt;source-file-id&gt;/&lt;name&gt; (the slug of
 ///   the Account or Multi-currency account it was imported into, see <see cref="IImportTarget"/>)
 ///   (owned by Treasury; downloads and undo use it, whatever Members do in the Ingest folder);
-/// - the file placed in the Account's Ingest folder: processed/&lt;name&gt; after a successful import, or
+/// - the file placed in the Ingest folder it was imported from (or would have been dropped into): processed/&lt;name&gt; after a successful import, or
 ///   failed/&lt;name&gt; plus failed/&lt;name&gt;.error.txt with the reason. An existing name gets " (2)", " (3)"...
 public sealed class ImportFiles(DataRoot dataRoot, IngestFolders folders, TimeProvider clock)
 {
@@ -44,10 +44,10 @@ public sealed class ImportFiles(DataRoot dataRoot, IngestFolders folders, TimePr
     {
         var placed = Place(target, IngestFolders.Failed, content, droppedAt);
         File.WriteAllText(placed + ErrorNoteSuffix,
-            $"Treasury could not import {Path.GetFileName(placed)} into {Describe(target)}.{Environment.NewLine}" +
+            $"Treasury could not import {Path.GetFileName(placed)} into {target.Description}.{Environment.NewLine}" +
             $"{Environment.NewLine}{reason}{Environment.NewLine}{Environment.NewLine}" +
-            $"Nothing was imported. Fix the file (or move it to the right Account's folder) and drop it into the " +
-            $"Ingest folder again.{Environment.NewLine}Time: {clock.GetUtcNow():yyyy-MM-dd HH:mm:ss} UTC{Environment.NewLine}");
+            $"Nothing was imported. Fix the file and drop it into this Ingest folder again, or drop it into the " +
+            $"Ingest folder it belongs to.{Environment.NewLine}Time: {clock.GetUtcNow():yyyy-MM-dd HH:mm:ss} UTC{Environment.NewLine}");
         return placed;
     }
 
@@ -60,9 +60,6 @@ public sealed class ImportFiles(DataRoot dataRoot, IngestFolders folders, TimePr
         else File.WriteAllBytes(placed, content.Bytes);
         return placed;
     }
-
-    private static string Describe(IImportTarget target) =>
-        target is MultiCurrencyAccount ? $"the Multi-currency account \"{target.Name}\"" : $"the Account \"{target.Name}\"";
 
     /// folder/name, or "name (2).ext", "name (3).ext"... when taken (also by an error note).
     private static string FreeName(string folder, string fileName)

@@ -120,6 +120,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
 
         builder.Entity<SourceFile>(f =>
         {
+            f.Ignore(x => x.TargetId);
+            f.Ignore(x => x.Target);
             f.Property(x => x.FileName).HasMaxLength(255);
             f.Property(x => x.StoredPath).HasMaxLength(500);
             f.Property(x => x.ContentHash).HasMaxLength(64);

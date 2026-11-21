@@ -20,6 +20,12 @@ public class SourceFile
 
     public MultiCurrencyAccount? MultiCurrencyAccount { get; init; }
 
+    /// Id of what it was imported into: <see cref="AccountId"/> or <see cref="MultiCurrencyAccountId"/>.
+    public Guid TargetId => (AccountId ?? MultiCurrencyAccountId)!.Value;
+
+    /// What it was imported into (load <see cref="Account"/> and <see cref="MultiCurrencyAccount"/> first).
+    public IImportTarget Target => (IImportTarget?)Account ?? MultiCurrencyAccount!;
+
     /// The file's original name, as uploaded or dropped (no folder).
     public required string FileName { get; init; }
 

@@ -40,6 +40,8 @@ public class Account : IOwned, IImportTarget
     /// into, out of or between groups. Such an Account has no Ingest folder of its own (its Slug is reserved only
     /// for its kept Source files) and takes its Owner from the group.
     public Guid? MultiCurrencyAccountId { get; init; }
+
+    string IImportTarget.Description => $"the Account \"{Name}\"";
 }
 
 public static class Currencies

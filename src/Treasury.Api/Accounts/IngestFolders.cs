@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api.Data;
+using Treasury.Api.Ownership;
 using Treasury.Api.Storage;
 
 namespace Treasury.Api.Accounts;
@@ -67,4 +68,12 @@ public interface IImportTarget
     string Name { get; }
 
     string Slug { get; }
+
+    Owner Owner { get; }
+
+    /// Key of the Integration that reads its statements.
+    string IntegrationKey { get; }
+
+    /// What it is, for messages to Members: the Account "…" or the Multi-currency account "…".
+    string Description { get; }
 }

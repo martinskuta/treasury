@@ -27,6 +27,8 @@ public class MultiCurrencyAccount : IOwned, IImportTarget
 
     public List<Account> Accounts { get; init; } = [];
 
+    string IImportTarget.Description => $"the Multi-currency account \"{Name}\"";
+
     /// Sets the Owner of the group and of every Account in it (load <see cref="Accounts"/> first).
     public void SetOwner(Owner owner)
     {
