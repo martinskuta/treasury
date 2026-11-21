@@ -1,0 +1,9 @@
+Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+Topup,Current,2026-11-01 08:00:00,2026-11-01 08:00:05,Top-up by *1234,500.00,0.00,CHF,COMPLETED,1500.00
+Card Payment,Current,2026-11-02 10:00:00,,Migros,-20.00,0.00,CHF,PENDING,
+Card Payment,Current,2026-11-02 11:00:00,2026-11-03 09:00:00,Coop,-15.00,0.00,CHF,REVERTED,
+Card Payment,Current,2026-11-02 12:00:00,,Denner,-9.00,0.00,CHF,DECLINED,
+Transfer,Current,2026-11-04 09:00:00,2026-11-04 09:00:01,To pocket CHF Savings,-200.00,0.00,CHF,COMPLETED,1300.00
+Transfer,Deposit,2026-11-04 09:00:00,2026-11-04 09:00:01,From Current,200.00,0.00,CHF,COMPLETED,200.00
+Interest,Deposit,2026-11-05 00:00:00,2026-11-05 00:00:00,Interest earned,0.12,0.00,CHF,COMPLETED,200.12
+Card Refund,Current,2026-11-05 14:00:00,2026-11-06 10:00:00,Coop,15.00,0.00,CHF,COMPLETED,1315.00

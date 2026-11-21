@@ -1,0 +1,4082 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.04">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>MSG-20261031-FPAE4BVF</MsgId>
+      <CreDtTm>2026-11-20T20:46:28+01:00</CreDtTm>
+      <MsgPgntn>
+        <PgNb>1</PgNb>
+        <LastPgInd>true</LastPgInd>
+      </MsgPgntn>
+    </GrpHdr>
+    <Stmt>
+      <Id>STMT-20261031-3FR3H4</Id>
+      <ElctrncSeqNb>219</ElctrncSeqNb>
+      <CreDtTm>2026-11-20T20:46:28+01:00</CreDtTm>
+      <FrToDt>
+        <FrDtTm>2026-10-01T00:00:00+02:00</FrDtTm>
+        <ToDtTm>2026-10-31T23:59:59+01:00</ToDtTm>
+      </FrToDt>
+      <Acct>
+        <Id>
+          <IBAN>CH1889144434487348535</IBAN>
+        </Id>
+        <Ccy>CHF</Ccy>
+        <Ownr>
+          <Nm>Tomas Fuk</Nm>
+        </Ownr>
+        <Svcr>
+          <FinInstnId>
+            <BICFI>POFICHBE</BICFI>
+          </FinInstnId>
+        </Svcr>
+      </Acct>
+      <Bal>
+        <Tp>
+          <CdOrPrtry>
+            <Cd>OPBD</Cd>
+          </CdOrPrtry>
+        </Tp>
+        <Amt Ccy="CHF">999976.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt>
+          <Dt>2026-10-01</Dt>
+        </Dt>
+      </Bal>
+      <Bal>
+        <Tp>
+          <CdOrPrtry>
+            <Cd>CLBD</Cd>
+          </CdOrPrtry>
+        </Tp>
+        <Amt Ccy="CHF">1023381.13</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Dt>
+          <Dt>2026-10-31</Dt>
+        </Dt>
+      </Bal>
+      <TxsSummry>
+        <TtlNtries>
+          <NbOfNtries>55</NbOfNtries>
+          <Sum>290909.51</Sum>
+          <TtlNetNtry>
+            <Amt>23405.13</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+          </TtlNetNtry>
+        </TtlNtries>
+        <TtlCdtNtries>
+          <NbOfNtries>26</NbOfNtries>
+          <Sum>157157.32</Sum>
+        </TtlCdtNtries>
+        <TtlDbtNtries>
+          <NbOfNtries>29</NbOfNtries>
+          <Sum>133752.19</Sum>
+        </TtlDbtNtries>
+      </TxsSummry>
+      <Ntry>
+        <Amt Ccy="CHF">4731.46</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-01</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-01</Dt>
+        </ValDt>
+        <AcctSvcrRef>BKUZ169C7YTPU0SR</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">4731.46</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">4731.46</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">4731.46</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Kulas - Farrell, Marksfurt</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Kulas - Farrell, Marksfurt 2026-10-01 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">6151.30</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-01</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-01</Dt>
+        </ValDt>
+        <AcctSvcrRef>WSN72MKQNPVIDD1Y</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EP7T606R0V26R0578</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">6151.30</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">6151.30</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">6151.30</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Ratke Group</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH311403337L962451034</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>ICWCCHRY</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF2988133774884</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2387.47</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-02</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-02</Dt>
+        </ValDt>
+        <AcctSvcrRef>J7XY3V7E8DFG6YKP</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EPIGFSWZCD5ISR789</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2387.47</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2387.47</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2387.47</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Lueilwitz and Sons</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH3207005440M1HX96398</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>DIHYCHTZ</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-86113</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">7723.50</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-02</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-02</Dt>
+        </ValDt>
+        <AcctSvcrRef>2NDWM1C25E2E9GPB</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E5J4KYWOLUNNTUTDV</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">7723.50</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">7723.50</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">7723.50</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Greenfelder Inc</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH690822857150CQ51767</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>YSQXCHVR</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Order 200645</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">11750.61</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-05</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-05</Dt>
+        </ValDt>
+        <AcctSvcrRef>5W1YALRXY2Y8S8JW</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EX4I1WXIYQ1NUN7LV</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">11750.61</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">11750.61</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">11750.61</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Emard - Rogahn</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH3280020801D3N2VU0A1</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>HJXHCHPL</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF2496994083028</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">8818.54</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-05</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-05</Dt>
+        </ValDt>
+        <AcctSvcrRef>UQH0L96J5IR4MZFU</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EAV1P5W30674WXA91</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">8818.54</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">8818.54</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">8818.54</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Kristi Hahn</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH2307078M18363520CB3</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>VLYACHZU</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Rent 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">6657.50</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-05</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-05</Dt>
+        </ValDt>
+        <AcctSvcrRef>3NNEASDXY1DLAZ2U</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EGBXTF2SNYRFFOLLV</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">6657.50</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">6657.50</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">6657.50</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Swaniawski LLC</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1937987Q1JR1IH35927</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>DBCMCHVG</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF2538051382722</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2660.21</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-06</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-06</Dt>
+        </ValDt>
+        <AcctSvcrRef>UA3BUOF326399GFH</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EJW8A7TIVPG9BZ1AM</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2660.21</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2660.21</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2660.21</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Ratke Group</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH311403337L962451034</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>ICWCCHRY</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-62160</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">5326.02</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-06</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-06</Dt>
+        </ValDt>
+        <AcctSvcrRef>BF55Z5WPGJY3LSH4</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">5326.02</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">5326.02</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">5326.02</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Cruickshank Inc, Lake Maeganworth</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Cruickshank Inc, Lake Maeganworth 2026-10-06 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">1254.44</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-08</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-08</Dt>
+        </ValDt>
+        <AcctSvcrRef>MD2D900O326E24YZ</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EBRZETP7TV8WGRRSB</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">1254.44</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">1254.44</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">1254.44</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Zieme Group</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH6000092594I7580M0G0</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>AVSHCHFS</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Supplier payment 647226</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2511.98</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-08</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-08</Dt>
+        </ValDt>
+        <AcctSvcrRef>6WTKG593KO5WDIZX</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2511.98</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2511.98</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2511.98</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Upton, Torp and Olson, Rachelleborough</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Upton, Torp and Olson, Rachelleborough 2026-10-08 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">5655.20</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-09</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-09</Dt>
+        </ValDt>
+        <AcctSvcrRef>5TEJNV0KPE5BAA4C</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RDDT</Cd>
+              <SubFmlyCd>PMDD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2ESDI7MFAZ6B7VSIXD</EndToEndId>
+              <MndtId>MNDT-ERKDKY5HK5</MndtId>
+            </Refs>
+            <Amt Ccy="CHF">5655.20</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">5655.20</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">5655.20</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Cummings - Lemke</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH554609932527H245U16</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>KBIWCHVB</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Contract 95438411 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Direct Debit</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">4608.58</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-09</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-09</Dt>
+        </ValDt>
+        <AcctSvcrRef>W9BB0QBWMOPXW0UQ</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">4608.58</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">4608.58</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">4608.58</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Schmeler, Kreiger and Lebsack, Caguas</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Schmeler, Kreiger and Lebsack, Caguas 2026-10-09 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">5938.28</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-12</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-12</Dt>
+        </ValDt>
+        <AcctSvcrRef>I8A9OH2NI4HMSETL</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">5938.28</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">5938.28</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">5938.28</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Jacobson - Ledner, Aishafort</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Jacobson - Ledner, Aishafort 2026-10-12 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">6526.40</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-12</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-12</Dt>
+        </ValDt>
+        <AcctSvcrRef>4U9M9VDSCMET5LQ2</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">6526.40</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">6526.40</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">6526.40</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Hills LLC, Richland</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Hills LLC, Richland 2026-10-12 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">1605.63</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-12</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-12</Dt>
+        </ValDt>
+        <AcctSvcrRef>ANO3H0MW7T09GV6H</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EA01LLH9IHSL0Y71H</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">1605.63</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">1605.63</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">1605.63</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Lueilwitz and Sons</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH3207005440M1HX96398</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>DIHYCHTZ</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Rent 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">1450.82</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-13</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-13</Dt>
+        </ValDt>
+        <AcctSvcrRef>XYN691A6Z2TL5AH0</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EE03ZRTE2BQIKHADR</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">1450.82</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">1450.82</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">1450.82</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Quitzon - Hintz</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH655286692527E322986</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>QNSKCHXF</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF6085362826154</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">5356.27</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-13</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-13</Dt>
+        </ValDt>
+        <AcctSvcrRef>MJG0I0E3C72UMRKS</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E75958SLIIKVWXL60</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">5356.27</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">5356.27</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">5356.27</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>D&apos;Amore and Sons</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH9500715T9888643F990</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>ORVECHPI</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF9201917902883</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">4129.51</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-13</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-13</Dt>
+        </ValDt>
+        <AcctSvcrRef>WYEJGF9IIVCMZ3UJ</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">4129.51</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">4129.51</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">4129.51</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Dr. Rosa Hegmann</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH5460984C2DX5525UA01</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>MEXGCHAS</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Customer 84114 invoice INV-2026-10412</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">6705.64</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-13</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-13</Dt>
+        </ValDt>
+        <AcctSvcrRef>IP5K4H6VSP4YQEWU</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EXY6I4XV3UNHTY3ZJ</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">6705.64</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">6705.64</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">6705.64</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Allison Johnson-Carroll</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH8800294O58810627964</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>FKNKCHEZ</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF0698750548391</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">1106.66</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-13</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-13</Dt>
+        </ValDt>
+        <AcctSvcrRef>A1VT781U755V96VC</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">1106.66</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">1106.66</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">1106.66</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Swaniawski LLC</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1937987Q1JR1IH35927</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>DBCMCHVG</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF0876572482129</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">841.72</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-13</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-13</Dt>
+        </ValDt>
+        <AcctSvcrRef>3Q6I02153YXJF2F7</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EEVSKGHJO7M28CFGX</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">841.72</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">841.72</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">841.72</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Armstrong, Hessel and VonRueden</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH700052790R7133X496J</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>MEGRCHTI</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF1563173888105</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3242.69</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-14</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-14</Dt>
+        </ValDt>
+        <AcctSvcrRef>DEL2KRZWO2GS3D0R</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">3242.69</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3242.69</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3242.69</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Ratke Group</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH311403337L962451034</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>ICWCCHRY</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-22456</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">7187.20</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-14</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-14</Dt>
+        </ValDt>
+        <AcctSvcrRef>BF1D9QBIEQJU6Q53</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E9S3NV1OSKANRPOVN</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">7187.20</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">7187.20</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">7187.20</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Lueilwitz and Sons</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH3207005440M1HX96398</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>DIHYCHTZ</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-60521</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">8904.34</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-15</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-15</Dt>
+        </ValDt>
+        <AcctSvcrRef>0QQFU5QTWSYR7O4P</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">8904.34</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">8904.34</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">8904.34</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>D&apos;Amore and Sons</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH9500715T9888643F990</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>ORVECHPI</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF9195829943791</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">7687.10</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-15</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-15</Dt>
+        </ValDt>
+        <AcctSvcrRef>7APD5V0OYGE0E0I8</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">7687.10</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">7687.10</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">7687.10</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Luettgen Group</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH038087573T657K18536</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>LEYRCHNF</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Customer 34386 invoice INV-2026-36554</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">7163.21</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-16</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-16</Dt>
+        </ValDt>
+        <AcctSvcrRef>98X9UHMFVJSSBMVO</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EL2XWB206CZOB46SQ</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">7163.21</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">7163.21</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">7163.21</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>McDermott - Medhurst</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH9020576O63091261849</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>NPKCCHNH</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-36474</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">10321.05</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-16</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-16</Dt>
+        </ValDt>
+        <AcctSvcrRef>8JJLKW6BB3FGI85K</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">10321.05</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">10321.05</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">10321.05</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>McKenzie, Ward and Jacobson</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1030087593C861L094L</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>MURQCHGG</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF7074526825800</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2397.05</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-19</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-19</Dt>
+        </ValDt>
+        <AcctSvcrRef>PDG3P1QEVHYI7T3B</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2397.05</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2397.05</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2397.05</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Donnelly - Rolfson, West Betsystead</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Donnelly - Rolfson, West Betsystead 2026-10-19 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3453.65</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-19</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-19</Dt>
+        </ValDt>
+        <AcctSvcrRef>T2GQBE6HVUOTWEAU</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RDDT</Cd>
+              <SubFmlyCd>PMDD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EOI2A0T73LZHXKBSI</EndToEndId>
+              <MndtId>MNDT-6ER6P71XLN</MndtId>
+            </Refs>
+            <Amt Ccy="CHF">3453.65</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3453.65</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3453.65</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Jenny Brekke</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH59521185923K17M6QA4</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>VOGVCHGE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Subscription 10/2026 customer 1123682</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Direct Debit</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3781.94</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-19</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-19</Dt>
+        </ValDt>
+        <AcctSvcrRef>MK2BFREH544H5OWL</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">3781.94</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3781.94</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3781.94</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Jacobson - Ledner, Aishafort</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Jacobson - Ledner, Aishafort 2026-10-19 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">7007.77</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-20</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-20</Dt>
+        </ValDt>
+        <AcctSvcrRef>EU08K8UX97JN6AUM</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EXXJLFLVPL3BY4QGK</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">7007.77</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">7007.77</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">7007.77</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Luettgen Group</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH038087573T657K18536</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>LEYRCHNF</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF8221273518288</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">11047.51</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-20</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-20</Dt>
+        </ValDt>
+        <AcctSvcrRef>TVU59UV0KI7B2927</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">11047.51</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">11047.51</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">11047.51</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Kristi Hahn</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH2307078M18363520CB3</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>VLYACHZU</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Order 401792</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">4593.16</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-20</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-20</Dt>
+        </ValDt>
+        <AcctSvcrRef>Y39I9YHO5NBWQ7VR</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RDDT</Cd>
+              <SubFmlyCd>PMDD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2ELWCLDPD85J53WPO4</EndToEndId>
+              <MndtId>MNDT-IC2KOICOFN</MndtId>
+            </Refs>
+            <Amt Ccy="CHF">4593.16</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">4593.16</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">4593.16</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Ratke Group</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH311403337L962451034</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>ICWCCHRY</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Subscription 10/2026 customer 2358334</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Direct Debit</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3691.96</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-20</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-20</Dt>
+        </ValDt>
+        <AcctSvcrRef>8361UT2Q8TZNTIIC</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">3691.96</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3691.96</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3691.96</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Casper Group, Lednerchester</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Casper Group, Lednerchester 2026-10-20 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2712.89</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-21</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-21</Dt>
+        </ValDt>
+        <AcctSvcrRef>56AAKP90TWZARJ8X</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EP1TPAJJQG0K9GRG4</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2712.89</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2712.89</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2712.89</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>McKenzie, Ward and Jacobson</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1030087593C861L094L</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>MURQCHGG</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF8012796712574</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">4824.57</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-21</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-21</Dt>
+        </ValDt>
+        <AcctSvcrRef>XXAUJ6JZ6DHJPK1D</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">4824.57</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">4824.57</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">4824.57</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Durgan - Kulas, Melodystead</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Durgan - Kulas, Melodystead 2026-10-21 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">10274.09</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-22</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-22</Dt>
+        </ValDt>
+        <AcctSvcrRef>RDYT702JGL4LRKS1</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">10274.09</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">10274.09</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">10274.09</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Pfeffer and Sons</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH439204245342N051613</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>RWXNCHHR</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF8081894728340</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2929.16</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-22</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-22</Dt>
+        </ValDt>
+        <AcctSvcrRef>S6UXYTO1K27G4DI4</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EE68V6Y8GCYPFH3VR</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2929.16</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2929.16</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2929.16</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Harris, Volkman and Greenfelder</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH69700175H7BU39E51F2</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>HQGBCHLH</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Order 390751</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">6655.67</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-22</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-22</Dt>
+        </ValDt>
+        <AcctSvcrRef>QAT8WLIKF9XMDG5M</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E4FXWYVBUOUY37P5S</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">6655.67</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">6655.67</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">6655.67</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>McKenzie, Ward and Jacobson</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1030087593C861L094L</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>MURQCHGG</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Supplier payment 527424</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">6908.83</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-23</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-23</Dt>
+        </ValDt>
+        <AcctSvcrRef>MY1HJV9IOQCE33OC</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EZZUZPM0CM7JT50WY</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">6908.83</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">6908.83</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">6908.83</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Treutel, Renner and Watsica</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH86200928S6197612GM2</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>BFHKCHJW</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Order 198660</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2870.39</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-23</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-23</Dt>
+        </ValDt>
+        <AcctSvcrRef>ZLDW6QES0LGUKSC2</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E70RFKN9MTTMF10AK</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2870.39</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2870.39</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2870.39</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Quitzon - Hintz</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH655286692527E322986</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>QNSKCHXF</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Customer 45658 invoice INV-2026-18952</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">1836.50</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-26</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-26</Dt>
+        </ValDt>
+        <AcctSvcrRef>MPL9PNYMXX8R8Z3Y</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">1836.50</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">1836.50</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">1836.50</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Wisoky Inc, Keanubury</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Wisoky Inc, Keanubury 2026-10-26 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">11608.75</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-26</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-26</Dt>
+        </ValDt>
+        <AcctSvcrRef>5T0WM3HLTDBDVX93</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E27JYTN66CPS8ASDA</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">11608.75</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">11608.75</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">11608.75</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Quitzon - Hintz</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH655286692527E322986</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>QNSKCHXF</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-24792</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3527.26</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-26</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-26</Dt>
+        </ValDt>
+        <AcctSvcrRef>CNVJ2K8TNH5ZIBQM</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>CCRD</Cd>
+              <SubFmlyCd>POSD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">3527.26</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3527.26</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3527.26</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Koch Inc, North Addison</Nm>
+              </Cdtr>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Koch Inc, North Addison 2026-10-26 card ****2149</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Card Payment</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">1344.45</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-26</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-26</Dt>
+        </ValDt>
+        <AcctSvcrRef>VDDEXD2OG66SGEKN</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EOWAKJ6VNMYZ77Y5O</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">1344.45</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">1344.45</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">1344.45</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Quitzon - Hintz</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH655286692527E322986</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>QNSKCHXF</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF1243364148907</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3431.01</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-27</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-27</Dt>
+        </ValDt>
+        <AcctSvcrRef>HJNXLH32LKOF0HZM</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">3431.01</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3431.01</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3431.01</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Treutel, Renner and Watsica</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH86200928S6197612GM2</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>BFHKCHJW</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Customer 56305 invoice INV-2026-99170</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">9561.22</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-28</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-28</Dt>
+        </ValDt>
+        <AcctSvcrRef>1PC45R36MEG35MNI</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RDDT</Cd>
+              <SubFmlyCd>PMDD</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E0EJPRVZQCJH0K12J</EndToEndId>
+              <MndtId>MNDT-1Z0BRK4BRC</MndtId>
+            </Refs>
+            <Amt Ccy="CHF">9561.22</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">9561.22</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">9561.22</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Luettgen Group</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH038087573T657K18536</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>LEYRCHNF</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Contract 12340970 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Direct Debit</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">9459.27</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-28</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-28</Dt>
+        </ValDt>
+        <AcctSvcrRef>4DLSB8GC9H3V4MUH</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EAXEFZXV1WDLMIUYB</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">9459.27</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">9459.27</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">9459.27</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Jenny Brekke</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH59521185923K17M6QA4</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>VOGVCHGE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-22993</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3231.63</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-28</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-28</Dt>
+        </ValDt>
+        <AcctSvcrRef>88J799JZZDQ5ZR1W</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EFVV53U6YSGW70B6P</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">3231.63</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3231.63</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3231.63</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Pfeffer and Sons</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH439204245342N051613</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>RWXNCHHR</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Rent 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">2346.59</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-29</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-29</Dt>
+        </ValDt>
+        <AcctSvcrRef>JY2RIHRFRO0KE7A4</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>NOTPROVIDED</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">2346.59</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">2346.59</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">2346.59</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Swaniawski LLC</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1937987Q1JR1IH35927</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>DBCMCHVG</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Invoice INV-2026-95220</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">7806.09</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-30</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-30</Dt>
+        </ValDt>
+        <AcctSvcrRef>E2062CC867ZCCNOB</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EWLLIRIZ93ANIA2B5</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">7806.09</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">7806.09</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">7806.09</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Dr. Rosa Hegmann</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH5460984C2DX5525UA01</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>MEXGCHAS</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Rent 10/2026</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">11744.92</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-30</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-30</Dt>
+        </ValDt>
+        <AcctSvcrRef>0B7OZDUMF1SWIIMQ</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2ENO61QIKWZHIMMKSK</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">11744.92</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">11744.92</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">11744.92</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>D&apos;Amore and Sons</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH9500715T9888643F990</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>ORVECHPI</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF3930100618972</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">219.39</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-30</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-30</Dt>
+        </ValDt>
+        <AcctSvcrRef>9D3IHUKIZ7TX0ZJ5</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>RCDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2EWZDGWAE8XFHCN76J</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">219.39</Amt>
+            <CdtDbtInd>CRDT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">219.39</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">219.39</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Quitzon - Hintz</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH655286692527E322986</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Tomas Fuk</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>QNSKCHXF</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Ustrd>Order 618223</Ustrd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">3240.46</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt>
+          <Dt>2026-10-30</Dt>
+        </BookgDt>
+        <ValDt>
+          <Dt>2026-10-30</Dt>
+        </ValDt>
+        <AcctSvcrRef>HAUVHVND5WI6TMMV</AcctSvcrRef>
+        <BkTxCd>
+          <Domn>
+            <Cd>PMNT</Cd>
+            <Fmly>
+              <Cd>ICDT</Cd>
+              <SubFmlyCd>DMCT</SubFmlyCd>
+            </Fmly>
+          </Domn>
+        </BkTxCd>
+        <NtryDtls>
+          <TxDtls>
+            <Refs>
+              <EndToEndId>E2E7R4RLW36RR3DK60Y</EndToEndId>
+            </Refs>
+            <Amt Ccy="CHF">3240.46</Amt>
+            <CdtDbtInd>DBIT</CdtDbtInd>
+            <AmtDtls>
+              <InstdAmt>
+                <Amt Ccy="CHF">3240.46</Amt>
+              </InstdAmt>
+              <TxAmt>
+                <Amt Ccy="CHF">3240.46</Amt>
+              </TxAmt>
+            </AmtDtls>
+            <RltdPties>
+              <Dbtr>
+                <Nm>Tomas Fuk</Nm>
+              </Dbtr>
+              <DbtrAcct>
+                <Id>
+                  <IBAN>CH1889144434487348535</IBAN>
+                </Id>
+              </DbtrAcct>
+              <Cdtr>
+                <Nm>Treutel and Sons</Nm>
+              </Cdtr>
+              <CdtrAcct>
+                <Id>
+                  <IBAN>CH30003327U116380G358</IBAN>
+                </Id>
+              </CdtrAcct>
+            </RltdPties>
+            <RltdAgts>
+              <DbtrAgt>
+                <FinInstnId>
+                  <BICFI>POFICHBE</BICFI>
+                </FinInstnId>
+              </DbtrAgt>
+              <CdtrAgt>
+                <FinInstnId>
+                  <BICFI>OFANCHUN</BICFI>
+                </FinInstnId>
+              </CdtrAgt>
+            </RltdAgts>
+            <RmtInf>
+              <Strd>
+                <CdtrRefInf>
+                  <Tp>
+                    <CdOrPrtry>
+                      <Cd>SCOR</Cd>
+                    </CdOrPrtry>
+                    <Issr>ISO</Issr>
+                  </Tp>
+                  <Ref>RF6994135154270</Ref>
+                </CdtrRefInf>
+              </Strd>
+            </RmtInf>
+          </TxDtls>
+        </NtryDtls>
+        <AddtlNtryInf>Credit Transfer</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

@@ -1,0 +1,57 @@
+/*
+ * Global styles. The design foundation lives in ./styles (tokens, base type, app shell, shared controls, charts);
+ * see docs/design-guidelines.md. Below the imports: page-specific styles, still partly in the pre-refresh look
+ * until each page is restyled. Use tokens only, never hex values.
+ */
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/shell.css';
+@import './styles/controls.css';
+@import './styles/charts.css';
+
+/* ---- Checkbox groups (Tags, Rules, Tag picker) ---- */
+.checkbox-group {
+  border: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.checkbox-group legend {
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Rules (#15): the offer after a manual Category correction. */
+.rule-offer {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+
+/* Settings → System (and the placeholder home page): API status + formatting check. */
+.system-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.system-checks {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.system-checks li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+

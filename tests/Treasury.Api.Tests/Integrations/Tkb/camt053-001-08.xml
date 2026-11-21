@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+  <BkToCstmrStmt>
+    <GrpHdr>
+      <MsgId>V08-1</MsgId>
+      <CreDtTm>2026-11-01T06:00:00+01:00</CreDtTm>
+      <MsgPgntn><PgNb>1</PgNb><LastPgInd>true</LastPgInd></MsgPgntn>
+    </GrpHdr>
+    <Stmt>
+      <Id>STMT-V08-1</Id>
+      <StmtPgntn><PgNb>1</PgNb><LastPgInd>true</LastPgInd></StmtPgntn>
+      <FrToDt><FrDtTm>2026-10-01T00:00:00+02:00</FrDtTm><ToDtTm>2026-10-31T23:59:59+01:00</ToDtTm></FrToDt>
+      <Acct><Id><IBAN>CH9300762011623852957</IBAN></Id><Ccy>CHF</Ccy></Acct>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>PRCD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">0.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-09-30</Dt></Dt>
+      </Bal>
+      <Bal>
+        <Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+        <Amt Ccy="CHF">180.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><Dt><Dt>2026-10-31</Dt></Dt>
+      </Bal>
+      <Ntry>
+        <Amt Ccy="CHF">200.00</Amt>
+        <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><Dt>2026-10-25</Dt></BookgDt>
+        <AcctSvcrRef>TKB-V08-1</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Amt Ccy="CHF">200.00</Amt><CdtDbtInd>CRDT</CdtDbtInd>
+          <RltdPties>
+            <Dbtr><Pty><Nm>Muster AG</Nm></Pty></Dbtr>
+            <Cdtr><Pty><Nm>Anna Muster</Nm></Pty></Cdtr>
+          </RltdPties>
+          <RmtInf><Ustrd>Lohn Oktober</Ustrd></RmtInf>
+        </TxDtls></NtryDtls>
+        <AddtlNtryInf>Gutschrift</AddtlNtryInf>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="CHF">20.00</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts><Cd>BOOK</Cd></Sts>
+        <BookgDt><DtTm>2026-10-26T10:15:00+01:00</DtTm></BookgDt>
+        <AcctSvcrRef>TKB-V08-2</AcctSvcrRef>
+        <NtryDtls><TxDtls>
+          <Amt Ccy="CHF">20.00</Amt><CdtDbtInd>DBIT</CdtDbtInd>
+          <RltdPties><Cdtr><Pty><Nm>Coop</Nm></Pty></Cdtr></RltdPties>
+        </TxDtls></NtryDtls>
+        <AddtlNtryInf>Kartenzahlung</AddtlNtryInf>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>

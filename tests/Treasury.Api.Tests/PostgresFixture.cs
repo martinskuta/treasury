@@ -1,0 +1,52 @@
+using Npgsql;
+using Testcontainers.PostgreSql;
+using TUnit.Core.Interfaces;
+
+namespace Treasury.Api.Tests;
+
+/// One PostgreSQL container per test session. A migrated "template" database is
+/// built once; every test gets its own database cloned from it (fast, parallel-safe).
+public sealed class PostgresFixture : IAsyncInitializer, IAsyncDisposable
+{
+    public const string TemplateDb = "treasury_template";
+
+    // Tests run in parallel and each one has its own database (= its own connection pool), so allow more
+    // connections than the default 100; ApiTestBase also clears each test's pool when it ends.
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18")
+        .WithCommand("-c", "max_connections=500")
+        .Build();
+
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
+        await ExecAsync($"CREATE DATABASE \"{TemplateDb}\"");
+
+        // Run migrations once by booting the API against the template DB. No Admin is seeded there,
+        // so each test's API start is a genuine first startup that creates the first Admin.
+        await using (var app = new TreasuryApiFactory(ConnectionStringFor(TemplateDb), seedAdmin: false))
+        {
+            _ = app.Services; // triggers host start -> MigrateAsync in Program.cs
+        }
+        NpgsqlConnection.ClearAllPools(); // template must have no open connections
+    }
+
+    public async Task<string> CreateTestDatabaseAsync()
+    {
+        var name = $"t_{Guid.NewGuid():N}";
+        await ExecAsync($"CREATE DATABASE \"{name}\" TEMPLATE \"{TemplateDb}\"");
+        return ConnectionStringFor(name);
+    }
+
+    private string ConnectionStringFor(string db) =>
+        new NpgsqlConnectionStringBuilder(_container.GetConnectionString()) { Database = db }.ConnectionString;
+
+    private async Task ExecAsync(string sql)
+    {
+        await using var conn = new NpgsqlConnection(_container.GetConnectionString());
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public ValueTask DisposeAsync() => _container.DisposeAsync();
+}

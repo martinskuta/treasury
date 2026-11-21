@@ -1,0 +1,378 @@
+/*
+ * Settings pages (pages/SettingsPage, CategoriesPage, TagsPage, RulesPage, MembersPage, ChangePasswordPage).
+ * Tokens only (styles/tokens.css).
+ *
+ *   .settings-tiles / .settings-tile   Settings entry: a grid of link tiles
+ *   .settings-intro                    muted explanation under the page title
+ *   .settings-layout                   list (.settings-main) beside the "New …" form (.settings-aside); stacked < 1000px
+ *   .settings-list / .settings-row     rows without divider lines; .settings-row-main = name, meta, .settings-row-actions
+ *   .settings-edit                     inline edit form under a row, on the cream page colour
+ *   .rule-list                         Rules in priority order, numbered
+ */
+
+/* ---- Settings entry ---- */
+.settings-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+
+.settings-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 20px 22px;
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--ink);
+  text-decoration: none;
+  transition: box-shadow 150ms ease-out;
+}
+
+.settings-tile:hover {
+  box-shadow: var(--shadow-tiny);
+}
+
+.settings-tile-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-tile strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.settings-tile small {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.settings-tile-chevron {
+  flex: none;
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+.settings-tile-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--brown);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* ---- Common ---- */
+.settings-intro {
+  max-width: 72ch;
+  margin: -6px 4px 18px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: start;
+  gap: var(--gap);
+}
+
+.settings-layout > .ui-component {
+  margin-bottom: 0;
+}
+
+.settings-layout > .settings-aside {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.settings-layout > .settings-main {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+@media (max-width: 1000px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-layout > .settings-aside,
+  .settings-layout > .settings-main {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+/* Forms in a narrow column fill it. */
+.settings-aside .form {
+  max-width: none;
+}
+
+.settings-narrow {
+  max-width: 460px;
+}
+
+/* ---- Rows ---- */
+.settings-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-row {
+  min-width: 0;
+  padding: 10px 12px 10px calc(12px + var(--depth, 0) * 24px);
+  border-radius: 14px;
+  transition: background-color 150ms ease-out;
+}
+
+.settings-row:hover {
+  background: var(--brown-hover);
+}
+
+.settings-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.settings-row-name {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.settings-row-nested .settings-row-name {
+  font-weight: 500;
+}
+
+/* Tree guide before a subcategory */
+.settings-row-nested .settings-row-name::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 8px;
+  margin: 0 8px 0 0;
+  border-left: 1.5px solid var(--track);
+  border-bottom: 1.5px solid var(--track);
+  border-bottom-left-radius: 4px;
+  vertical-align: 0.2em;
+}
+
+.settings-row-meta {
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.settings-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-left: auto;
+}
+
+.settings-row-actions .button-link {
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.settings-row-actions .button-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.settings-row-actions .button-link:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
+  text-decoration: none;
+}
+
+.settings-row .form-error {
+  margin: 8px 0 0;
+}
+
+.settings-list-empty {
+  margin: 0;
+  padding: 16px 12px;
+  color: var(--muted);
+}
+
+/* ---- Inline edit / panels ---- */
+.settings-edit {
+  max-width: 520px;
+  margin-top: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--bg);
+}
+
+.settings-edit .form {
+  max-width: none;
+}
+
+/* On the cream panel, inputs go back to the panel colour so they stay visible. */
+.ui-component .settings-edit .input,
+.ui-component .settings-edit .field input:not([type='checkbox'], [type='radio'], [type='file']),
+.ui-component .settings-edit .field select,
+.ui-component .settings-edit .field textarea {
+  background-color: var(--panel);
+}
+
+.ui-component .settings-edit .button-secondary {
+  background: var(--panel);
+}
+
+.ui-component .settings-edit .button-secondary:hover:not(:disabled) {
+  background: var(--brown-tint);
+}
+
+.settings-edit > p {
+  margin: 0 0 12px;
+}
+
+/* Checkbox groups (Tag Owners, Rule Tags) */
+.settings-page .checkbox-group {
+  margin: 4px 0 14px;
+}
+
+.settings-page .checkbox-group legend {
+  margin: 0 0 4px 4px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.settings-page .checkbox-group .checkbox-field {
+  margin: 6px 0 0 4px;
+}
+
+.settings-page .form > .checkbox-field {
+  margin: 0 0 14px 4px;
+}
+
+.settings-hint {
+  margin: 0 0 14px 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ---- Rules ---- */
+.rule-list {
+  counter-reset: rule;
+}
+
+.rule-list > .settings-row {
+  counter-increment: rule;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+}
+
+.rule-list > .settings-row::before {
+  content: counter(rule);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--nav-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rule-list > .settings-row > * {
+  grid-column: 2;
+}
+
+.rule-text {
+  display: block;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.rule-inactive {
+  opacity: 0.6;
+}
+
+.rule-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.rule-toolbar h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.settings-message {
+  margin: 0 4px 14px;
+  font-weight: 600;
+}
+
+/* ---- Members ---- */
+.member-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.member-inactive .member-avatar,
+.member-inactive .settings-row-name {
+  opacity: 0.55;
+}
+
+.member-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+@media (max-width: 600px) {
+  .settings-row-actions {
+    gap: 4px 12px;
+  }
+
+  .settings-row-actions .button-link {
+    font-size: 0.82rem;
+  }
+
+  .settings-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-edit {
+    padding: 14px;
+  }
+}

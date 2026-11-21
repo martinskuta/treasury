@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Treasury.Api/Treasury.Api.csproj" />
+    <Project Path="src/Treasury.AppHost/Treasury.AppHost.csproj" />
+    <Project Path="src/Treasury.ServiceDefaults/Treasury.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Treasury.Api.Tests/Treasury.Api.Tests.csproj" />
+  </Folder>
+</Solution>

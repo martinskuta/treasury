@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- TODO: drop once Npgsql.EntityFrameworkCore.PostgreSQL 11.0.0 is GA (see EF Core refs in Treasury.Api.csproj). -->
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" Version="1.87.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.17.0" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Integration reader samples (seam 2): one folder per Integration. -->
+    <None Include="Integrations\**\*.csv;Integrations\**\*.txt;Integrations\**\*.xml;Integrations\**\*.zip" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Treasury.Api\Treasury.Api.csproj" />
+  </ItemGroup>
+
+</Project>

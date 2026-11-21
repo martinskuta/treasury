@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "src/Treasury.AppHost/Treasury.AppHost.csproj"
+  }
+}

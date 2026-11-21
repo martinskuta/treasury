@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.054.001.04">
+  <BkToCstmrDbtCdtNtfctn>
+    <GrpHdr><MsgId>N-1</MsgId><CreDtTm>2026-11-01T06:00:00+01:00</CreDtTm></GrpHdr>
+    <Ntfctn>
+      <Id>NTFCTN-1</Id>
+      <Acct><Id><IBAN>CH9300762011623852957</IBAN></Id></Acct>
+    </Ntfctn>
+  </BkToCstmrDbtCdtNtfctn>
+</Document>

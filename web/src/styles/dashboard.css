@@ -1,0 +1,388 @@
+/*
+ * Dashboard (pages/DashboardPage.tsx): bento grid, welcome strip with Frankie, and the inside of each UI component.
+ * Imported by the page itself. Layout from the cream-v3 prototype; rules in docs/design-guidelines.md ("Dashboard").
+ * Grid: 3 columns → 2 below 1150px → 1 below 700px. Tokens only.
+ */
+
+/* ---- Bento grid ---- */
+.dash-bento {
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    'welcome welcome welcome'
+    'month spend accounts'
+    'trend trend trend'
+    'tag tag uncat';
+}
+
+.dash-bento > .ui-component {
+  margin-bottom: 0;
+}
+
+.a-welcome { grid-area: welcome; }
+.a-month { grid-area: month; }
+.a-spend { grid-area: spend; }
+.a-accounts { grid-area: accounts; }
+.a-trend { grid-area: trend; }
+.a-tag { grid-area: tag; }
+.a-uncat { grid-area: uncat; }
+
+/* ---- Shared bits inside the Dashboard's UI components ---- */
+.dash-note {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.dash-note-right {
+  margin-top: 4px;
+  text-align: right;
+}
+
+.dash-empty {
+  margin: 0;
+  padding: 18px 0;
+  color: var(--muted);
+}
+
+.dash-empty a {
+  color: var(--tr-ink);
+}
+
+/* Label left, key amount right, pinned to the bottom of a column-flex UI component. */
+.dash-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 22px;
+}
+
+/* ---- Welcome strip ---- */
+.dash-welcome {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 14px 28px 14px 18px;
+  background: linear-gradient(110deg, var(--panel) 30%, var(--welcome-tint));
+  /* Frankie's very-happy run trots past the slot; clip it at the strip's sides, keep the heel kick's headroom. */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+/* The slot is as wide as the cow; the element itself is 2.2× wider, centred on the slot, so the run has room
+   (frankieElement.ts). It floats over the greeting while running and never takes clicks. */
+.dash-frankie {
+  flex: none;
+  width: 112px;
+  display: flex;
+  justify-content: center;
+}
+
+.dash-frankie-cow {
+  display: block;
+  flex: none;
+  width: 246px;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.dash-greeting {
+  min-width: 0;
+}
+
+.dash-greeting h1 {
+  margin: 0;
+}
+
+.dash-greeting p {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.dash-net {
+  margin-left: auto;
+  text-align: right;
+}
+
+.dash-net-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dash-net-pending {
+  color: var(--muted);
+}
+
+/* ---- This month / Spending by Category ---- */
+.dash-month,
+.dash-spend,
+.dash-accounts {
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-bar-row + .dash-bar-row {
+  margin-top: 18px;
+}
+
+.dash-bar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.dash-bar-top b {
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.dash-foot-amount {
+  font-size: 1.7rem;
+}
+
+.dash-donut-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.dash-donut-wrap .legend {
+  flex: 1;
+}
+
+/* ---- Accounts ---- */
+.dash-accts {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-acct {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-acct-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--beige-soft);
+  color: var(--brown);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.dash-acct-badge.multi {
+  background: var(--brown);
+  color: var(--cream);
+}
+
+.dash-acct-name {
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.dash-acct-name small {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.dash-acct-bal {
+  margin-left: auto;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.dash-acct-sub {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0 48px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.84rem;
+}
+
+.dash-acct-sub li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* ---- Last 6 months ---- */
+.dash-trend {
+  padding: 22px 26px 16px;
+}
+
+.dash-trend .ui-component-title {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 36px;
+  margin-bottom: 8px;
+}
+
+.dash-trend-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 36px;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+.dash-stat .label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  font-size: 0.78rem;
+}
+
+/* ---- Uncategorised ---- */
+.dash-uncat {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.dash-uncat-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dash-uncat-count {
+  font-size: 3rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--exp-ink);
+}
+
+.dash-uncat-count.none {
+  color: var(--inc-ink);
+}
+
+.dash-uncat-text {
+  margin-top: 6px;
+  font-size: 0.85rem;
+}
+
+/* ---- Latest Tag ---- */
+.dash-tag-range {
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.dash-tag-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-bottom: 16px;
+}
+
+.dash-tag-name {
+  padding: 3px 12px;
+  font-size: 0.85rem;
+}
+
+.dash-tag-legend {
+  margin-top: 14px;
+  gap: 6px 20px;
+}
+
+/* ---- 2 columns ---- */
+@media (max-width: 1150px) {
+  .dash-bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'welcome welcome'
+      'month spend'
+      'trend trend'
+      'accounts uncat'
+      'accounts tag';
+  }
+}
+
+/* ---- 1 column (phones) ---- */
+@media (max-width: 700px) {
+  .dash-bento {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'welcome' 'month' 'uncat' 'trend' 'spend' 'accounts' 'tag';
+  }
+
+  .dash-bento > .ui-component {
+    padding: 20px;
+  }
+
+  .dash-welcome {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    padding: 16px 20px 20px;
+  }
+
+  .dash-greeting {
+    flex: 1;
+  }
+
+  .dash-net {
+    width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .dash-net-label {
+    justify-content: space-between;
+  }
+
+  .dash-donut-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dash-donut-wrap .chart {
+    align-self: center;
+  }
+
+  .dash-bento > .dash-trend {
+    padding: 20px 18px 12px;
+  }
+
+  .dash-trend .ui-component-title,
+  .dash-trend-stats {
+    gap: 10px 22px;
+  }
+
+  .dash-trend .ui-component-title h2 {
+    width: 100%;
+  }
+}

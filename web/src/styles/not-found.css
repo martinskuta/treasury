@@ -1,0 +1,28 @@
+/* Not found (pages/NotFoundPage.tsx): one quiet UI component in the middle of the content area. */
+.not-found {
+  display: grid;
+  justify-items: center;
+  max-width: 460px;
+  margin: 48px auto;
+  padding: 40px 28px;
+  text-align: center;
+}
+
+.not-found-code {
+  margin: 0;
+  font-size: 3rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.not-found .page-title {
+  margin: 12px 0 6px;
+}
+
+.not-found-text {
+  margin: 0 0 22px;
+  color: var(--muted);
+}
