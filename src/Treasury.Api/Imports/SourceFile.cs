@@ -3,8 +3,8 @@ using Treasury.Api.Accounts;
 namespace Treasury.Api.Imports;
 
 /// A statement file that was imported and is kept (GLOSSARY: Source file): into one Account, or into a
-/// Multi-currency account (#25, then its Transactions sit in the group's Accounts of their currencies). Exactly one
-/// of <see cref="AccountId"/> and <see cref="MultiCurrencyAccountId"/> is set. Every Transaction imported from it
+/// Multi-currency account (#25, then its Transactions sit in that Multi-currency account's Accounts of their
+/// currencies). Exactly one of <see cref="AccountId"/> and <see cref="MultiCurrencyAccountId"/> is set. Every Transaction imported from it
 /// links back to it; deleting it undoes the import (#10, cascade to its Transactions).
 public class SourceFile
 {
@@ -51,12 +51,12 @@ public class SourceFile
     public decimal? ClosingBalanceAmount { get; set; }
 
     /// For a file imported into a Multi-currency account: the statement's closing balance of each currency, each
-    /// kept for (and checked against) the group's Account in that currency (#25).
+    /// kept for (and checked against) the Multi-currency account's Account in that currency (#25).
     public List<SourceFileClosingBalance> CurrencyClosingBalances { get; init; } = [];
 }
 
-/// One currency's closing balance on a Multi-currency account's Source file, for the group's Account in that
-/// currency (whose balance warning it feeds, see <see cref="AccountBalances"/>).
+/// One currency's closing balance on a Multi-currency account's Source file, for its Account in that currency
+/// (whose balance warning it feeds, see <see cref="AccountBalances"/>).
 public class SourceFileClosingBalance
 {
     public Guid SourceFileId { get; init; }

@@ -52,7 +52,7 @@ public static class ImportEndpoints
             var account = await db.Accounts.OwnedByViewerOrFamily(viewer).SingleOrDefaultAsync(a => a.Id == id, ct);
             if (account is null) return Results.NotFound();
             if (!account.Owner.IsManageableBy(viewer)) return Results.Forbid();
-            // Its statements hold every currency of the group: they are imported into the group (ADR-0009).
+            // Its statements hold every currency of its Multi-currency account: they are imported into that (ADR-0009).
             if (account.MultiCurrencyAccountId is { } multiCurrencyAccountId)
             {
                 var name = await db.MultiCurrencyAccounts.Where(m => m.Id == multiCurrencyAccountId)

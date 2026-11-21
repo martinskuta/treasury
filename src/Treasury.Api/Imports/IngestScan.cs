@@ -23,8 +23,8 @@ public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders fol
             var db = scope.ServiceProvider.GetRequiredService<TreasuryDbContext>();
             var pipeline = scope.ServiceProvider.GetRequiredService<ImportPipeline>();
             var found = new List<(IImportTarget Target, string Path, FileState State)>();
-            // An Account in a Multi-currency account has no Ingest folder of its own: files go into the group's
-            // (ADR-0009, #25).
+            // An Account in a Multi-currency account has no Ingest folder of its own: files go into that of its
+            // Multi-currency account (ADR-0009, #25).
             IEnumerable<IImportTarget> targets = [
                 .. await db.Accounts.AsNoTracking().Where(a => a.MultiCurrencyAccountId == null).ToListAsync(ct),
                 .. await db.MultiCurrencyAccounts.AsNoTracking().Include(g => g.Accounts).ToListAsync(ct),

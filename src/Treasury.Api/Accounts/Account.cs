@@ -37,8 +37,8 @@ public class Account : IOwned, IImportTarget
     public string? Identifier { get; init; }
 
     /// The Multi-currency account this Account belongs to, if any (ADR-0009). Fixed: an Account is never moved
-    /// into, out of or between groups. Such an Account has no Ingest folder of its own (its Slug is reserved only
-    /// for its kept Source files) and takes its Owner from the group.
+    /// into, out of or between Multi-currency accounts. Such an Account has no Ingest folder of its own (its Slug is
+    /// reserved only for its kept Source files) and takes its Owner from its Multi-currency account.
     public Guid? MultiCurrencyAccountId { get; init; }
 
     string IImportTarget.Description => $"the Account \"{Name}\"";

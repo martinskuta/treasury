@@ -14,7 +14,7 @@ public class MultiCurrencyAccount : IOwned, IImportTarget
     /// Accounts and Multi-currency accounts.
     public required string Slug { get; init; }
 
-    /// Null = the Family. The Owner of every Account in the group too (kept in step, see <see cref="SetOwner"/>).
+    /// Null = the Family. The Owner of every Account in it too (kept in step, see <see cref="SetOwner"/>).
     public Guid? OwnerMemberId { get; private set; }
 
     public Owner Owner => new(OwnerMemberId);
@@ -22,14 +22,14 @@ public class MultiCurrencyAccount : IOwned, IImportTarget
     /// Key of an Integration that holds several currencies.
     public required string IntegrationKey { get; init; }
 
-    /// One of <see cref="Currencies.All"/>: the currency the group's total balance is shown in.
+    /// One of <see cref="Currencies.All"/>: the currency the Multi-currency account's total balance is shown in.
     public required string MainCurrency { get; init; }
 
     public List<Account> Accounts { get; init; } = [];
 
     string IImportTarget.Description => $"the Multi-currency account \"{Name}\"";
 
-    /// Sets the Owner of the group and of every Account in it (load <see cref="Accounts"/> first).
+    /// Sets the Owner of the Multi-currency account and of every Account in it (load <see cref="Accounts"/> first).
     public void SetOwner(Owner owner)
     {
         OwnerMemberId = owner.MemberId;
