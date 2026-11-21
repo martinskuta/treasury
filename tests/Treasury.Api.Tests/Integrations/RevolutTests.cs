@@ -133,4 +133,57 @@ public class RevolutTests
             new StatementRow(new DateOnly(2026, 11, 5), 50.00m, "CHF", "From Eva Muster", "Eva Muster"),
         });
     }
+
+    [Test]
+    public async Task A_header_with_a_byte_order_mark_is_fine()
+    {
+        var statement = Read("﻿" + Header + "\nCard Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,580.00\n");
+
+        await Assert.That(statement.Rows).Count().IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task A_non_english_header_asks_for_an_english_export()
+    {
+        var error = Assert.Throws<StatementFormatException>(() => ReadSample("german-header.csv"));
+
+        await Assert.That(error.Message).Contains("export the statement in English");
+    }
+
+    [Test]
+    public async Task A_line_with_a_wrong_number_of_fields_is_rejected_with_its_line_number()
+    {
+        var error = Assert.Throws<StatementFormatException>(() => ReadSample("malformed.csv"));
+
+        await Assert.That(error.Message).StartsWith("line 3: expected 10 fields");
+    }
+
+    [Test]
+    [Arguments("2026-11-03,Migros,-20.00,0.00,CHF,COMPLETED,580.00", "'2026-11-03' is not a Completed Date")]
+    [Arguments("2026-11-03 08:00:00,Migros,-20,00,0.00,CHF,COMPLETED,580.00", "expected 10 fields")]
+    [Arguments("2026-11-03 08:00:00,Migros,twenty,0.00,CHF,COMPLETED,580.00", "'twenty' is not an Amount")]
+    [Arguments("2026-11-03 08:00:00,Migros,-20.00,,CHF,COMPLETED,580.00", "'' is not a Fee")]
+    [Arguments("2026-11-03 08:00:00,Migros,-20.00,0.00,,COMPLETED,580.00", "the Currency is empty")]
+    [Arguments("2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,", "'' is not a Balance")]
+    public async Task A_malformed_completed_row_is_rejected_with_its_line_number(string tail, string expected)
+    {
+        var error = Assert.Throws<StatementFormatException>(() =>
+            Read($"{Header}\n\nCard Payment,Current,2026-11-02 12:00:00,{tail}\n"));
+
+        await Assert.That(error.Message).StartsWith("line 3: ");
+        await Assert.That(error.Message).Contains(expected);
+    }
+
+    [Test]
+    public async Task An_empty_file_is_rejected()
+    {
+        var error = Assert.Throws<StatementFormatException>(() => Read("\n"));
+
+        await Assert.That(error.Message).Contains("empty");
+    }
+
+    private const string Header = "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance";
+
+    private static ParsedStatement Read(string content) =>
+        Reader.Read(new SourceFileContent("statement.csv", Encoding.UTF8.GetBytes(content)));
 }

@@ -20,22 +20,44 @@ public sealed class RevolutIntegration : IIntegration
     private const int Type = 0, Product = 1, CompletedDate = 3, Description = 4, Amount = 5, Fee = 6, Currency = 7,
         State = 8, Balance = 9;
 
+    private static readonly string[] Columns =
+        ["Type", "Product", "Started Date", "Completed Date", "Description", "Amount", "Fee", "Currency", "State", "Balance"];
+
+    private const string EnglishHint =
+        "In the Revolut app, export the statement in English as CSV (Excel), then import that file.";
+
     public ParsedStatement Read(SourceFileContent file)
     {
         var lines = file.ReadText().Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var headerIndex = Array.FindIndex(lines, l => l.Trim().Length > 0);
+        if (headerIndex < 0)
+            throw new StatementFormatException($"The file is empty. {EnglishHint}");
+        var header = CsvLine.Split(lines[headerIndex], ',', headerIndex + 1).Select(c => c.Trim()).ToList();
+        if (!header.SequenceEqual(Columns, StringComparer.OrdinalIgnoreCase))
+            throw new StatementFormatException(
+                $"This isn't a Revolut account statement in English (expected the header {string.Join(',', Columns)}). " +
+                "If it is a Revolut statement in another language, export the statement in English from the " +
+                "Revolut app and import that file.");
+
         var read = new List<ReadRow>();
-        for (var i = 1; i < lines.Length; i++)
+        for (var i = headerIndex + 1; i < lines.Length; i++)
         {
             if (lines[i].Trim().Length == 0) continue;
+            var at = $"line {i + 1}";
             var fields = CsvLine.Split(lines[i], ',', i + 1).Select(f => f.Trim()).ToList();
+            if (fields.Count != Columns.Length)
+                throw new StatementFormatException(
+                    $"{at}: expected {Columns.Length} fields like the header, found {fields.Count}. Was the file edited?");
             if (!Is(fields[Product], "Current") || !Is(fields[State], "Completed")) continue;
             read.Add(new ReadRow(
-                DateTime.ParseExact(fields[CompletedDate], "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                ParseCompleted(fields[CompletedDate], at),
                 fields[Type], fields[Description],
-                decimal.Parse(fields[Amount], CultureInfo.InvariantCulture),
-                decimal.Parse(fields[Fee], CultureInfo.InvariantCulture),
-                fields[Currency].ToUpperInvariant(),
-                decimal.Parse(fields[Balance], CultureInfo.InvariantCulture)));
+                ParseAmount(fields[Amount], at, "an Amount"),
+                ParseAmount(fields[Fee], at, "a Fee"),
+                fields[Currency].Length > 0
+                    ? fields[Currency].ToUpperInvariant()
+                    : throw new StatementFormatException($"{at}: the Currency is empty."),
+                ParseAmount(fields[Balance], at, "a Balance")));
         }
 
         var rows = read.SelectMany(Rows).ToList();
@@ -66,6 +88,19 @@ public sealed class RevolutIntegration : IIntegration
         if (row.Fee != 0)
             yield return new StatementRow(date, -row.Fee, row.Currency, $"Fee: {row.Description}", "Revolut");
     }
+
+    private static DateTime ParseCompleted(string value, string at) =>
+        DateTime.TryParseExact(value, ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm"], CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var completed)
+            ? completed
+            : throw new StatementFormatException(
+                $"{at}: '{value}' is not a Completed Date (expected e.g. 2026-11-04 21:14:56).");
+
+    private static decimal ParseAmount(string value, string at, string what) =>
+        decimal.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture, out var amount)
+            ? amount
+            : throw new StatementFormatException($"{at}: '{value}' is not {what} (expected e.g. -26.25).");
 
     private static string? Counterparty(string type, string description) =>
         Is(type, "Card Payment") || Is(type, "Card Refund") ? description
