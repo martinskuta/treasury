@@ -213,6 +213,63 @@ public class MultiCurrencyAccountTests : ApiTestBase
         await Assert.That(await ListGroupsAsync(anna)).IsEmpty();
     }
 
+    [Test]
+    public async Task The_handover_list_offers_a_multi_currency_account_as_a_whole()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MemberIdAsync(anna);
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", new { kind = "member", memberId = annaId }));
+        await AddCurrencyAccountAsync(group.Id, "USD", openingBalance: 0m);
+        await LoginAsAdminAsync();
+
+        var list = (await Client.GetFromJsonAsync<List<HandoverItem>>($"/api/admin/members/{annaId}/accounts"))!;
+
+        await Assert.That(list).IsEquivalentTo([new HandoverItem(group.Id, "Revolut", "CHF", true)]);
+    }
+
+    [Test]
+    public async Task Handing_over_a_deactivated_members_multi_currency_account_moves_all_its_accounts()
+    {
+        var bobId = await AddMemberAsync("bob");
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MemberIdAsync(anna);
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", new { kind = "member", memberId = annaId }));
+        var dollars = await AddCurrencyAccountAsync(group.Id, "USD", openingBalance: 0m);
+        await LoginAsAdminAsync();
+
+        var res = await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new
+        {
+            handover = new[] { new { multiCurrencyAccountId = group.Id, owner = new { kind = "member", memberId = bobId } } },
+        });
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        using var bob = NewClient();
+        await LoginAsync(bob, "bob", MemberPassword);
+        var bobs = (await bob.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{group.Id}"))!;
+        await Assert.That(bobs.Owner.MemberId).IsEqualTo(bobId);
+        await Assert.That(bobs.Accounts.Select(a => a.Owner.MemberId)).IsEquivalentTo([(Guid?)bobId, bobId]);
+        var bobsDollars = (await bob.GetFromJsonAsync<Account>($"/api/accounts/{dollars}"))!;
+        await Assert.That(bobsDollars.Owner.Name).IsEqualTo("bob");
+    }
+
+    [Test]
+    public async Task One_account_of_a_multi_currency_account_cannot_be_handed_over_on_its_own()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var annaId = await MemberIdAsync(anna);
+        var group = await CreateGroupAsync(anna, NewGroup("Revolut", new { kind = "member", memberId = annaId }));
+        await LoginAsAdminAsync();
+
+        var res = await Client.PostAsJsonAsync($"/api/admin/members/{annaId}/deactivate", new
+        {
+            handover = new[] { new { accountId = group.Accounts.Single().Id, owner = Family } },
+        });
+
+        await AssertValidationErrorAsync(res, "handover");
+        var unchanged = (await anna.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{group.Id}"))!;
+        await Assert.That(unchanged.Accounts.Single().Owner.MemberId).IsEqualTo(annaId);
+    }
+
     // ---- helpers ----
 
     /// Adds an Account in another currency to a group, as importing a statement with a new currency will (#25).
@@ -300,6 +357,8 @@ public class MultiCurrencyAccountTests : ApiTestBase
 
     private record Group(Guid Id, string Name, string Slug, OwnerDto Owner, string IntegrationKey, string MainCurrency,
         List<Account> Accounts, decimal? TotalBalance);
+
+    private record HandoverItem(Guid Id, string Name, string Currency, bool IsMultiCurrencyAccount);
 
     private record Integration(string Key, string Name, bool CanProvideIdentifier, bool HoldsSeveralCurrencies);
 }
