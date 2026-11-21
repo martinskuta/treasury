@@ -61,4 +61,76 @@ public class RevolutTests
                 new ClosingBalance(new DateOnly(2026, 11, 9), 861.68m)),
         });
     }
+
+    [Test]
+    public async Task Only_completed_rows_of_the_current_product_are_read()
+    {
+        var statement = ReadSample("states-and-deposit.csv");
+
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(new DateOnly(2026, 11, 1), 500.00m, "CHF", "Top-up by *1234"),
+            new StatementRow(new DateOnly(2026, 11, 4), -200.00m, "CHF", "To pocket CHF Savings", "pocket CHF Savings"),
+            new StatementRow(new DateOnly(2026, 11, 6), 15.00m, "CHF", "Coop", "Coop"),
+        });
+        await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
+        {
+            new CurrencyBalances("CHF", new DateOnly(2026, 11, 1), 1000.00m,
+                new ClosingBalance(new DateOnly(2026, 11, 6), 1315.00m)),
+        });
+    }
+
+    [Test]
+    public async Task A_fee_becomes_a_second_row_charged_by_revolut()
+    {
+        var statement = ReadSample("fee.csv");
+
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(new DateOnly(2026, 11, 6), -200.00m, "CHF", "Cash at Bahnhofstrasse"),
+            new StatementRow(new DateOnly(2026, 11, 6), -3.50m, "CHF", "Fee: Cash at Bahnhofstrasse", "Revolut"),
+            new StatementRow(new DateOnly(2026, 11, 8), -30.00m, "CHF", "Amazon", "Amazon"),
+        });
+        await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
+        {
+            new CurrencyBalances("CHF", new DateOnly(2026, 11, 6), 1000.00m,
+                new ClosingBalance(new DateOnly(2026, 11, 8), 766.50m)),
+        });
+    }
+
+    [Test]
+    public async Task Each_currency_gets_its_own_balances_in_completed_date_order()
+    {
+        var statement = ReadSample("two-currencies.csv");
+
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(new DateOnly(2026, 11, 11), -25.00m, "EUR", "Trattoria Roma, Milano", "Trattoria Roma, Milano"),
+            new StatementRow(new DateOnly(2026, 11, 10), -100.00m, "CHF", "Exchanged to EUR"),
+            new StatementRow(new DateOnly(2026, 11, 10), 92.00m, "EUR", "Exchanged to EUR"),
+            new StatementRow(new DateOnly(2026, 11, 13), -10.00m, "CHF", "Migros", "Migros"),
+        });
+        await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
+        {
+            new CurrencyBalances("CHF", new DateOnly(2026, 11, 10), 1000.00m,
+                new ClosingBalance(new DateOnly(2026, 11, 13), 890.00m)),
+            new CurrencyBalances("EUR", new DateOnly(2026, 11, 10), 0m,
+                new ClosingBalance(new DateOnly(2026, 11, 11), 67.00m)),
+        });
+        await Assert.That(statement.ClosingBalance).IsNull();
+    }
+
+    [Test]
+    public async Task Older_upper_case_types_and_states_are_read_like_title_case()
+    {
+        var statement = ReadSample("upper-case.csv");
+
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(new DateOnly(2026, 11, 1), 100.00m, "CHF", "Top-Up by *1234"),
+            new StatementRow(new DateOnly(2026, 11, 3), -20.00m, "CHF", "Migros", "Migros"),
+            new StatementRow(new DateOnly(2026, 11, 4), 5.00m, "CHF", "Migros", "Migros"),
+            new StatementRow(new DateOnly(2026, 11, 5), 50.00m, "CHF", "From Eva Muster", "Eva Muster"),
+        });
+    }
 }

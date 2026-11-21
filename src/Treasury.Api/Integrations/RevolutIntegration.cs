@@ -38,8 +38,7 @@ public sealed class RevolutIntegration : IIntegration
                 decimal.Parse(fields[Balance], CultureInfo.InvariantCulture)));
         }
 
-        var rows = read.Select(r => new StatementRow(DateOnly.FromDateTime(r.Completed), r.Amount, r.Currency,
-            r.Description, Counterparty(r.Type, r.Description))).ToList();
+        var rows = read.SelectMany(Rows).ToList();
         var balances = read
             .Select((row, index) => (row, index))
             .GroupBy(r => r.row.Currency)
@@ -55,6 +54,17 @@ public sealed class RevolutIntegration : IIntegration
             })
             .ToList();
         return new ParsedStatement(rows, BalancesByCurrency: balances);
+    }
+
+    /// The movement itself and, for a non-zero Fee, a second row charged by Revolut (Revolut's balance is the
+    /// previous balance + Amount − Fee).
+    private static IEnumerable<StatementRow> Rows(ReadRow row)
+    {
+        var date = DateOnly.FromDateTime(row.Completed);
+        yield return new StatementRow(date, row.Amount, row.Currency, row.Description,
+            Counterparty(row.Type, row.Description));
+        if (row.Fee != 0)
+            yield return new StatementRow(date, -row.Fee, row.Currency, $"Fee: {row.Description}", "Revolut");
     }
 
     private static string? Counterparty(string type, string description) =>
