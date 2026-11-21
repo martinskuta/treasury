@@ -75,11 +75,7 @@ public static class AccountEndpoints
             AccountValidation.Currency(request.Currency, "currency", errors);
             AccountValidation.Opening(request.OpeningBalance, request.OpeningDate, errors);
 
-            var identifier = string.IsNullOrWhiteSpace(request.Identifier) ? null : request.Identifier.Trim();
-            if (identifier is not null && integration is { CanProvideIdentifier: false })
-                errors["identifier"] = ["This Integration can't check an identifier; leave it empty."];
-            else if (identifier?.Length > MaxIdentifierLength)
-                errors["identifier"] = [$"Use at most {MaxIdentifierLength} characters."];
+            var identifier = AccountValidation.Identifier(request.Identifier, integration, errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!owner!.Value.IsManageableBy(viewer)) return Results.Forbid();

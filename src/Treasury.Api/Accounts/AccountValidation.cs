@@ -1,3 +1,4 @@
+using Treasury.Api.Integrations;
 using Treasury.Api.Ownership;
 
 namespace Treasury.Api.Accounts;
@@ -25,6 +26,19 @@ internal static class AccountValidation
         if (!Currencies.IsSupported(currency))
             errors[field] = [
                 "Choose a currency Treasury has exchange rates for (an ISO code such as CHF, EUR, USD or GBP)."];
+    }
+
+    /// The optional identifier of an Account or a Multi-currency account: trimmed, blank = none. Allowed only when
+    /// the Integration can provide one to check against.
+    public static string? Identifier(string? identifier, IIntegration? integration,
+        Dictionary<string, string[]> errors)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(identifier) ? null : identifier.Trim();
+        if (trimmed is not null && integration is { CanProvideIdentifier: false })
+            errors["identifier"] = ["This Integration can't check an identifier; leave it empty."];
+        else if (trimmed?.Length > AccountEndpoints.MaxIdentifierLength)
+            errors["identifier"] = [$"Use at most {AccountEndpoints.MaxIdentifierLength} characters."];
+        return trimmed;
     }
 
     public static void Opening(decimal? balance, DateOnly? date, Dictionary<string, string[]> errors)

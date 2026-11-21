@@ -76,6 +76,7 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             g.HasIndex(x => x.Slug).IsUnique();
             g.Property(x => x.IntegrationKey).HasMaxLength(64);
             g.Property(x => x.MainCurrency).HasMaxLength(3);
+            g.Property(x => x.Identifier).HasMaxLength(AccountEndpoints.MaxIdentifierLength);
             g.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
             // Its Accounts are never detached; a Multi-currency account with Accounts can't be deleted.
             g.HasMany(x => x.Accounts).WithOne().HasForeignKey(x => x.MultiCurrencyAccountId)
