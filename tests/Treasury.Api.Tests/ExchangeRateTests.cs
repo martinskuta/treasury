@@ -112,6 +112,30 @@ public class ExchangeRateTests : ApiTestBase
     }
 
     [Test]
+    public async Task A_newly_supported_currency_gets_its_rates_backfilled_over_days_other_currencies_already_have()
+    {
+        // The provider serves CHF/CZK/USD only, like before Treasury supported more currencies.
+        App.ExchangeRates.Publish("2026-03-02", chf: 0.9500m);
+        App.ExchangeRates.Publish("2026-11-18", chf: 0.9300m);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var euros = await CreateAccountAsync(anna, "Euro card", "EUR");
+        await AddAsync(anna, euros, -100m, "2026-03-03");
+        await EventuallyAsync(anna, l => l.Single().ChfAmount == -95.00m,
+            betweenPolls: () => App.Clock.Advance(TimeSpan.FromHours(1)));
+        var pounds = await CreateAccountAsync(anna, "Pound card", "GBP");
+        await AddAsync(anna, pounds, -100m, "2026-03-03");
+
+        // Now pound rates are served too, also for the days whose CHF/CZK/USD rates are already stored.
+        App.ExchangeRates.Publish("2026-03-02", "GBP", 0.8000m);
+        App.ExchangeRates.Publish("2026-11-18", "GBP", 0.8100m);
+
+        // 100 GBP = 125 EUR = 118.75 CHF at 2026-03-02's rates.
+        var list = await EventuallyAsync(anna, l => l.All(t => t.ChfAmount is not null),
+            betweenPolls: () => App.Clock.Advance(TimeSpan.FromHours(1)));
+        await Assert.That(list.Single(t => t.Currency == "GBP").ChfAmount).IsEqualTo(-118.75m);
+    }
+
+    [Test]
     public async Task Moving_a_transaction_to_an_earlier_date_backfills_its_rate()
     {
         App.ExchangeRates.Publish("2026-11-18", chf: 0.9266m);
