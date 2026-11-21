@@ -1,4 +1,4 @@
-import type { TransactionFilter, TransactionSort } from '../../lib/api'
+import type { Transaction, TransactionFilter, TransactionSort } from '../../lib/api'
 import { toErrors, type Errors } from '../../lib/errors'
 
 /** Form errors for Transaction changes; a 403 means the Member doesn't manage the Account. */
@@ -55,3 +55,37 @@ export function filterFromParams(params: URLSearchParams): TransactionFilter {
     limit: PAGE_SIZE,
   }
 }
+
+/** The list is grouped by day only when sorted by date (the default). */
+export const isDateSort = (params: URLSearchParams) => !params.get('sort')?.startsWith('amount')
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Day header of the grouped list: "2026-11-20" -> "Fri 20 Nov"; the year is added outside the current year. */
+export function formatDayLabel(isoDate: string): string {
+  const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number)
+  const weekday = WEEKDAYS[new Date(year, month - 1, day).getDay()]
+  const label = `${weekday} ${day} ${MONTHS[month - 1]}`
+  return year === new Date().getFullYear() ? label : `${label} ${year}`
+}
+
+/** Runs of consecutive items on the same date, in list order (the list is sorted by date). */
+export function groupByDay<T extends { date: string }>(items: T[]): { date: string; items: T[] }[] {
+  const groups: { date: string; items: T[] }[] = []
+  for (const item of items) {
+    const last = groups.at(-1)
+    if (last?.date === item.date) last.items.push(item)
+    else groups.push({ date: item.date, items: [item] })
+  }
+  return groups
+}
+
+export type TransactionKind = 'income' | 'expense' | 'transfer' | 'uncategorised'
+
+/** Uncategorised wins over Income / Expense: it is what needs attention. A Transfer never has a Category. */
+export const kindOf = (t: Transaction): TransactionKind =>
+  t.type === 'transfer' ? 'transfer' : t.category === null ? 'uncategorised' : t.type
+
+/** Row class carrying the kind's colours (icon tint, amount colour; styles/transactions.css). */
+export const kindClass = (t: Transaction) => `tx-${kindOf(t)}`
