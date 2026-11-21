@@ -1,0 +1,333 @@
+/*
+ * Shared building blocks (docs/design-guidelines.md, "Layout and spacing" and "Controls").
+ *
+ * UI component (never "card"):
+ *   <section className="ui-component"> … </section>, or <UiComponent title="…"> (components/UiComponent.tsx)
+ *   .ui-component-title   title row: <div class="ui-component-title"><h2>…</h2>actions</div>; a bare
+ *                         <h2> as first child of .ui-component gets the same look
+ *   .ui-grid              grid of UI components with the standard gap (set grid-template-columns yourself)
+ *   .stack                vertical flow of UI components with the standard gap
+ *
+ * Buttons (pills): .button-primary (brown), .button-secondary (panel on cream, tint inside a UI component),
+ *   .button-link (text-only), add .button-small for a compact pill.
+ * Inputs / selects: inside a .field wrapper (FormField, SelectField) or standalone with .input; pills with a
+ *   --teal focus ring and a token-coloured chevron. Panel on cream, cream inside a UI component.
+ * Segmented control: <SegmentedControl> (components/SegmentedControl.tsx), or .segmented with buttons using aria-pressed.
+ * Chips: .chip (muted, e.g. Owner hint), .chip-tag (Tag pill), .chip-uncategorised; .tag-chip is the Tag pill
+ *   used by existing pages (add .auto for Tags applied automatically).
+ */
+
+/* ---- UI component ---- */
+.ui-component {
+  min-width: 0;
+  margin-bottom: var(--gap);
+  padding: var(--pad);
+  border-radius: var(--r);
+  background: var(--panel);
+}
+
+.ui-grid > .ui-component,
+.stack > .ui-component {
+  margin-bottom: 0;
+}
+
+.ui-component > h2,
+.ui-component-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ui-component-title h2 {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.ui-grid {
+  display: grid;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+
+.stack {
+  display: grid;
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+
+/* ---- Buttons ---- */
+.button-primary,
+.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 99px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    filter 150ms ease-out,
+    background-color 150ms ease-out;
+}
+
+.button-primary {
+  background: var(--brown);
+  color: var(--cream);
+}
+
+.button-primary:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.button-secondary {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.ui-component .button-secondary {
+  background: var(--brown-tint);
+}
+
+.button-secondary:hover:not(:disabled) {
+  background: var(--brown-tint);
+}
+
+.ui-component .button-secondary:hover:not(:disabled) {
+  background: var(--brown-hover);
+  filter: brightness(0.97);
+}
+
+.button-small {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+}
+
+.button-primary:disabled,
+.button-secondary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.button-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--tr-ink);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.button-link:hover {
+  text-decoration: underline;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- Inputs and selects ---- */
+.form {
+  max-width: 420px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  margin: 0 0 6px 4px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.input,
+.field input:not([type='checkbox'], [type='radio'], [type='file']),
+.field select,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 99px;
+  background: var(--panel);
+  outline: none;
+  transition: box-shadow 150ms ease-out;
+}
+
+.field textarea {
+  border-radius: 16px;
+}
+
+.ui-component .input,
+.ui-component .field input:not([type='checkbox'], [type='radio'], [type='file']),
+.ui-component .field select,
+.ui-component .field textarea {
+  background: var(--bg);
+}
+
+.input:focus-visible,
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+select.input,
+.field select {
+  appearance: none;
+  padding-right: 36px;
+  cursor: pointer;
+  /* Chevron drawn from two gradients so its colour comes from a token. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    right 19px center,
+    right 15px center;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.input[aria-invalid='true'],
+.field input[aria-invalid='true'],
+.field select[aria-invalid='true'] {
+  box-shadow: 0 0 0 2px var(--coral);
+}
+
+.field-errors,
+.form-error {
+  margin: 6px 0 0 4px;
+  padding: 0;
+  list-style: none;
+  color: var(--exp-ink);
+  font-size: 0.85rem;
+}
+
+.form-error {
+  margin: 0 0 12px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--brown);
+}
+
+/* ---- Segmented control ---- */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 99px;
+  background: var(--brown-tint);
+}
+
+.segmented button {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 99px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+
+.segmented button:hover {
+  color: var(--ink);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-tiny);
+}
+
+/* ---- Chips ---- */
+.chip,
+.chip-tag,
+.chip-uncategorised,
+.tag-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-decoration: none;
+  vertical-align: 1px;
+}
+
+.chip {
+  background: var(--brown-tint);
+  color: var(--muted);
+}
+
+.chip-tag,
+.tag-chip {
+  background: var(--lime-soft);
+  color: var(--inc-ink);
+}
+
+.chip-uncategorised {
+  background: var(--coral-soft);
+  color: var(--exp-ink);
+}
+
+/* Tag applied automatically (date range or Rule), not by hand. */
+.tag-chip.auto,
+.chip-tag.auto {
+  box-shadow: inset 0 0 0 1px var(--lime-line);
+  background: transparent;
+}
+
+a.tag-chip:hover,
+a.chip-tag:hover {
+  background: var(--lime);
+}
+
+/* ---- Status text ---- */
+.status {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.status-good {
+  color: var(--inc-ink);
+}
+
+.status-bad {
+  color: var(--exp-ink);
+}
+
+.page-loading,
+.empty {
+  padding: 24px 0;
+  color: var(--muted);
+}
+
+.empty {
+  text-align: center;
+}
