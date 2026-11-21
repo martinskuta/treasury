@@ -27,6 +27,7 @@ import {
 import { useMe } from '../lib/auth'
 import { toErrors, type Errors } from '../lib/errors'
 import { ownerRefFromValue, ownerValue } from '../lib/owners'
+import './settings.css'
 
 /** Owner <select> value: "" (don't set an Owner), "family" or a Member id. */
 const ruleOwnerValue = (owner: Owner | OwnerRef | null) => (owner === null ? '' : ownerValue(owner))
@@ -137,24 +138,24 @@ export function RulesPage() {
   }
 
   return (
-    <>
-      <h1>Rules</h1>
-      <p>
+    <div className="settings-page">
+      <h1 className="page-title">Rules</h1>
+      <p className="settings-intro">
         Rules categorise imported Transactions automatically. They run in order: the first matching Rule with a
         Category sets the Category, the first with an Owner sets the Owner, and the Tags of every matching Rule are
         added. Rules never change what a Member set by hand, never categorise Transfers or Contributions, and only
         reach Accounts their author (the Member who last saved them) can see.
       </p>
       {loadError && <p className="status status-bad">Couldn’t load the Rules.</p>}
-      {rules === null && !loadError && <p>Loading…</p>}
+      {rules === null && !loadError && <p className="page-loading">Loading…</p>}
       {message && (
-        <p className="status" role="status">
+        <p className="settings-message" role="status">
           {message}
         </p>
       )}
       {rules !== null && (
-        <>
-          <section className="ui-component">
+        <div className="settings-layout">
+          <section className="ui-component settings-aside">
             <h2>{draft ? 'New Rule from your correction' : 'New Rule'}</h2>
             <RuleForm
               key={draft ? `draft-${fromTransaction}` : 'new'}
@@ -167,16 +168,17 @@ export function RulesPage() {
               resetOnDone
             />
           </section>
-          <section className="ui-component">
-            <div className="form-actions">
-              <button type="button" className="button-secondary" disabled={busy} onClick={() => void apply()}>
+          <section className="ui-component settings-main" aria-labelledby="rules-order">
+            <div className="rule-toolbar">
+              <h2 id="rules-order">In priority order</h2>
+              <button type="button" className="button-secondary button-small" disabled={busy} onClick={() => void apply()}>
                 Apply Rules to Uncategorised Transactions
               </button>
             </div>
             {rules.length === 0 ? (
-              <p>No Rules yet.</p>
+              <p className="settings-list-empty">No Rules yet.</p>
             ) : (
-              <ol className="category-list rule-list">
+              <ol className="settings-list rule-list">
                 {rules.map((r, i) => (
                   <RuleRow
                     key={r.id}
@@ -191,9 +193,9 @@ export function RulesPage() {
               </ol>
             )}
           </section>
-        </>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -228,25 +230,27 @@ function RuleRow({
   }
 
   return (
-    <li className="category-row">
-      <div className="category-main">
-        <span className="category-name">{describe(rule)}</span>
-        <span className="account-meta">
+    <li className={`settings-row${rule.active ? '' : ' rule-inactive'}`}>
+      <span className="rule-text">{describe(rule)}</span>
+      <div className="settings-row-main">
+        <span className="settings-row-meta">
           by {rule.author.name}
           {!rule.active && ' · inactive: its author was deactivated (save it to take it over)'}
         </span>
-        <button type="button" className="button-link" disabled={busy || !onUp} onClick={onUp} aria-label="Move up">
-          ↑
-        </button>
-        <button type="button" className="button-link" disabled={busy || !onDown} onClick={onDown} aria-label="Move down">
-          ↓
-        </button>
-        <button type="button" className="button-link" onClick={() => setEditing(!editing)}>
-          {editing ? 'Close' : 'Edit'}
-        </button>
-        <button type="button" className="button-link" onClick={() => void remove()}>
-          Delete
-        </button>
+        <div className="settings-row-actions">
+          <button type="button" className="button-link" disabled={busy || !onUp} onClick={onUp} aria-label="Move up">
+            ↑
+          </button>
+          <button type="button" className="button-link" disabled={busy || !onDown} onClick={onDown} aria-label="Move down">
+            ↓
+          </button>
+          <button type="button" className="button-link" aria-expanded={editing} onClick={() => setEditing(!editing)}>
+            {editing ? 'Close' : 'Edit'}
+          </button>
+          <button type="button" className="button-link" onClick={() => void remove()}>
+            Delete
+          </button>
+        </div>
       </div>
       {error && (
         <p className="form-error" role="alert">
@@ -254,7 +258,7 @@ function RuleRow({
         </p>
       )}
       {editing && (
-        <div className="category-edit">
+        <div className="settings-edit">
           <RuleForm
             initial={toInput(rule)}
             options={options}
@@ -371,7 +375,7 @@ function RuleForm({
       </SelectField>
       <fieldset className="checkbox-group">
         <legend>Add Tags</legend>
-        {options.tags.length === 0 && <p className="account-meta">No Tags yet.</p>}
+        {options.tags.length === 0 && <p className="settings-hint">No Tags yet.</p>}
         {options.tags.map(t => (
           <label key={t.id} className="checkbox-field">
             <input
@@ -394,7 +398,7 @@ function RuleForm({
         onChange={setOwner}
       />
       {author && author.id !== me.id && (
-        <p className="account-meta">
+        <p className="settings-hint">
           Saving makes you this Rule’s author: it will then reach your Accounts and the Family’s instead of{' '}
           {author.name}’s.
         </p>

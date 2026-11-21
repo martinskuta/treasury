@@ -17,6 +17,17 @@ import {
 import { toErrors, type Errors } from '../lib/errors'
 import { useMe } from '../lib/auth'
 import { ownerRefFromValue } from '../lib/owners'
+import './settings.css'
+
+/** Initials for the avatar: "anna.muster" -> "AM", "martin" -> "M". */
+function initials(userName: string): string {
+  return userName
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(p => p[0].toUpperCase())
+    .join('')
+}
 
 /** Settings › Members (Admin only): add Members, reset passwords, give/remove the Admin role, deactivate. */
 export function MembersPage() {
@@ -44,28 +55,24 @@ export function MembersPage() {
 
   if (!admin) {
     return (
-      <>
-        <h1>Members</h1>
+      <div className="settings-page">
+        <h1 className="page-title">Members</h1>
         <p className="status status-bad">Only Admins can manage Members.</p>
-      </>
+      </div>
     )
   }
 
   return (
-    <>
-      <h1>Members</h1>
-      {loadError && <p className="status status-bad">Couldn’t load the Members.</p>}
-      {members === null && !loadError && <p>Loading…</p>}
-      {members !== null && (
-        <section className="ui-component">
-          <ul className="member-list">
-            {members.map(m => (
-              <MemberRow key={m.id} member={m} members={members} isMe={m.id === me.id} onChanged={() => void reload()} />
-            ))}
-          </ul>
-        </section>
-      )}
-      {adding ? (
+    <div className="settings-page">
+      <div className="page-header">
+        <h1 className="page-title">Members</h1>
+        {!adding && (
+          <button type="button" className="button-primary" onClick={() => setAdding(true)}>
+            Add Member
+          </button>
+        )}
+      </div>
+      {adding && (
         <AddMemberForm
           onCancel={() => setAdding(false)}
           onAdded={() => {
@@ -73,12 +80,19 @@ export function MembersPage() {
             void reload()
           }}
         />
-      ) : (
-        <button type="button" className="button-primary" onClick={() => setAdding(true)}>
-          Add Member
-        </button>
       )}
-    </>
+      {loadError && <p className="status status-bad">Couldn’t load the Members.</p>}
+      {members === null && !loadError && <p className="page-loading">Loading…</p>}
+      {members !== null && (
+        <section className="ui-component" aria-label="Members">
+          <ul className="settings-list">
+            {members.map(m => (
+              <MemberRow key={m.id} member={m} members={members} isMe={m.id === me.id} onChanged={() => void reload()} />
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
   )
 }
 
@@ -115,28 +129,33 @@ function MemberRow({
   const close = () => setPanel('none')
 
   return (
-    <li className="member-row">
-      <div className="member-head">
-        <strong>{member.userName}</strong>
-        <span className="member-meta">
-          {[member.isAdmin && 'Admin', !member.isActive && 'Deactivated', isMe && 'you'].filter(Boolean).join(' · ')}
+    <li className={`settings-row member-row${member.isActive ? '' : ' member-inactive'}`}>
+      <div className="settings-row-main">
+        <span className="member-avatar" aria-hidden="true">
+          {initials(member.userName)}
         </span>
-      </div>
-      {member.isActive && (
-        <div className="member-actions">
-          <button type="button" className="button-link" onClick={() => setPanel('password')}>
-            Reset password
-          </button>
-          <button type="button" className="button-link" disabled={busy} onClick={() => void toggleAdmin()}>
-            {member.isAdmin ? 'Remove Admin role' : 'Make Admin'}
-          </button>
-          {!isMe && (
-            <button type="button" className="button-link" onClick={() => setPanel('deactivate')}>
-              Deactivate
+        <span className="settings-row-name">{member.userName}</span>
+        <span className="member-chips">
+          {member.isAdmin && <span className="chip">Admin</span>}
+          {!member.isActive && <span className="chip">Deactivated</span>}
+          {isMe && <span className="chip">you</span>}
+        </span>
+        {member.isActive && (
+          <div className="settings-row-actions">
+            <button type="button" className="button-link" onClick={() => setPanel('password')}>
+              Reset password
             </button>
-          )}
-        </div>
-      )}
+            <button type="button" className="button-link" disabled={busy} onClick={() => void toggleAdmin()}>
+              {member.isAdmin ? 'Remove Admin role' : 'Make Admin'}
+            </button>
+            {!isMe && (
+              <button type="button" className="button-link" onClick={() => setPanel('deactivate')}>
+                Deactivate
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {(errors.isAdmin ?? errors.form) && (
         <p className="form-error" role="alert">
           {(errors.isAdmin ?? errors.form)[0]}
@@ -179,7 +198,7 @@ function AddMemberForm({ onCancel, onAdded }: { onCancel: () => void; onAdded: (
   }
 
   return (
-    <form className="ui-component form" onSubmit={submit}>
+    <form className="ui-component form settings-narrow" onSubmit={submit}>
       <h2>Add Member</h2>
       <FormField
         label="User name"
@@ -239,7 +258,7 @@ function ResetPasswordForm({ member, onDone }: { member: MemberSummary; onDone: 
   }
 
   return (
-    <form className="member-panel" onSubmit={submit}>
+    <form className="settings-edit" onSubmit={submit}>
       <FormField
         label={`New password for ${member.userName}`}
         name="newPassword"
@@ -327,7 +346,7 @@ function DeactivateForm({
   }
 
   return (
-    <form className="member-panel" onSubmit={submit}>
+    <form className="settings-edit" onSubmit={submit}>
       <p>
         Deactivate <strong>{member.userName}</strong>? They won’t be able to log in any more; their data is kept.
       </p>

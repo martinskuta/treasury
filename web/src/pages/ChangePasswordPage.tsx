@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { FormField } from '../components/FormField'
 import { changePassword } from '../lib/api'
 import { toErrors, type Errors } from '../lib/errors'
+import './settings.css'
 
 export function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -35,8 +36,8 @@ export function ChangePasswordPage() {
 
   return (
     <>
-      <h1>Change password</h1>
-      <form className="ui-component form" onSubmit={submit}>
+      <h1 className="page-title">Change password</h1>
+      <form className="ui-component form settings-narrow" onSubmit={submit}>
         <FormField
           label="Current password"
           name="currentPassword"

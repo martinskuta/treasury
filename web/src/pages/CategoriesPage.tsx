@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react'
 import { CategoryOptions } from '../components/CategoryOptions'
 import { FormField } from '../components/FormField'
 import { SelectField } from '../components/SelectField'
@@ -11,6 +11,7 @@ import {
   type Category,
 } from '../lib/api'
 import { firstError, GENERIC_ERROR, toErrors, type Errors } from '../lib/errors'
+import './settings.css'
 
 /** Depth in the tree (0 = top level), following parentId. */
 function depthOf(c: Category, byId: Map<string, Category>) {
@@ -47,19 +48,19 @@ export function CategoriesPage() {
   const byId = new Map((categories ?? []).map(c => [c.id, c]))
 
   return (
-    <>
-      <h1>Categories</h1>
-      <p>
+    <div className="settings-page">
+      <h1 className="page-title">Categories</h1>
+      <p className="settings-intro">
         One Category tree for the whole Family. Every Income and Expense gets one Category; the built-in Contribution
         Categories are assigned automatically and can’t be changed.
       </p>
       {loadError && <p className="status status-bad">Couldn’t load the Categories.</p>}
-      {categories === null && !loadError && <p>Loading…</p>}
+      {categories === null && !loadError && <p className="page-loading">Loading…</p>}
       {categories !== null && (
-        <>
+        <div className="settings-layout">
           <NewCategoryForm categories={categories} onCreated={() => void load()} />
-          <section className="ui-component">
-            <ul className="category-list">
+          <section className="ui-component settings-main" aria-label="Category tree">
+            <ul className="settings-list">
               {categories.map(c => (
                 <CategoryRow
                   key={c.id}
@@ -72,9 +73,9 @@ export function CategoriesPage() {
               ))}
             </ul>
           </section>
-        </>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -100,7 +101,7 @@ function NewCategoryForm({ categories, onCreated }: { categories: Category[]; on
   }
 
   return (
-    <form className="ui-component form" onSubmit={submit}>
+    <form className="ui-component form settings-aside" onSubmit={submit}>
       <h2>New Category</h2>
       <FormField label="Name" name="name" required value={name} errors={errors.name} onChange={e => setName(e.target.value)} />
       <SelectField
@@ -182,12 +183,15 @@ function CategoryRow({
   }
 
   return (
-    <li className="category-row" style={{ paddingLeft: `${depth * 20}px` }}>
-      <div className="category-main">
-        <span className="category-name">{c.name}</span>
-        {c.isBuiltIn && <span className="category-badge">built-in</span>}
+    <li
+      className={`settings-row${depth > 0 ? ' settings-row-nested' : ''}`}
+      style={{ '--depth': depth } as CSSProperties}
+    >
+      <div className="settings-row-main">
+        <span className="settings-row-name">{c.name}</span>
+        {c.isBuiltIn && <span className="chip">built-in</span>}
         {!c.isBuiltIn && mode === 'view' && (
-          <div className="transaction-actions">
+          <div className="settings-row-actions">
             <button type="button" className="button-link" onClick={() => open('rename')}>
               Rename
             </button>
@@ -201,7 +205,7 @@ function CategoryRow({
         )}
       </div>
       {mode !== 'view' && (
-        <form className="category-edit" onSubmit={submit}>
+        <form className="settings-edit" onSubmit={submit}>
           {mode === 'rename' && (
             <FormField label="Name" name="name" required value={name} onChange={e => setName(e.target.value)} />
           )}

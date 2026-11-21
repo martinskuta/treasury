@@ -15,6 +15,7 @@ import {
 import { toErrors, type Errors } from '../lib/errors'
 import { ownerRefFromValue, ownerValue } from '../lib/owners'
 import { formatDate } from '../lib/format'
+import './settings.css'
 
 /** "1.7.2026 – 14.7.2026 · Family, anna" or "No date range". */
 function describeRange(tag: Tag) {
@@ -48,35 +49,35 @@ export function TagsPage() {
   }, [])
 
   return (
-    <>
-      <h1>Tags</h1>
-      <p>
+    <div className="settings-page">
+      <h1 className="page-title">Tags</h1>
+      <p className="settings-intro">
         Tags group Transactions across Categories, for example a holiday. Give a Tag a date range to apply it
         automatically to every Transaction in that period (optionally only for some Owners). Removing it from a single
         Transaction sticks.
       </p>
       {loadError && <p className="status status-bad">Couldn’t load the Tags.</p>}
-      {tags === null && !loadError && <p>Loading…</p>}
+      {tags === null && !loadError && <p className="page-loading">Loading…</p>}
       {tags !== null && (
-        <>
-          <section className="ui-component">
+        <div className="settings-layout">
+          <section className="ui-component settings-aside">
             <h2>New Tag</h2>
             <TagForm owners={owners} submitLabel="Add Tag" onSubmit={createTag} onDone={() => void load()} resetOnDone />
           </section>
-          <section className="ui-component">
+          <section className="ui-component settings-main" aria-label="Tags">
             {tags.length === 0 ? (
-              <p>No Tags yet.</p>
+              <p className="settings-list-empty">No Tags yet.</p>
             ) : (
-              <ul className="category-list">
+              <ul className="settings-list">
                 {tags.map(t => (
                   <TagRow key={t.id} tag={t} owners={owners} onChanged={() => void load()} />
                 ))}
               </ul>
             )}
           </section>
-        </>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -96,19 +97,21 @@ function TagRow({ tag, owners, onChanged }: { tag: Tag; owners: Owner[]; onChang
   }
 
   return (
-    <li className="category-row">
-      <div className="category-main">
+    <li className="settings-row">
+      <div className="settings-row-main">
         <span className="tag-chip">{tag.name}</span>
-        <span className="account-meta">{describeRange(tag)}</span>
-        <Link className="button-link" to={tagReportPath(tag.id)}>
-          Report
-        </Link>
-        <button type="button" className="button-link" onClick={() => setEditing(!editing)}>
-          {editing ? 'Close' : 'Edit'}
-        </button>
-        <button type="button" className="button-link" onClick={() => void remove()}>
-          Delete
-        </button>
+        <span className="settings-row-meta">{describeRange(tag)}</span>
+        <div className="settings-row-actions">
+          <Link className="button-link" to={tagReportPath(tag.id)}>
+            Report
+          </Link>
+          <button type="button" className="button-link" aria-expanded={editing} onClick={() => setEditing(!editing)}>
+            {editing ? 'Close' : 'Edit'}
+          </button>
+          <button type="button" className="button-link" onClick={() => void remove()}>
+            Delete
+          </button>
+        </div>
       </div>
       {error && (
         <p className="form-error" role="alert">
@@ -116,7 +119,7 @@ function TagRow({ tag, owners, onChanged }: { tag: Tag; owners: Owner[]; onChang
         </p>
       )}
       {editing && (
-        <div className="category-edit">
+        <div className="settings-edit">
           <TagForm
             tag={tag}
             owners={owners}

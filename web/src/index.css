@@ -82,55 +82,7 @@
   max-width: 420px;
 }
 
-/* ---- Settings / Members ---- */
-.settings-links {
-  margin: 0;
-  padding-left: 1.2em;
-}
-
-.settings-links li {
-  margin: 6px 0;
-}
-
-.member-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.member-row {
-  padding: 10px 0;
-  border-bottom: 1px solid var(--track);
-}
-
-.member-row:last-child {
-  border-bottom: none;
-}
-
-.member-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-}
-
-.member-meta {
-  font-size: 0.85rem;
-  opacity: 0.75;
-}
-
-.member-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-}
-
-.member-panel {
-  margin-top: 10px;
-  max-width: 420px;
-}
-
-/* ---- Categories ---- */
+/* ---- Category picker (Uncategorised) ---- */
 .category-picker {
   margin-top: 6px;
   max-width: 100%;
@@ -140,45 +92,6 @@
   border-radius: 6px;
   background: inherit;
   color: inherit;
-}
-
-.category-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.category-row {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--track);
-}
-
-.category-row:last-child {
-  border-bottom: none;
-}
-
-.category-main {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-}
-
-.category-name {
-  overflow-wrap: anywhere;
-}
-
-.category-badge {
-  font-size: 0.75rem;
-  padding: 1px 6px;
-  border: 1px solid var(--track);
-  border-radius: 10px;
-  color: var(--muted);
-}
-
-.category-edit {
-  max-width: 420px;
-  margin-top: 8px;
 }
 
 /* ---- Report controls (Uncategorised) ---- */
@@ -367,14 +280,6 @@
 .rule-offer {
   margin: 8px 0 0;
   font-size: 0.9rem;
-}
-
-.rule-list {
-  padding-left: 24px;
-}
-
-.rule-list .category-main {
-  flex-wrap: wrap;
 }
 
 /* Fields inside report-controls (Uncategorised). */
