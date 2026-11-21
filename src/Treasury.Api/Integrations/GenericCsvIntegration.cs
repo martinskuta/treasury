@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 
 namespace Treasury.Api.Integrations;
 
@@ -36,7 +35,7 @@ public sealed class GenericCsvIntegration : IIntegration
 
         var header = lines[headerIndex];
         var separator = header.Count(c => c == ';') > header.Count(c => c == ',') ? ';' : ',';
-        var columns = SplitLine(header, separator, headerIndex + 1)
+        var columns = CsvLine.Split(header, separator, headerIndex + 1)
             .Select(c => c.Trim().ToLowerInvariant().Replace(' ', '_'))
             .ToList();
         var missing = Required.Where(r => !columns.Contains(r)).ToList();
@@ -50,7 +49,7 @@ public sealed class GenericCsvIntegration : IIntegration
         {
             if (lines[i].Trim().Length == 0) continue;
             var at = $"line {i + 1}";
-            var fields = SplitLine(lines[i], separator, i + 1);
+            var fields = CsvLine.Split(lines[i], separator, i + 1);
             if (fields.Count != columns.Count)
                 throw new StatementFormatException(
                     $"{at}: expected {columns.Count} fields like the header, found {fields.Count}. " +
@@ -83,28 +82,4 @@ public sealed class GenericCsvIntegration : IIntegration
             NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount)
             ? amount
             : throw new StatementFormatException($"{at}: '{value}' is not an {column} (use e.g. -1234.50).");
-
-    /// RFC 4180-style fields of one line (a quoted field may not span lines).
-    private static List<string> SplitLine(string line, char separator, int lineNumber)
-    {
-        var fields = new List<string>();
-        var current = new StringBuilder();
-        var quoted = false;
-        for (var i = 0; i < line.Length; i++)
-        {
-            var c = line[i];
-            if (quoted)
-            {
-                if (c == '"' && i + 1 < line.Length && line[i + 1] == '"') { current.Append('"'); i++; }
-                else if (c == '"') quoted = false;
-                else current.Append(c);
-            }
-            else if (c == '"' && current.ToString().Trim().Length == 0) { current.Clear(); quoted = true; }
-            else if (c == separator) { fields.Add(current.ToString()); current.Clear(); }
-            else current.Append(c);
-        }
-        if (quoted) throw new StatementFormatException($"line {lineNumber}: a quoted value is not closed.");
-        fields.Add(current.ToString());
-        return fields;
-    }
 }

@@ -46,11 +46,30 @@ public sealed class SourceFileContent(string fileName, byte[] bytes)
 /// What an Integration read from a Source file.
 /// <param name="Rows">The statement's movements, in file order.</param>
 /// <param name="AccountIdentifier">IBAN / last card digits, when the format has one (see CanProvideIdentifier).</param>
-/// <param name="ClosingBalance">The statement's closing balance, when the format has one.</param>
+/// <param name="ClosingBalance">The statement's closing balance, when the format has one (single-currency formats).</param>
+/// <param name="BalancesByCurrency">For a format holding several currencies (Multi-currency account): the balances of
+/// each currency that has rows, ordered by currency code. Empty for single-currency formats, which use
+/// <paramref name="ClosingBalance"/>.</param>
 public sealed record ParsedStatement(
     IReadOnlyList<StatementRow> Rows,
     string? AccountIdentifier = null,
-    ClosingBalance? ClosingBalance = null);
+    ClosingBalance? ClosingBalance = null,
+    IReadOnlyList<CurrencyBalances>? BalancesByCurrency = null)
+{
+    public IReadOnlyList<CurrencyBalances> BalancesByCurrency { get; init; } = BalancesByCurrency ?? [];
+}
+
+/// The balances a multi-currency statement reports for one currency.
+/// <param name="Currency">ISO code.</param>
+/// <param name="FirstRowDate">Date of the currency's first row on the statement.</param>
+/// <param name="BalanceBeforeFirstRow">The currency's balance just before its first row, i.e. before any row of the
+/// statement in that currency; an import can use it to open the currency's Account.</param>
+/// <param name="Closing">The currency's balance after its last row, dated on that row's date.</param>
+public sealed record CurrencyBalances(
+    string Currency,
+    DateOnly FirstRowDate,
+    decimal BalanceBeforeFirstRow,
+    ClosingBalance Closing);
 
 /// One movement on a statement.
 /// <param name="Date">Booking date.</param>
