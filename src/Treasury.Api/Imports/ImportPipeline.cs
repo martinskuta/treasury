@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Treasury.Api.Accounts;
 using Treasury.Api.Data;
 using Treasury.Api.ExchangeRates;
@@ -13,7 +14,7 @@ namespace Treasury.Api.Imports;
 /// scan (#8). One call imports one file into one Account, or into a Multi-currency account (#25, ADR-0009):
 ///
 ///  1. read      — the Integration parses the file; rows are validated. Into a Multi-currency account, the rows are
-///                 split by currency, one "leg" per currency, each for the group's Account in that currency; a
+///                 split by currency, one "leg" per currency, each for its Account in that currency; a
 ///                 currency without an Account gets one (saved with the import), opened with the statement's balance
 ///                 before that currency's first row, on the day before that row
 ///  2. Check     — IImportStep stage: reject the file (identifier mismatch, #11)
@@ -27,7 +28,7 @@ namespace Treasury.Api.Imports;
 ///
 /// Steps see one Account at a time: each leg has its own <see cref="ImportContext"/>, and every step runs over all
 /// legs before the next step starts (so all Transactions are stored before matching pairs an exchange between two
-/// of the group's Accounts).
+/// of the Multi-currency account's Accounts).
 ///
 /// Any step may throw <see cref="ImportFailedException"/> (readers throw <see cref="StatementFormatException"/>):
 /// nothing is imported (the DB transaction rolls back, Accounts it would create included), and the file goes to
@@ -47,36 +48,24 @@ public sealed class ImportPipeline(
 
     private readonly IReadOnlyList<IImportStep> _steps = steps.OrderBy(s => s.Stage).ToList();
 
-    /// Imports a file into one Account (not one in a Multi-currency account: callers import into its group).
-    public Task<ImportResult> ImportAsync(Account account, IncomingFile file, CancellationToken ct = default) =>
-        RunAsync(account, file, (content, _) =>
-        {
-            var integration = FindIntegration(account.IntegrationKey);
-            var statement = integration.Read(content);
-            ValidateRows(statement);
-            ValidateCurrency(account, statement);
-            return Task.FromResult(new Plan(integration, [new Leg(account, IsNew: false, statement)]));
-        }, ct);
-
-    /// Imports a file into a Multi-currency account (load <see cref="MultiCurrencyAccount.Accounts"/> first).
-    public Task<ImportResult> ImportAsync(MultiCurrencyAccount group, IncomingFile file, CancellationToken ct = default) =>
-        RunAsync(group, file, async (content, token) =>
-        {
-            var integration = FindIntegration(group.IntegrationKey);
-            var statement = integration.Read(content);
-            ValidateRows(statement);
-            return new Plan(integration, await LegsByCurrencyAsync(group, statement, token));
-        }, ct);
-
-    private async Task<ImportResult> RunAsync(IImportTarget target, IncomingFile file,
-        Func<SourceFileContent, CancellationToken, Task<Plan>> read, CancellationToken ct)
+    /// Imports a file into an Account (not one in a Multi-currency account: callers import into that) or a
+    /// Multi-currency account (load its <see cref="MultiCurrencyAccount.Accounts"/> first).
+    public async Task<ImportResult> ImportAsync(IImportTarget target, IncomingFile file, CancellationToken ct = default)
     {
         using var _ = await locks.AcquireAsync(target.Id, ct);
         var content = new SourceFileContent(ImportFiles.SafeFileName(file.FileName), file.Content);
         string? keptCopy = null;
         try
         {
-            var (integration, legs) = await read(content, ct);
+            var integration = integrations.Find(target.IntegrationKey) ?? throw new ImportFailedException(
+                $"The Integration '{target.IntegrationKey}' of {target.Description} isn't available.");
+            var statement = integration.Read(content);
+            var legs = target switch
+            {
+                Account account => [new Leg(account, IsNew: false, ValidateRows(statement, account))],
+                MultiCurrencyAccount multiCurrencyAccount => LegsByCurrency(multiCurrencyAccount, ValidateRows(statement)),
+                _ => throw new InvalidOperationException($"Unknown import target {target.GetType()}"),
+            };
             var now = clock.GetUtcNow();
             var contexts = legs.Select(leg => new ImportContext
             {
@@ -95,8 +84,8 @@ public sealed class ImportPipeline(
             var stored = new SourceFile
             {
                 Id = sourceFileId,
-                AccountId = target is Account ? target.Id : null,
-                MultiCurrencyAccountId = target is MultiCurrencyAccount ? target.Id : null,
+                AccountId = (target as Account)?.Id,
+                MultiCurrencyAccountId = (target as MultiCurrencyAccount)?.Id,
                 FileName = content.FileName,
                 StoredPath = keptCopy,
                 Size = content.Bytes.LongLength,
@@ -105,6 +94,65 @@ public sealed class ImportPipeline(
                 ImportedByMemberId = file.ImportedByMemberId,
             };
 
+            await StoreAsync(legs, contexts, stored, now, ct);
+
+            // Committed: from here on the import stands, whatever happens to the file move or the rate request.
+            var created = legs.Where(l => l.IsNew).Select(l => l.Account).ToList();
+            return await AfterCommitAsync(target, content, file, contexts, stored, created);
+        }
+        catch (Exception e) when (e is ImportFailedException or StatementFormatException)
+        {
+            return Fail(target, content, file, keptCopy, e.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            db.ChangeTracker.Clear();
+            if (keptCopy is not null) files.DeleteKept(keptCopy);
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Import of {File} into {Target} failed unexpectedly", content.FileName, target.Slug);
+            return Fail(target, content, file, keptCopy, $"Unexpected error while importing: {e.Message}");
+        }
+    }
+
+    /// How often a save is tried when a concurrent save keeps taking the slug picked for a new Account.
+    private const int SlugAttempts = 5;
+
+    /// Stores the Source file, the Transactions and the Accounts the import creates, runs the steps from Match on,
+    /// and commits. A new Account's slug is picked right before saving; when a concurrent save (an import into
+    /// another Multi-currency account) took it meanwhile, the unique index rejects it and the slugs are picked again.
+    private async Task StoreAsync(List<Leg> legs, List<ImportContext> contexts, SourceFile stored, DateTimeOffset now,
+        CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var reserved = new List<string>();
+            foreach (var leg in legs.Where(l => l.IsNew))
+            {
+                leg.Account.Slug = await folders.UniqueSlugAsync(db, leg.Account.Name, reserved, ct);
+                reserved.Add(leg.Account.Slug);
+            }
+            try
+            {
+                await SaveAsync(legs, contexts, stored, now, ct);
+                return;
+            }
+            catch (DbUpdateException e) when (attempt < SlugAttempts && e.InnerException is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: AccountSlugIndex,
+                })
+            {
+                logger.LogInformation("A concurrent save took the slug of a new Account; picking another");
+            }
+        }
+    }
+
+    private const string AccountSlugIndex = "IX_Accounts_Slug";
+
+    private async Task SaveAsync(List<Leg> legs, List<ImportContext> contexts, SourceFile stored, DateTimeOffset now,
+        CancellationToken ct) =>
             // The execution strategy (Npgsql retries) re-runs the whole unit on a transient failure.
             await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
@@ -130,35 +178,10 @@ public sealed class ImportPipeline(
                 await tx.CommitAsync(ct);
             });
 
-            // Committed: from here on the import stands, whatever happens to the file move or the rate request.
-            var created = legs.Where(l => l.IsNew).Select(l => l.Account).ToList();
-            return await AfterCommitAsync(target, content, file, contexts, stored, created);
-        }
-        catch (Exception e) when (e is ImportFailedException or StatementFormatException)
-        {
-            return Fail(target, content, file, keptCopy, e.Message);
-        }
-        catch (OperationCanceledException)
-        {
-            db.ChangeTracker.Clear();
-            if (keptCopy is not null) files.DeleteKept(keptCopy);
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Import of {File} into {Target} failed unexpectedly", content.FileName, target.Slug);
-            return Fail(target, content, file, keptCopy, $"Unexpected error while importing: {e.Message}");
-        }
-    }
-
-    private IIntegration FindIntegration(string key) =>
-        integrations.Find(key) ?? throw new ImportFailedException($"The Integration '{key}' of this Account isn't available.");
-
-    /// One leg per currency of the statement's rows, for the group's Account in that currency. A currency without
-    /// one gets a new (not yet saved) Account: "&lt;group name&gt; &lt;CUR&gt;", the group's Owner, opened on the day
-    /// before the currency's first row with the statement's balance before that row.
-    private async Task<List<Leg>> LegsByCurrencyAsync(MultiCurrencyAccount group, ParsedStatement statement,
-        CancellationToken ct)
+    /// One leg per currency of the statement's rows, for the Multi-currency account's Account in that currency. A
+    /// currency without one gets a new (not yet saved) Account: "&lt;its name&gt; &lt;CUR&gt;", its Owner, opened on
+    /// the day before the currency's first row with the statement's balance before that row.
+    private static List<Leg> LegsByCurrency(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement)
     {
         for (var i = 0; i < statement.Rows.Count; i++)
             if (string.IsNullOrWhiteSpace(statement.Rows[i].Currency))
@@ -166,7 +189,6 @@ public sealed class ImportPipeline(
                     $"{At(i, statement.Rows[i])} has no currency, so Treasury can't tell which Account it belongs to.");
 
         var legs = new List<Leg>();
-        var reservedSlugs = new List<string>();
         foreach (var rows in statement.Rows.GroupBy(r => r.Currency!.Trim().ToUpperInvariant())
                      .OrderBy(g => g.Key, StringComparer.Ordinal))
         {
@@ -174,7 +196,7 @@ public sealed class ImportPipeline(
             var balances = statement.BalancesByCurrency
                 .FirstOrDefault(b => string.Equals(b.Currency, currency, StringComparison.OrdinalIgnoreCase));
             var legStatement = new ParsedStatement([.. rows], ClosingBalance: balances?.Closing);
-            if (group.Accounts.FirstOrDefault(a => a.Currency == currency) is { } existing)
+            if (multiCurrencyAccount.Accounts.FirstOrDefault(a => a.Currency == currency) is { } existing)
             {
                 legs.Add(new Leg(existing, IsNew: false, legStatement));
                 continue;
@@ -188,21 +210,18 @@ public sealed class ImportPipeline(
                 throw new ImportFailedException(
                     $"The statement doesn't say the {currency} balance before its first {currency} row, so Treasury " +
                     $"can't open an Account for {currency}. Nothing was imported.");
-            var name = $"{group.Name} {currency}";
-            var slug = await AccountEndpoints.UniqueSlugAsync(db, folders, IngestFolders.Slugify(name),
-                [group.Slug, .. reservedSlugs]);
-            reservedSlugs.Add(slug);
             var account = new Account
             {
-                Name = name,
+                Name = $"{multiCurrencyAccount.Name} {currency}",
                 // Reserved for the Account's kept Source files; it has no Ingest folder of its own (ADR-0009).
-                Slug = slug,
-                Owner = group.Owner,
-                IntegrationKey = group.IntegrationKey,
+                // Picked right before saving (see StoreAsync).
+                Slug = "",
+                Owner = multiCurrencyAccount.Owner,
+                IntegrationKey = multiCurrencyAccount.IntegrationKey,
                 Currency = currency,
                 OpeningBalance = balances.BalanceBeforeFirstRow,
                 OpeningDate = balances.FirstRowDate.AddDays(-1),
-                MultiCurrencyAccountId = group.Id,
+                MultiCurrencyAccountId = multiCurrencyAccount.Id,
             };
             legs.Add(new Leg(account, IsNew: true, legStatement));
         }
@@ -249,13 +268,19 @@ public sealed class ImportPipeline(
             await step.RunAsync(context, ct);
     }
 
-    /// Facts every Integration must deliver in a shape Treasury can store.
-    private static void ValidateRows(ParsedStatement statement)
+    /// Facts every Integration must deliver in a shape Treasury can store. Into a single
+    /// <paramref name="account"/>, a row in another currency is reported first: it points at the wrong Account.
+    /// Returns the statement.
+    private static ParsedStatement ValidateRows(ParsedStatement statement, Account? account = null)
     {
         for (var i = 0; i < statement.Rows.Count; i++)
         {
             var row = statement.Rows[i];
             var at = At(i, row);
+            if (account is not null && row.Currency is { } currency
+                && !string.Equals(currency, account.Currency, StringComparison.OrdinalIgnoreCase))
+                throw new ImportFailedException(
+                    $"{at} is in {currency}, but this Account is in {account.Currency}. Is this the right Account?");
             if (string.IsNullOrWhiteSpace(row.Description))
                 throw new ImportFailedException($"{at} has no description.");
             if (row.Description.Trim().Length > TransactionEndpoints.MaxDescriptionLength)
@@ -269,16 +294,7 @@ public sealed class ImportPipeline(
             if (row.OriginalCurrency is { } original && !IsCurrencyCode(original.Trim()))
                 throw new ImportFailedException($"{at}: '{original}' is not a currency code.");
         }
-    }
-
-    /// A single Account takes rows in its own currency only.
-    private static void ValidateCurrency(Account account, ParsedStatement statement)
-    {
-        for (var i = 0; i < statement.Rows.Count; i++)
-            if (statement.Rows[i].Currency is { } currency
-                && !string.Equals(currency, account.Currency, StringComparison.OrdinalIgnoreCase))
-                throw new ImportFailedException(
-                    $"{At(i, statement.Rows[i])} is in {currency}, but this Account is in {account.Currency}. Is this the right Account?");
+        return statement;
     }
 
     private static string At(int index, StatementRow row) => $"Row {index + 1} ({row.Date:yyyy-MM-dd} {row.Description})";
@@ -305,9 +321,6 @@ public sealed class ImportPipeline(
         };
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    /// What a file reads as: its Integration and one leg per Account it goes to.
-    private sealed record Plan(IIntegration Integration, List<Leg> Legs);
 
     /// The rows (and that currency's closing balance) for one Account; IsNew = created by this import.
     private sealed record Leg(Account Account, bool IsNew, ParsedStatement Statement);

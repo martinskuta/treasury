@@ -9,8 +9,9 @@ public class Account : IOwned, IImportTarget
 
     public required string Name { get; set; }
 
-    /// Name of the Ingest folder (ingest/&lt;slug&gt;/). Fixed at creation; renaming keeps it.
-    public required string Slug { get; init; }
+    /// Name of the Ingest folder (ingest/&lt;slug&gt;/). Fixed once saved; renaming keeps it. (Settable so that an
+    /// import can pick another one for an Account it creates when a concurrent save took it, see ImportPipeline.)
+    public required string Slug { get; set; }
 
     /// Null = the Family. Use <see cref="Owner"/> in code.
     public Guid? OwnerMemberId { get; set; }
@@ -36,9 +37,11 @@ public class Account : IOwned, IImportTarget
     public string? Identifier { get; init; }
 
     /// The Multi-currency account this Account belongs to, if any (ADR-0009). Fixed: an Account is never moved
-    /// into, out of or between groups. Such an Account has no Ingest folder of its own (its Slug is reserved only
-    /// for its kept Source files) and takes its Owner from the group.
+    /// into, out of or between Multi-currency accounts. Such an Account has no Ingest folder of its own (its Slug is
+    /// reserved only for its kept Source files) and takes its Owner from its Multi-currency account.
     public Guid? MultiCurrencyAccountId { get; init; }
+
+    string IImportTarget.Description => $"the Account \"{Name}\"";
 }
 
 public static class Currencies

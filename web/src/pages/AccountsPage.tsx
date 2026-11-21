@@ -34,7 +34,7 @@ import { formatAmount, formatDate } from '../lib/format'
  */
 export function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[] | null>(null)
-  const [groups, setGroups] = useState<MultiCurrencyAccount[]>([])
+  const [multiCurrencyAccounts, setMultiCurrencyAccounts] = useState<MultiCurrencyAccount[]>([])
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [loadError, setLoadError] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -46,9 +46,9 @@ export function AccountsPage() {
       listMultiCurrencyAccounts(controller.signal),
       listIntegrations(controller.signal),
     ])
-      .then(([a, g, i]) => {
+      .then(([a, m, i]) => {
         setAccounts(a)
-        setGroups(g)
+        setMultiCurrencyAccounts(m)
         setIntegrations(i)
       })
       .catch(() => {
@@ -59,18 +59,18 @@ export function AccountsPage() {
 
   const reloadAccounts = () =>
     Promise.all([listAccounts(), listMultiCurrencyAccounts()])
-      .then(([a, g]) => {
+      .then(([a, m]) => {
         setAccounts(a)
-        setGroups(g)
+        setMultiCurrencyAccounts(m)
       })
       .catch(() => setLoadError(true))
 
   const integrationName = (key: string) => integrations.find(i => i.key === key)?.name ?? key
   const plainAccounts = accounts?.filter(a => a.multiCurrencyAccountId === null) ?? []
-  // Accounts and groups in one list, by name.
+  // Accounts and Multi-currency accounts in one list, by name.
   const rows = [
-    ...plainAccounts.map(a => ({ name: a.name, account: a, group: null })),
-    ...groups.map(g => ({ name: g.name, account: null, group: g })),
+    ...plainAccounts.map(a => ({ name: a.name, account: a, multiCurrencyAccount: null })),
+    ...multiCurrencyAccounts.map(m => ({ name: m.name, account: null, multiCurrencyAccount: m })),
   ].sort((x, y) => x.name.localeCompare(y.name))
 
   return (
@@ -84,12 +84,12 @@ export function AccountsPage() {
             <p>No Accounts yet.</p>
           ) : (
             <ul className="account-list">
-              {rows.map(({ account, group }) =>
-                group ? (
-                  <GroupRow
-                    key={group.id}
-                    group={group}
-                    integrationName={integrationName(group.integrationKey)}
+              {rows.map(({ account, multiCurrencyAccount }) =>
+                multiCurrencyAccount ? (
+                  <MultiCurrencyAccountRow
+                    key={multiCurrencyAccount.id}
+                    multiCurrencyAccount={multiCurrencyAccount}
+                    integrationName={integrationName(multiCurrencyAccount.integrationKey)}
                     onChanged={() => void reloadAccounts()}
                   />
                 ) : (
@@ -176,12 +176,12 @@ function RenameForm({
 }
 
 /** A Multi-currency account: its Ingest folder and total, with its Accounts nested (renamable, never moved). */
-function GroupRow({
-  group,
+function MultiCurrencyAccountRow({
+  multiCurrencyAccount,
   integrationName,
   onChanged,
 }: {
-  group: MultiCurrencyAccount
+  multiCurrencyAccount: MultiCurrencyAccount
   integrationName: string
   onChanged: () => void
 }) {
@@ -193,16 +193,16 @@ function GroupRow({
       <div className="account-main">
         {editing ? (
           <RenameForm
-            initialName={group.name}
+            initialName={multiCurrencyAccount.name}
             onSave={async name => {
-              await renameMultiCurrencyAccount(group.id, name)
+              await renameMultiCurrencyAccount(multiCurrencyAccount.id, name)
               onChanged()
             }}
             onClose={() => setEditing(false)}
           />
         ) : (
           <>
-            <strong>{group.name}</strong>{' '}
+            <strong>{multiCurrencyAccount.name}</strong>{' '}
             <button type="button" className="button-link" onClick={() => setEditing(true)}>
               Rename
             </button>{' '}
@@ -212,25 +212,27 @@ function GroupRow({
           </>
         )}
         <div className="account-meta">
-          {group.owner.name} · {integrationName} · Multi-currency account · Ingest folder ingest/{group.slug}/
+          {multiCurrencyAccount.owner.name} · {integrationName} · Multi-currency account · Ingest folder
+          ingest/{multiCurrencyAccount.slug}/
         </div>
         {importing && (
           <ImportPanel
-            target={{ kind: 'multiCurrencyAccount', id: group.id }}
-            slug={group.slug}
+            target={{ kind: 'multiCurrencyAccount', id: multiCurrencyAccount.id }}
+            slug={multiCurrencyAccount.slug}
             integrationName={integrationName}
             onImported={onChanged}
           />
         )}
       </div>
       <div className="amount account-balance">
-        {group.totalBalance === null ? '–' : formatAmount(group.totalBalance)} {group.mainCurrency}
+        {multiCurrencyAccount.totalBalance === null ? '–' : formatAmount(multiCurrencyAccount.totalBalance)}{' '}
+        {multiCurrencyAccount.mainCurrency}
         <div className="account-meta">
-          {group.totalBalance === null ? 'total: exchange rate missing' : 'total at today’s rates'}
+          {multiCurrencyAccount.totalBalance === null ? 'total: exchange rate missing' : 'total at today’s rates'}
         </div>
       </div>
-      <ul className="account-list account-group">
-        {group.accounts.map(a => (
+      <ul className="account-list multi-currency-account-accounts">
+        {multiCurrencyAccount.accounts.map(a => (
           <AccountRow
             key={a.id}
             account={a}
@@ -257,8 +259,9 @@ function AccountRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [importing, setImporting] = useState(false)
-  // An Account in a Multi-currency account has no Ingest folder of its own; files go into the group's.
-  const inGroup = account.multiCurrencyAccountId !== null
+  // An Account in a Multi-currency account has no Ingest folder of its own; files go into that of its
+  // Multi-currency account.
+  const inMultiCurrencyAccount = account.multiCurrencyAccountId !== null
 
   return (
     <li className="account-row">
@@ -275,7 +278,7 @@ function AccountRow({
             <button type="button" className="button-link" onClick={() => setEditing(true)}>
               Rename
             </button>
-            {!inGroup && (
+            {!inMultiCurrencyAccount && (
               <>
                 {' '}
                 <button type="button" className="button-link" onClick={() => setImporting(v => !v)}>
@@ -286,7 +289,7 @@ function AccountRow({
           </>
         )}
         <div className="account-meta">
-          {inGroup ? (
+          {inMultiCurrencyAccount ? (
             account.currency
           ) : (
             <>

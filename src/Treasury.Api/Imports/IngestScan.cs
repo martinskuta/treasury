@@ -23,8 +23,8 @@ public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders fol
             var db = scope.ServiceProvider.GetRequiredService<TreasuryDbContext>();
             var pipeline = scope.ServiceProvider.GetRequiredService<ImportPipeline>();
             var found = new List<(IImportTarget Target, string Path, FileState State)>();
-            // An Account in a Multi-currency account has no Ingest folder of its own: files go into the group's
-            // (ADR-0009, #25).
+            // An Account in a Multi-currency account has no Ingest folder of its own: files go into that of its
+            // Multi-currency account (ADR-0009, #25).
             IEnumerable<IImportTarget> targets = [
                 .. await db.Accounts.AsNoTracking().Where(a => a.MultiCurrencyAccountId == null).ToListAsync(ct),
                 .. await db.MultiCurrencyAccounts.AsNoTracking().Include(g => g.Accounts).ToListAsync(ct),
@@ -51,14 +51,7 @@ public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders fol
                     continue;
                 }
                 var file = new IncomingFile(Path.GetFileName(path), bytes, ImportedByMemberId: null, DroppedAtPath: path);
-                results.Add(target switch
-                {
-                    MultiCurrencyAccount group => new ScannedFile(null, group.Id, group.Owner, file.FileName,
-                        await pipeline.ImportAsync(group, file, ct)),
-                    Account account => new ScannedFile(account.Id, null, account.Owner, file.FileName,
-                        await pipeline.ImportAsync(account, file, ct)),
-                    _ => throw new InvalidOperationException($"Unknown import target {target.GetType()}"),
-                });
+                results.Add(new ScannedFile(target, file.FileName, await pipeline.ImportAsync(target, file, ct)));
             }
             return results;
         }
@@ -148,10 +141,8 @@ public sealed class IngestScanJob(IngestScanner scanner, IngestScanOptions optio
     }
 }
 
-/// One file a scan picked up, and what the import made of it. Exactly one of AccountId and MultiCurrencyAccountId
-/// is set: whose Ingest folder it was in.
-public sealed record ScannedFile(Guid? AccountId, Guid? MultiCurrencyAccountId, Owner Owner, string FileName,
-    ImportResult Result);
+/// One file a scan picked up from the Ingest folder of <paramref name="Target"/>, and what the import made of it.
+public sealed record ScannedFile(IImportTarget Target, string FileName, ImportResult Result);
 
 public static class IngestScanSetup
 {
@@ -180,11 +171,10 @@ public static class IngestScanSetup
         {
             var viewer = user.MemberId();
             var scanned = await scanner.ScanAsync(ct);
-            return Results.Ok(scanned.Where(f => f.Owner.IsVisibleTo(viewer))
-                .Select(f => new ScannedFileResponse(f.AccountId, f.MultiCurrencyAccountId, f.FileName,
-                    f.Result.Succeeded, f.Result.ImportedCount, f.Result.SkippedCount, f.Result.Warnings, f.Result.Error,
-                    f.Result.CreatedAccounts.Select(a => new ImportEndpoints.CreatedAccountResponse(a.Id, a.Name, a.Currency))
-                        .ToList())));
+            return Results.Ok(scanned.Where(f => f.Target.Owner.IsVisibleTo(viewer))
+                .Select(f => new ScannedFileResponse((f.Target as Account)?.Id, (f.Target as MultiCurrencyAccount)?.Id,
+                    f.FileName, f.Result.Succeeded, f.Result.ImportedCount, f.Result.SkippedCount, f.Result.Warnings,
+                    f.Result.Error, ImportEndpoints.CreatedAccountResponse.From(f.Result))));
         });
     }
 }

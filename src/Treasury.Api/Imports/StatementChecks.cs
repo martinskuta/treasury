@@ -51,7 +51,7 @@ public sealed class ClosingBalanceCheck : IImportStep
         }
         else
         {
-            // One per currency, each for the group's Account in that currency (#25).
+            // One per currency, each for the Multi-currency account's Account in that currency (#25).
             context.SourceFile.CurrencyClosingBalances.Add(new SourceFileClosingBalance
             {
                 SourceFileId = context.SourceFile.Id, AccountId = account.Id, Date = closing.Date, Amount = closing.Amount,

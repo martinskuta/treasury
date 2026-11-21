@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261121020352_MultiCurrencyImports";
+    public override string LastMigrationId => "20261121021844_MultiCurrencyAccountNameLength";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -249,8 +249,8 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
 
                 b.Property<string>("Name")
                     .IsRequired()
-                    .HasMaxLength(100)
-                    .HasColumnType("character varying(100)");
+                    .HasMaxLength(96)
+                    .HasColumnType("character varying(96)");
 
                 b.Property<Guid?>("OwnerMemberId")
                     .HasColumnType("uuid");

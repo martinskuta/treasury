@@ -188,8 +188,8 @@ export type NewMultiCurrencyAccount = {
 export const listMultiCurrencyAccounts = (signal?: AbortSignal) =>
   apiFetch<MultiCurrencyAccount[]>('/api/multi-currency-accounts', { signal })
 
-export const createMultiCurrencyAccount = (group: NewMultiCurrencyAccount) =>
-  apiFetch<MultiCurrencyAccount>('/api/multi-currency-accounts', { method: 'POST', body: group })
+export const createMultiCurrencyAccount = (multiCurrencyAccount: NewMultiCurrencyAccount) =>
+  apiFetch<MultiCurrencyAccount>('/api/multi-currency-accounts', { method: 'POST', body: multiCurrencyAccount })
 
 export const renameMultiCurrencyAccount = (id: string, name: string) =>
   apiFetch<MultiCurrencyAccount>(`/api/multi-currency-accounts/${id}`, { method: 'PATCH', body: { name } })
@@ -373,7 +373,7 @@ export const unlinkTransaction = (id: string) =>
 
 /**
  * A statement file imported and kept: into one Account, or into a Multi-currency account (then its Transactions sit
- * in the group's Accounts of their currencies). Exactly one of the two ids is set.
+ * in its Accounts of their currencies). Exactly one of the two ids is set.
  */
 export type SourceFile = {
   id: string

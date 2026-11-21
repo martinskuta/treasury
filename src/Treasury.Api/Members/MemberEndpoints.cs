@@ -82,9 +82,9 @@ public static class MemberEndpoints
             // A Multi-currency account is handed over as a whole (ADR-0009), so it is listed instead of its Accounts.
             var accounts = await db.Accounts.Where(a => a.OwnerMemberId == id && a.MultiCurrencyAccountId == null)
                 .Select(a => new HandoverAccountResponse(a.Id, a.Name, a.Currency, false)).ToListAsync();
-            var groups = await db.MultiCurrencyAccounts.Where(g => g.OwnerMemberId == id)
-                .Select(g => new HandoverAccountResponse(g.Id, g.Name, g.MainCurrency, true)).ToListAsync();
-            return Results.Ok(accounts.Concat(groups).OrderBy(a => a.Name, StringComparer.CurrentCulture));
+            var multiCurrencyAccounts = await db.MultiCurrencyAccounts.Where(m => m.OwnerMemberId == id)
+                .Select(m => new HandoverAccountResponse(m.Id, m.Name, m.MainCurrency, true)).ToListAsync();
+            return Results.Ok(accounts.Concat(multiCurrencyAccounts).OrderBy(a => a.Name, StringComparer.CurrentCulture));
         });
 
         // Deactivate, never delete: the Member's data stays, their login and open sessions stop working.
@@ -101,8 +101,8 @@ public static class MemberEndpoints
 
             var handover = request.Handover ?? [];
             var accounts = await db.Accounts.Where(a => a.OwnerMemberId == id).ToDictionaryAsync(a => a.Id);
-            var groups = await db.MultiCurrencyAccounts.Include(g => g.Accounts).Where(g => g.OwnerMemberId == id)
-                .ToDictionaryAsync(g => g.Id);
+            var multiCurrencyAccounts = await db.MultiCurrencyAccounts.Include(m => m.Accounts)
+                .Where(m => m.OwnerMemberId == id).ToDictionaryAsync(m => m.Id);
             var newOwnerIds = handover.Select(h => h.Owner?.ToOwner()?.MemberId).OfType<Guid>().Distinct().ToList();
             var activeTargets = await db.Users.Where(m => newOwnerIds.Contains(m.Id) && m.Id != id && m.DeactivatedAt == null)
                 .Select(m => m.Id).ToListAsync();
@@ -114,15 +114,17 @@ public static class MemberEndpoints
             {
                 if ((item.AccountId is null) == (item.MultiCurrencyAccountId is null))
                     errors.Add("Name either an Account or a Multi-currency account for each handover.");
-                else if (item.MultiCurrencyAccountId is { } groupId)
+                else if (item.MultiCurrencyAccountId is { } multiCurrencyAccountId)
                 {
-                    if (groups.TryGetValue(groupId, out var group)) moves.Add((group.Name, group.SetOwner, item.Owner));
+                    if (multiCurrencyAccounts.TryGetValue(multiCurrencyAccountId, out var multiCurrencyAccount))
+                        moves.Add((multiCurrencyAccount.Name, multiCurrencyAccount.SetOwner, item.Owner));
                     else errors.Add("Only the Member's own Accounts can be handed over.");
                 }
                 else if (!accounts.TryGetValue(item.AccountId!.Value, out var account))
                     errors.Add("Only the Member's own Accounts can be handed over.");
-                else if (account.MultiCurrencyAccountId is { } inGroup && groups.TryGetValue(inGroup, out var itsGroup))
-                    errors.Add($"\"{account.Name}\" belongs to \"{itsGroup.Name}\"; hand over \"{itsGroup.Name}\" as a whole.");
+                else if (account.MultiCurrencyAccountId is { } itsId
+                         && multiCurrencyAccounts.TryGetValue(itsId, out var its))
+                    errors.Add($"\"{account.Name}\" belongs to \"{its.Name}\"; hand over \"{its.Name}\" as a whole.");
                 else moves.Add((account.Name, owner => account.Owner = owner, item.Owner));
             }
             if (handover.Select(h => h.AccountId ?? h.MultiCurrencyAccountId).Distinct().Count() != handover.Count)

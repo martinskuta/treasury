@@ -37,16 +37,11 @@ public sealed class ChfRates
 
     /// <paramref name="amount"/> in CHF, rounded to 0.01 (midpoint away from zero); null when a rate is missing.
     /// CHF amounts are returned unchanged. Only dates inside the loaded range are supported.
-    public decimal? ToChf(decimal amount, string currency, DateOnly date)
-    {
-        if (currency == ChfConverter.ReportingCurrency) return amount;
-        if (PerEur(currency, date) is not { } fromRate || PerEur(ChfConverter.ReportingCurrency, date) is not { } chfRate)
-            return null;
-        return Math.Round(amount / fromRate * chfRate, 2, MidpointRounding.AwayFromZero);
-    }
+    public decimal? ToChf(decimal amount, string currency, DateOnly date) =>
+        Convert(amount, currency, ChfConverter.ReportingCurrency, date);
 
-    /// <paramref name="amount"/> in <paramref name="to"/>, rounded like <see cref="ToChf"/>; null when a rate is missing.
-    /// Amounts already in <paramref name="to"/> are returned unchanged.
+    /// <paramref name="amount"/> in <paramref name="to"/>, rounded to 0.01 (midpoint away from zero); null when a rate
+    /// is missing. Amounts already in <paramref name="to"/> are returned unchanged.
     public decimal? Convert(decimal amount, string from, string to, DateOnly date)
     {
         if (from == to) return amount;

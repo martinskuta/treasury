@@ -65,13 +65,13 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
         builder.Entity<MultiCurrencyAccount>(g =>
         {
             g.Ignore(x => x.Owner);
-            g.Property(x => x.Name).HasMaxLength(AccountEndpoints.MaxNameLength);
+            g.Property(x => x.Name).HasMaxLength(MultiCurrencyAccountEndpoints.MaxNameLength);
             g.Property(x => x.Slug).HasMaxLength(64);
             g.HasIndex(x => x.Slug).IsUnique();
             g.Property(x => x.IntegrationKey).HasMaxLength(64);
             g.Property(x => x.MainCurrency).HasMaxLength(3);
             g.HasOne<Member>().WithMany().HasForeignKey(x => x.OwnerMemberId).OnDelete(DeleteBehavior.Restrict);
-            // Its Accounts are never detached; a group with Accounts can't be deleted.
+            // Its Accounts are never detached; a Multi-currency account with Accounts can't be deleted.
             g.HasMany(x => x.Accounts).WithOne().HasForeignKey(x => x.MultiCurrencyAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
@@ -120,6 +120,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
 
         builder.Entity<SourceFile>(f =>
         {
+            f.Ignore(x => x.TargetId);
+            f.Ignore(x => x.Target);
             f.Property(x => x.FileName).HasMaxLength(255);
             f.Property(x => x.StoredPath).HasMaxLength(500);
             f.Property(x => x.ContentHash).HasMaxLength(64);
