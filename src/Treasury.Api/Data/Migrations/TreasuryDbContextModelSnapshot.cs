@@ -16,7 +16,7 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261120010043_Rules";
+    public override string LastMigrationId => "20261121014953_MultiCurrencyAccounts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -196,6 +196,9 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(64)
                     .HasColumnType("character varying(64)");
 
+                b.Property<Guid?>("MultiCurrencyAccountId")
+                    .HasColumnType("uuid");
+
                 b.Property<string>("Name")
                     .IsRequired()
                     .HasMaxLength(100)
@@ -218,12 +221,53 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
 
                 b.HasKey("Id");
 
+                b.HasIndex("MultiCurrencyAccountId");
+
                 b.HasIndex("OwnerMemberId");
 
                 b.HasIndex("Slug")
                     .IsUnique();
 
                 b.ToTable("Accounts");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Accounts.MultiCurrencyAccount", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<string>("IntegrationKey")
+                    .IsRequired()
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.Property<string>("MainCurrency")
+                    .IsRequired()
+                    .HasMaxLength(3)
+                    .HasColumnType("character varying(3)");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)");
+
+                b.Property<Guid?>("OwnerMemberId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Slug")
+                    .IsRequired()
+                    .HasMaxLength(64)
+                    .HasColumnType("character varying(64)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("OwnerMemberId");
+
+                b.HasIndex("Slug")
+                    .IsUnique();
+
+                b.ToTable("MultiCurrencyAccounts");
             });
 
         modelBuilder.Entity("Treasury.Api.Auth.Member", b =>
@@ -660,6 +704,19 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("Treasury.Api.Accounts.Account", b =>
             {
+                b.HasOne("Treasury.Api.Accounts.MultiCurrencyAccount", null)
+                    .WithMany("Accounts")
+                    .HasForeignKey("MultiCurrencyAccountId")
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                b.HasOne("Treasury.Api.Auth.Member", null)
+                    .WithMany()
+                    .HasForeignKey("OwnerMemberId")
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+        modelBuilder.Entity("Treasury.Api.Accounts.MultiCurrencyAccount", b =>
+            {
                 b.HasOne("Treasury.Api.Auth.Member", null)
                     .WithMany()
                     .HasForeignKey("OwnerMemberId")
@@ -785,6 +842,11 @@ partial class TreasuryDbContextModelSnapshot : ModelSnapshot
                 b.Navigation("Account");
 
                 b.Navigation("SourceFile");
+            });
+
+        modelBuilder.Entity("Treasury.Api.Accounts.MultiCurrencyAccount", b =>
+            {
+                b.Navigation("Accounts");
             });
 
         modelBuilder.Entity("Treasury.Api.Rules.Rule", b =>

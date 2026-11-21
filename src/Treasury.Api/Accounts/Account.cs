@@ -34,6 +34,11 @@ public class Account : IOwned
 
     /// Optional IBAN / last card digits, only when the Integration can provide one to check against.
     public string? Identifier { get; init; }
+
+    /// The Multi-currency account this Account belongs to, if any (ADR-0009). Fixed: an Account is never moved
+    /// into, out of or between groups. Such an Account has no Ingest folder of its own (its Slug is reserved only
+    /// for its kept Source files) and takes its Owner from the group.
+    public Guid? MultiCurrencyAccountId { get; init; }
 }
 
 public static class Currencies

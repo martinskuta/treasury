@@ -23,7 +23,10 @@ public sealed class IngestScanner(IServiceScopeFactory scopes, IngestFolders fol
             var db = scope.ServiceProvider.GetRequiredService<TreasuryDbContext>();
             var pipeline = scope.ServiceProvider.GetRequiredService<ImportPipeline>();
             var found = new List<(Account Account, string Path, FileState State)>();
-            foreach (var account in await db.Accounts.AsNoTracking().OrderBy(a => a.Slug).ToListAsync(ct))
+            // An Account in a Multi-currency account has no Ingest folder of its own (ADR-0009); importing from the
+            // group's folder is #25.
+            foreach (var account in await db.Accounts.AsNoTracking().Where(a => a.MultiCurrencyAccountId == null)
+                         .OrderBy(a => a.Slug).ToListAsync(ct))
             {
                 var folder = folders.PathFor(account.Slug);
                 if (!Directory.Exists(folder)) continue;

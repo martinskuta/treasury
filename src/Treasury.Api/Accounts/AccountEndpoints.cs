@@ -20,7 +20,7 @@ public static class AccountEndpoints
 
     public record AccountResponse(Guid Id, string Name, string Slug, OwnerResponse Owner, string IntegrationKey,
         string Currency, decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance,
-        BalanceWarningResponse? BalanceWarning);
+        BalanceWarningResponse? BalanceWarning, Guid? MultiCurrencyAccountId);
 
     /// The Account's most recent statement closing balance differs from the calculated balance on that date (#11).
     public record BalanceWarningResponse(DateOnly Date, decimal StatementBalance, decimal CalculatedBalance,
@@ -121,6 +121,8 @@ public static class AccountEndpoints
             return Results.Ok(await ToResponseAsync(db, account));
         });
 
+        api.MapMultiCurrencyAccounts();
+
         api.MapGet("/integrations", (IntegrationRegistry integrations) =>
             Results.Ok(integrations.All.OrderBy(i => i.Name).Select(i => new { i.Key, i.Name, i.CanProvideIdentifier, i.HoldsSeveralCurrencies })));
     }
@@ -130,35 +132,40 @@ public static class AccountEndpoints
     private static Task<Account?> FindVisibleAsync(TreasuryDbContext db, Guid id, Guid viewer) =>
         db.Accounts.OwnedByViewerOrFamily(viewer).SingleOrDefaultAsync(a => a.Id == id);
 
-    private static void ValidateName(string? name, Dictionary<string, string[]> errors)
+    internal static void ValidateName(string? name, Dictionary<string, string[]> errors, int maxLength = MaxNameLength)
     {
         if (string.IsNullOrEmpty(name)) errors["name"] = ["Enter a name."];
-        else if (name.Length > MaxNameLength) errors["name"] = [$"Use at most {MaxNameLength} characters."];
+        else if (name.Length > maxLength) errors["name"] = [$"Use at most {maxLength} characters."];
     }
 
-    /// The slug, or slug-2, slug-3... if an Account or a leftover folder already uses it.
-    private static async Task<string> UniqueSlugAsync(TreasuryDbContext db, IngestFolders folders, string slug)
+    /// The slug, or slug-2, slug-3... if an Account, a Multi-currency account, a leftover folder or one of the
+    /// <paramref name="reserved"/> slugs (picked earlier in the same request) already uses it.
+    internal static async Task<string> UniqueSlugAsync(TreasuryDbContext db, IngestFolders folders, string slug,
+        params string[] reserved)
     {
-        var taken = (await db.Accounts.Where(a => a.Slug == slug || a.Slug.StartsWith(slug + "-"))
-            .Select(a => a.Slug).ToListAsync()).ToHashSet();
+        var taken = (await db.Accounts.Where(a => a.Slug == slug || a.Slug.StartsWith(slug + "-")).Select(a => a.Slug)
+            .Concat(db.MultiCurrencyAccounts.Where(g => g.Slug == slug || g.Slug.StartsWith(slug + "-")).Select(g => g.Slug))
+            .ToListAsync()).ToHashSet();
+        taken.UnionWith(reserved);
         var candidate = slug;
         for (var n = 2; taken.Contains(candidate) || folders.Exists(candidate); n++) candidate = $"{slug}-{n}";
         return candidate;
     }
 
-    private static Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts) =>
+    internal static Task<Dictionary<Guid, string>> MemberNamesAsync(TreasuryDbContext db, IEnumerable<Account> accounts) =>
         db.MemberNamesAsync(accounts.Select(a => a.OwnerMemberId));
 
     private static async Task<AccountResponse> ToResponseAsync(TreasuryDbContext db, Account account) =>
         ToResponse(account, await MemberNamesAsync(db, [account]), await AccountBalances.CurrentAsync(db, [account]),
             await AccountBalances.MismatchesAsync(db, [account]));
 
-    private static AccountResponse ToResponse(Account a, IReadOnlyDictionary<Guid, string> memberNames,
+    internal static AccountResponse ToResponse(Account a, IReadOnlyDictionary<Guid, string> memberNames,
         IReadOnlyDictionary<Guid, decimal> balances, IReadOnlyDictionary<Guid, BalanceMismatch> mismatches) =>
         new(a.Id, a.Name, a.Slug, OwnerResponse.From(a.Owner, memberNames), a.IntegrationKey, a.Currency,
             a.OpeningBalance, a.OpeningDate, a.Identifier, balances[a.Id],
             mismatches.TryGetValue(a.Id, out var m)
                 ? new BalanceWarningResponse(m.Date, m.StatementBalance, m.CalculatedBalance,
                     new TransactionEndpoints.SourceFileRef(m.SourceFileId, m.FileName))
-                : null);
+                : null,
+            a.MultiCurrencyAccountId);
 }
