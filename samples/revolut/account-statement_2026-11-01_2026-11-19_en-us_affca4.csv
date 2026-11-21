@@ -1,0 +1,6 @@
+Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+Transfer,Current,2026-11-04 21:14:55,2026-11-04 21:14:56,Revolut Bank UAB,50.00,0.00,CHF,COMPLETED,2534.43
+Card Payment,Current,2026-11-04 20:52:23,2026-11-05 15:23:44,ÖMI'S,-42.80,0.00,CHF,COMPLETED,2491.63
+Card Payment,Current,2026-11-04 14:54:36,2026-11-05 15:36:26,Tmnábytek.cz,-129.95,0.00,CHF,COMPLETED,2361.68
+Transfer,Current,2026-11-08 12:24:16,2026-11-09 01:42:48,To Jan Novak,-1500.00,0.00,CHF,COMPLETED,861.68
+Card Payment,Current,2026-11-19 18:26:07,,Anthropic,-64.00,0.00,CHF,PENDING,

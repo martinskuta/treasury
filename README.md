@@ -156,3 +156,29 @@ supported.
   touch, one ending when the next starts, are fine; without `FrToDt` a statement runs from its first booking date to
   its closing balance date), a zip without XML or larger than 50 MB unpacked, and anything that isn't camt.053 (CSV,
   camt.052, camt.054).
+
+### Revolut (`revolut`)
+
+For Revolut, export the account statement from the Revolut app as **CSV (Excel)** in **English** and import the
+file as it is. Its header is
+`Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance` (a UTF-8 byte order mark
+is fine). One Revolut account holds several currencies, and a file can contain all of them.
+
+- Revolut statements have no account identifier, so Accounts using it can't have an identifier.
+- Only rows with Product `Current` and State `COMPLETED` are imported; everything else (savings and other
+  `Deposit` rows, `PENDING`, `REVERTED`, `DECLINED`, ...) is skipped. Type and State may be written in title case
+  (`Card Payment`) or, in older exports, in upper case with underscores (`CARD_PAYMENT`, `TOPUP`).
+- A Transaction gets the Completed Date, the `Amount` (money in positive, money out negative) in its `Currency`,
+  and Revolut's `Description` as it is. Revolut has no reference, so the description is part of what makes a
+  Transaction a duplicate. The counterparty is the description for `Card Payment` and `Card Refund`, the
+  description without a leading `To ` / `From ` for `Transfer`, and empty for anything else (top-ups, exchanges,
+  ...).
+- A non-zero `Fee` becomes a second Transaction on the same date and in the same currency: minus the fee, described
+  as `Fee: <description>`, with counterparty `Revolut` (Revolut's balance is the previous balance + `Amount` −
+  `Fee`).
+- For each currency, the `Balance` of its last imported row (in Completed Date order) is that currency's closing
+  balance on that row's Completed Date, and the balance before its first row (first `Balance` − `Amount` + `Fee`)
+  is where that currency stood before the file.
+- Rejected (nothing imported): a header in another language (export the statement in English), a line with more
+  or fewer fields than the header, and an imported row whose Completed Date, Amount, Fee or Balance can't be read
+  or whose Currency is empty. The error says which line.

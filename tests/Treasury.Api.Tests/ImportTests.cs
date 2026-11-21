@@ -299,6 +299,14 @@ public class ImportTests : ApiTestBase
     }
 
     [Test]
+    public async Task The_revolut_integration_is_available_without_an_identifier()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var integrations = (await anna.GetFromJsonAsync<List<IntegrationDto>>("/api/integrations"))!;
+        await Assert.That(integrations).Contains(new IntegrationDto("revolut", "Revolut", false));
+    }
+
+    [Test]
     public async Task The_generic_csv_integration_is_available_and_imports_through_upload()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
