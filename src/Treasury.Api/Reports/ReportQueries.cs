@@ -64,10 +64,11 @@ public static class ReportQueries
         if (rows.Count == 0) return [];
         var rates = await chf.LoadAsync(rows.Min(r => r.Date), rows.Max(r => r.Date), ct);
         return rows.Select(r => new ReportRow(r.CategoryId, r.Amount >= 0 ? TransactionType.Income : TransactionType.Expense,
-            rates.ToChf(r.Amount, r.Currency, r.Date) is { } c ? Math.Round(c, 2, MidpointRounding.AwayFromZero) : null))
+            rates.ToChf(r.Amount, r.Currency, r.Date) is { } c ? Math.Round(c, 2, MidpointRounding.AwayFromZero) : null,
+            r.Date))
             .ToList();
     }
 }
 
 /// One Transaction as a report sees it. <see cref="Chf"/> keeps the sign (Expense negative); null = pending conversion.
-public sealed record ReportRow(Guid? CategoryId, TransactionType Type, decimal? Chf);
+public sealed record ReportRow(Guid? CategoryId, TransactionType Type, decimal? Chf, DateOnly Date);
