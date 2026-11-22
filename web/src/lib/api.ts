@@ -641,6 +641,32 @@ export type MonthlyReport = {
 export const getMonthlyReport = (month: string, owner: ReportOwner, signal?: AbortSignal) =>
   apiFetch<MonthlyReport>(`/api/reports/monthly?month=${encodeURIComponent(month)}&owner=${owner}`, { signal })
 
+/**
+ * One month's totals, counted like the Monthly overview: `income` and `expense` are positive CHF amounts,
+ * `net` = income - expense. `pendingConversion` counts the amounts (both sides) without a CHF rate yet.
+ */
+export type MonthTotals = {
+  month: string // yyyy-MM
+  income: number
+  expense: number
+  net: number
+  pendingConversion: number
+}
+
+/**
+ * The six months ending at the Owner view's end month, oldest first. `endMonth` = the month of the Owner view's
+ * latest Transaction, never later than the last complete calendar month (which it is without Transactions).
+ */
+export type RecentMonthsReport = {
+  owner: ReportOwner
+  currency: 'CHF'
+  endMonth: string // yyyy-MM
+  months: MonthTotals[]
+}
+
+export const getRecentMonthsReport = (owner: ReportOwner, signal?: AbortSignal) =>
+  apiFetch<RecentMonthsReport>(`/api/reports/recent-months?owner=${owner}`, { signal })
+
 /** `from`/`to` = the period counted (inclusive; null = open-ended, both null = all time). */
 export type TagReport = {
   tag: { id: string; name: string; dateFrom: string | null; dateTo: string | null }
