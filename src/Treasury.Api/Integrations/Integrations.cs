@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Treasury.Api.Integrations;
@@ -48,8 +49,9 @@ public sealed class SourceFileContent(string fileName, byte[] bytes)
 /// <param name="AccountIdentifier">IBAN / last card digits, when the format has one (see CanProvideIdentifier).</param>
 /// <param name="ClosingBalance">The statement's closing balance, when the format has one (single-currency formats).</param>
 /// <param name="BalancesByCurrency">For a format holding several currencies (Multi-currency account): the balances of
-/// each currency that has rows or a balance other than zero, ordered by currency code. Empty for single-currency
-/// formats, which use <paramref name="ClosingBalance"/>.</param>
+/// each currency the statement lists, also of one with no rows and a zero balance (the import decides which
+/// currencies get an Account), ordered by currency code. Empty for single-currency formats, which use
+/// <paramref name="ClosingBalance"/>.</param>
 /// <param name="Notes">What the Integration saw in the file but didn't read (e.g. entries in a section Treasury
 /// doesn't track), written for a Member.</param>
 public sealed record ParsedStatement(
@@ -113,4 +115,12 @@ public sealed class IntegrationRegistry(IEnumerable<IIntegration> integrations)
     public IReadOnlyCollection<IIntegration> All => _byKey.Values;
 
     public IIntegration? Find(string? key) => key is not null && _byKey.TryGetValue(key, out var i) ? i : null;
+}
+
+/// How amounts are written in the messages of an import (errors and warnings).
+public static class Amounts
+{
+    /// Swiss style like the frontend's formatAmount: 1'234.50.
+    public static string Format(decimal amount) =>
+        amount.ToString("#,##0.00", new NumberFormatInfo { NumberGroupSeparator = "'", NumberDecimalSeparator = "." });
 }

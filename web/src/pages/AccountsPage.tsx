@@ -153,16 +153,19 @@ export function AccountsPage() {
 const identifierLabel = 'Identifier (optional: IBAN or last card digits)'
 
 /**
- * Inline rename form; calls onSave with the new name and closes when it resolves. With `initialIdentifier` given
- * (null = none yet) it also edits the identifier and passes it to onSave, trimmed ('' = none).
+ * Inline form editing a name and, with `hasIdentifierField`, an identifier; calls onSave with the new name and the
+ * identifier, trimmed ('' = none), and closes when it resolves.
  */
-function RenameForm({
+function NameAndIdentifierForm({
   initialName,
-  initialIdentifier,
+  hasIdentifierField = false,
+  initialIdentifier = null,
   onSave,
   onClose,
 }: {
   initialName: string
+  hasIdentifierField?: boolean
+  /** null = none yet. */
   initialIdentifier?: string | null
   onSave: (name: string, identifier: string) => Promise<void>
   onClose: () => void
@@ -197,7 +200,7 @@ function RenameForm({
         errors={errors.name ?? errors.form}
         onChange={e => setName(e.target.value)}
       />
-      {initialIdentifier !== undefined && (
+      {hasIdentifierField && (
         <FormField
           label={identifierLabel}
           name="identifier"
@@ -242,9 +245,10 @@ function MultiCurrencyAccountRow({
         <AccountIcon label={initial(multiCurrencyAccount.name)} tone="multi" />
         <div className="acct-name">
           {editing ? (
-            <RenameForm
+            <NameAndIdentifierForm
               initialName={multiCurrencyAccount.name}
-              initialIdentifier={canHaveIdentifier ? multiCurrencyAccount.identifier : undefined}
+              hasIdentifierField={canHaveIdentifier}
+              initialIdentifier={multiCurrencyAccount.identifier}
               onSave={async (name, identifier) => {
                 await updateMultiCurrencyAccount(
                   multiCurrencyAccount.id,
@@ -336,7 +340,7 @@ function AccountRow({
         )}
         <div className="acct-name">
           {editing ? (
-            <RenameForm
+            <NameAndIdentifierForm
               initialName={account.name}
               onSave={async name => onRenamed(await renameAccount(account.id, name))}
               onClose={() => setEditing(false)}

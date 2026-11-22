@@ -184,14 +184,17 @@ Multi-currency account. Revolut's CSV account statement is not supported.
   The Accounts in it have no identifier of their own.
 - Read from the PDF: the period, and for each "Personal Account (CUR)" its IBAN, opening balance, closing balance
   and transaction table. Everything else (investments, savings, crypto, the "Information about ..." pages) is not
-  read; when such a section has entries, the import result says so in a warning.
+  read; when such a section has entries, the import result says so in a warning. A current account that isn't a
+  Personal Account, e.g. a "Joint Account (EUR)", is not imported either (neither its summary nor its transactions,
+  and its IBAN is ignored); a warning names it.
 - Each row goes to the Multi-currency account's Account in the currency of the row's "Personal Account (CUR)". A
   currency without an Account yet gets one during the import when the statement shows money in it (a row, or an
   opening or closing balance other than zero), named `<Multi-currency account name> <CUR>` (renamable), with the
   Multi-currency account's Owner, opened on the day before the statement's period starts with the statement's
   opening balance. A currency with no rows and a zero balance gets no Account. The import result says "Created
   Account ...". Only currencies Treasury has exchange rates for can have Accounts (see [Currencies](#currencies)):
-  a statement with rows or a balance in another currency is rejected.
+  a statement with rows in another currency is rejected; a balance without rows in another currency is skipped,
+  with a warning that names the currency and says its balance isn't tracked.
 - A Transaction gets the row's Date, its Money in/out (money in positive, money out negative) in the account's
   currency (the converted amount printed beneath it is ignored) and its Description as it is; a description that
   wraps over several lines is joined with spaces. The counterparty is the description when Revolut's Category is
@@ -202,9 +205,10 @@ Multi-currency account. Revolut's CSV account statement is not supported.
   in/out − Fees).
 - The file is one Source file. Rules, date-range Tags and the balance check work per Account as usual: each
   currency's closing balance, on the last day of the period, is compared with its Account's calculated balance,
-  also for a currency with no rows in the period. An exchange between two of its currencies is paired as a
-  Transfer when both legs' CHF values are within 2% and at most a day apart (exchange rates for that day must be
-  known). Undoing the import removes its Transactions in every currency; Accounts it created stay.
+  also for a currency with no rows in the period, and also when that balance is zero. An exchange between two of
+  its currencies is paired as a Transfer when both legs' CHF values are within 2% and at most a day apart (exchange
+  rates for that day must be known). Undoing the import removes its Transactions in every currency; Accounts it
+  created stay.
 - Revolut has no reference, so the description is part of what makes a Transaction a duplicate. Importing the same
   PDF again, or one whose period overlaps an earlier one, skips the rows already imported.
 - Files go to the Multi-currency account's `processed/` or `failed/`. Its Accounts have no Ingest folder of their
@@ -212,8 +216,10 @@ Multi-currency account. Revolut's CSV account statement is not supported.
 - Rejected (nothing imported), with an error that names the currency and the figures that disagree: a row whose
   Balance isn't the previous balance (the opening balance for the first row) + Money in/out − Fees, a currency
   whose last Balance isn't its closing balance (or whose opening and closing balance differ when it has no rows),
-  a currency whose rows don't add up to its Total row, a non-zero "Tax withheld" or "Other taxes" (not supported
-  yet), an account that is in the summaries but not in the transaction statements or the other way round, the same
-  currency twice, more than one IBAN in one statement (accounts without one are fine), an IBAN other than the
-  Multi-currency account's identifier, and anything that isn't a Revolut Custom statement PDF in English (a CSV,
-  another PDF, a statement in another language).
+  a currency whose rows' Money in/out or Fees don't add up to its Total row, a non-zero "Tax withheld" or "Other
+  taxes" (not supported yet; the error names the amount and its row's date, or the Total row), an account that is
+  in the summaries but not in the transaction statements or the other way round, the same currency twice (a table
+  that continues on the next page under its account's heading printed again is one table), more than one IBAN in
+  one statement (accounts without one are fine), an IBAN other than the Multi-currency account's identifier, and
+  anything that isn't a Revolut Custom statement PDF in English (a CSV, another PDF, a statement in another
+  language).

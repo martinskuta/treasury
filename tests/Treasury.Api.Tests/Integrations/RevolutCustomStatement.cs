@@ -27,10 +27,12 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
     /// Transaction Statements".
     /// <param name="iban">null prints "Account Number N/A", as Revolut does for some currencies.</param>
     /// <param name="zero">How this account prints zero, e.g. "$0.00"; "0.00 CUR" when left out.</param>
+    /// <param name="kind">The heading is "&lt;kind&gt; (CUR)": another kind is an account Treasury doesn't import,
+    /// e.g. "Joint Account".</param>
     public RevolutCustomStatement Account(string currency, string opening, string closing,
-        Action<AccountBuilder>? table = null, string? iban = Iban, string? zero = null)
+        Action<AccountBuilder>? table = null, string? iban = Iban, string? zero = null, string kind = "Personal Account")
     {
-        var account = new AccountBuilder(currency, opening, closing, iban, zero ?? $"0.00 {currency}");
+        var account = new AccountBuilder($"{kind} ({currency})", currency, opening, closing, iban, zero ?? $"0.00 {currency}");
         table?.Invoke(account);
         _accounts.Add(account);
         return this;
@@ -82,7 +84,7 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                 y = 549;
                 first = false;
             }
-            Put(page, Left, y, 9.6, $"Personal Account ({account.Currency})");
+            Put(page, Left, y, 9.6, account.Heading);
             Put(page, Left, y - 36, 9.1, "Current account details");
             y -= 54;
             if (account.GbNumber is { } gb)
@@ -179,7 +181,7 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                 y = 650;
                 first = false;
             }
-            Put(page, Left, y, 9.6, $"Personal Account ({account.Currency})");
+            Put(page, Left, y, 9.6, account.Heading);
             Put(page, Left, y - 36, 9.1, "Transaction statement");
             y = TableHeader(page, y - 60, account);
             var converted = account.Currency != "CHF";
@@ -189,6 +191,11 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                 {
                     page = NewPage();
                     y = 688;
+                    if (pageBreak.RepeatAccountHeading)
+                    {
+                        Put(page, Left, y, 9.6, account.Heading);
+                        y -= 24;
+                    }
                     if (pageBreak.RepeatHeader) y = TableHeader(page, y - 36, account);
                     continue;
                 }
@@ -269,8 +276,10 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
     private static void PutRight(List<Text> page, double right, double y, double size, string text) =>
         Put(page, right - Pdf.Width(text, size), y, size, text);
 
-    public sealed class AccountBuilder(string currency, string opening, string closing, string? iban, string zero)
+    public sealed class AccountBuilder(string heading, string currency, string opening, string closing, string? iban,
+        string zero)
     {
+        internal string Heading => heading;
         internal string Currency => currency;
         internal string Opening => opening;
         internal string Closing => closing;
@@ -305,8 +314,21 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
         /// Leaves the Total row out.
         public AccountBuilder NoTotal() { _noTotal = true; return this; }
 
-        /// Continues the table on a new page, with or without the table header printed again.
-        public AccountBuilder NextPage(bool repeatHeader = true) { _rows.Add(new PageBreak(repeatHeader)); return this; }
+        /// Continues the table on a new page, with or without the table header printed again, and with or
+        /// without the account's heading printed again above it.
+        public AccountBuilder NextPage(bool repeatHeader = true, bool repeatAccountHeading = false)
+        {
+            _rows.Add(new PageBreak(repeatHeader, repeatAccountHeading));
+            return this;
+        }
+
+        /// The rest of the description of the row above, as a line of its own: after <see cref="NextPage"/>, a
+        /// description that wraps over the page break.
+        public AccountBuilder DescriptionContinued(string description)
+        {
+            _rows.Add(new TableRow("", description, "", "", "", "", "", ""));
+            return this;
+        }
 
         /// Prints "Account Number GB" above "Account Number (LT IBAN)", as Revolut does for the GBP account.
         public AccountBuilder GbAccountNumber(string number) { GbNumber = number; return this; }
@@ -321,7 +343,7 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
             _noTotal ? _rows : [.. _rows, _total ?? new TableRow("Total", "", "", zero, "", null, null, null)];
     }
 
-    private sealed record PageBreak(bool RepeatHeader);
+    private sealed record PageBreak(bool RepeatHeader, bool RepeatAccountHeading);
 
     private sealed record TableRow(string Date, string Description, string Category, string Money, string Balance,
         string? Tax, string? OtherTaxes, string? Fees)

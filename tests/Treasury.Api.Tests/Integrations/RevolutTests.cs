@@ -65,7 +65,7 @@ public class RevolutTests
     }
 
     [Test]
-    public async Task A_currency_with_a_balance_and_no_rows_has_balances_and_one_with_nothing_is_left_out()
+    public async Task A_currency_without_rows_has_balances_whether_it_holds_money_or_not()
     {
         var statement = Read(new RevolutCustomStatement("Oct 1, 2026 - Oct 31, 2026")
             .Account("CHF", "500.00 CHF", "480.00 CHF", t => t
@@ -88,6 +88,10 @@ public class RevolutTests
             new CurrencyBalances("CHF", opened, 500.00m, new ClosingBalance(closed, 480.00m)),
             new CurrencyBalances("GBP", opened, 15.40m, new ClosingBalance(closed, 15.40m)),
             new CurrencyBalances("ISK", opened, 6400m, new ClosingBalance(closed, 6400m)),
+            // Whether an empty currency gets an Account is the import's call, not the reader's.
+            new CurrencyBalances("AUD", opened, 0m, new ClosingBalance(closed, 0m)),
+            new CurrencyBalances("CZK", opened, 0m, new ClosingBalance(closed, 0m)),
+            new CurrencyBalances("JPY", opened, 0m, new ClosingBalance(closed, 0m)),
         });
     }
 
@@ -102,6 +106,7 @@ public class RevolutTests
         await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
         {
             new CurrencyBalances("CHF", new DateOnly(2026, 10, 31), 1234.50m, new ClosingBalance(Nov(30), 1234.50m)),
+            new CurrencyBalances("USD", new DateOnly(2026, 10, 31), 0m, new ClosingBalance(Nov(30), 0m)),
         });
     }
 
@@ -201,6 +206,44 @@ public class RevolutTests
     }
 
     [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task A_table_continued_on_a_page_that_repeats_the_account_heading_is_read_as_one(bool headerRepeated)
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("CHF", "100.00 CHF", "60.00 CHF", t => t
+                .Row("Nov 2, 2026", "Bakery", "Merchant", "-10.00 CHF", "90.00 CHF")
+                .Row("Nov 3, 2026", "Kiosk", "Merchant", "-10.00 CHF", "80.00 CHF")
+                .NextPage(headerRepeated, repeatAccountHeading: true)
+                .Row("Nov 4, 2026", "Florist", "Merchant", "-10.00 CHF", "70.00 CHF")
+                .Row("Nov 5, 2026", "Cinema", "Merchant", "-10.00 CHF", "60.00 CHF")
+                .Total("-40.00 CHF"))
+            .Account("EUR", "€5.00", "€5.00", zero: "€0.00"));
+
+        await Assert.That(statement.Rows.Select(r => (r.Date, r.Description, r.Amount))).IsEquivalentTo([
+            (Nov(2), "Bakery", -10.00m), (Nov(3), "Kiosk", -10.00m), (Nov(4), "Florist", -10.00m), (Nov(5), "Cinema", -10.00m),
+        ]);
+        await Assert.That(statement.BalancesByCurrency.Select(b => (b.Currency, b.Closing.Amount)))
+            .IsEquivalentTo([("CHF", 60.00m), ("EUR", 5.00m)]);
+    }
+
+    [Test]
+    public async Task A_description_wrapped_onto_the_page_that_continues_the_table_is_read_as_one()
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("EUR", "€100.00", "€40.00", t => t
+                .Row("Nov 3, 2026", "Trattoria Roma Centro", "Merchant", "-€25.00", "€75.00")
+                .NextPage(repeatAccountHeading: true)
+                .DescriptionContinued("Storico Di Milano")
+                .Row("Nov 5, 2026", "To Jan Novak", "Others", "-€35.00", "€40.00")
+                .Total("-€60.00"), zero: "€0.00"));
+
+        await Assert.That(statement.Rows.Select(r => (r.Date, r.Description, r.Amount))).IsEquivalentTo([
+            (Nov(3), "Trattoria Roma Centro Storico Di Milano", -25.00m), (Nov(5), "To Jan Novak", -35.00m),
+        ]);
+    }
+
+    [Test]
     public async Task A_fee_becomes_a_second_row_charged_by_revolut()
     {
         var statement = Read(new RevolutCustomStatement()
@@ -278,6 +321,18 @@ public class RevolutTests
     }
 
     [Test]
+    public async Task Fees_that_do_not_add_up_to_the_total_row_reject_the_file()
+    {
+        var error = ErrorOf(new RevolutCustomStatement()
+            .Account("CHF", "1,000.00 CHF", "766.50 CHF", t => t
+                .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-200.00 CHF", "796.50 CHF", fees: "3.50 CHF")
+                .Row("Nov 8, 2026", "Bookshop", "Merchant", "-30.00 CHF", "766.50 CHF")
+                .Total("-230.00 CHF", fees: "5.00 CHF")));
+
+        await Assert.That(error).Contains("CHF rows' fees add up to 3.50 CHF").And.Contains("Total row says 5.00 CHF");
+    }
+
+    [Test]
     public async Task A_table_without_a_total_row_rejects_the_file()
     {
         var error = ErrorOf(new RevolutCustomStatement()
@@ -296,7 +351,8 @@ public class RevolutTests
                 .Row("Nov 3, 2026", "Interest", "Others", "€1.00", "€101.00", tax: "€0.15")
                 .Total("€1.00"), zero: "€0.00"));
 
-        await Assert.That(error).Contains("EUR").And.Contains("Tax withheld").And.Contains("doesn't support yet");
+        await Assert.That(error).Contains("0.15 EUR").And.Contains("\"Tax withheld\"").And.Contains("03.11.2026")
+            .And.Contains("doesn't support yet");
     }
 
     [Test]
@@ -307,7 +363,8 @@ public class RevolutTests
                 .Row("Nov 3, 2026", "Interest", "Others", "1.00 CHF", "101.00 CHF")
                 .Total("1.00 CHF", otherTaxes: "0.35 CHF")));
 
-        await Assert.That(error).Contains("CHF").And.Contains("Other taxes").And.Contains("doesn't support yet");
+        await Assert.That(error).Contains("0.35 CHF").And.Contains("\"Other taxes\"").And.Contains("Total row")
+            .And.Contains("doesn't support yet");
     }
 
     [Test]
@@ -336,6 +393,16 @@ public class RevolutTests
         var error = ErrorOf(new RevolutCustomStatement()
             .Account("EUR", "€5.00", "€5.00", zero: "€0.00")
             .Account("EUR", "€7.00", "€7.00", zero: "€0.00"));
+
+        await Assert.That(error).Contains("lists the EUR account twice");
+    }
+
+    [Test]
+    public async Task A_second_transaction_statement_for_a_currency_after_its_total_row_rejects_the_file()
+    {
+        var error = ErrorOf(new RevolutCustomStatement()
+            .Account("EUR", "€5.00", "€5.00", zero: "€0.00")
+            .Account("EUR", "€5.00", "€5.00", t => t.OnlyInTransactionStatements(), zero: "€0.00"));
 
         await Assert.That(error).Contains("lists the EUR account twice");
     }
@@ -384,6 +451,33 @@ public class RevolutTests
         ]);
         await Assert.That(statement.Rows).IsEmpty();
         await Assert.That(statement.BalancesByCurrency.Select(b => b.Currency)).IsEquivalentTo(["CHF"]);
+    }
+
+    [Test]
+    public async Task An_account_that_is_not_a_personal_account_is_skipped_with_a_note()
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("EUR", "€500.00", "€450.00", t => t
+                .Row("Nov 4, 2026", "Florist", "Merchant", "-€20.00", "€480.00")
+                .NextPage()
+                .Row("Nov 5, 2026", "Cinema", "Merchant", "-€30.00", "€450.00")
+                .Total("-€50.00"), iban: "LT601010012345678901", zero: "€0.00", kind: "Joint Account")
+            .Account("CHF", "100.00 CHF", "90.00 CHF", t => t
+                .Row("Nov 3, 2026", "Bakery", "Merchant", "-10.00 CHF", "90.00 CHF")
+                .Total("-10.00 CHF"))
+            .Account("EUR", "€5.00", "€5.00", zero: "€0.00"));
+
+        await Assert.That(statement.Notes).IsEquivalentTo([
+            "The statement also has \"Joint Account (EUR)\", which Treasury doesn't import.",
+        ]);
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(Nov(3), -10.00m, "CHF", "Bakery", "Bakery"),
+        });
+        await Assert.That(statement.BalancesByCurrency.Select(b => (b.Currency, b.OpeningBalance, b.Closing.Amount)))
+            .IsEquivalentTo([("CHF", 100.00m, 90.00m), ("EUR", 5.00m, 5.00m)]);
+        // The joint account's IBAN is another one.
+        await Assert.That(statement.AccountIdentifier).IsEqualTo(RevolutCustomStatement.Iban);
     }
 
     [Test]

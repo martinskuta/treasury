@@ -73,11 +73,7 @@ public sealed class ClosingBalanceCheck : IImportStep
         if (calculated != closing.Amount)
             context.Warnings.Add(
                 $"The statement's closing balance on {closing.Date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} is " +
-                $"{Format(closing.Amount)} {account.Currency}, but the Account's calculated balance on that date is " +
-                $"{Format(calculated)} {account.Currency}. An import may be missing or doubled.");
+                $"{Amounts.Format(closing.Amount)} {account.Currency}, but the Account's calculated balance on that date is " +
+                $"{Amounts.Format(calculated)} {account.Currency}. An import may be missing or doubled.");
     }
-
-    /// Swiss style like the frontend's formatAmount: 1'234.50.
-    private static string Format(decimal amount) =>
-        amount.ToString("#,##0.00", new NumberFormatInfo { NumberGroupSeparator = "'", NumberDecimalSeparator = "." });
 }

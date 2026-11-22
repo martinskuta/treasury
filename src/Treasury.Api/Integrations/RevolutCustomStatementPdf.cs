@@ -11,18 +11,22 @@ namespace Treasury.Api.Integrations;
 /// <param name="PeriodEnd">Last day of the statement period.</param>
 /// <param name="Summaries">The accounts under "Current Accounts Summaries", in document order.</param>
 /// <param name="Tables">The accounts under "Current Accounts Transaction Statements", in document order.</param>
+/// <param name="SkippedAccounts">Headings of the current accounts that aren't a "Personal Account (CUR)", e.g.
+/// "Joint Account (EUR)": neither their summary nor their table is read.</param>
 /// <param name="SkippedSectionsWithEntries">Headings of the sections Treasury doesn't read that aren't empty.</param>
 internal sealed record RevolutCustomStatementPdf(
     DateOnly PeriodStart,
     DateOnly PeriodEnd,
     IReadOnlyList<RevolutAccountSummary> Summaries,
     IReadOnlyList<RevolutAccountTable> Tables,
+    IReadOnlyList<string> SkippedAccounts,
     IReadOnlyList<string> SkippedSectionsWithEntries)
 {
     public const string ExportHint =
         "In the Revolut app, open Profile → Documents & statements → Custom statement, export it as PDF in " +
         "English, and import that file.";
 
+    private const string Title = "Custom Statement";
     private const string SummariesHeading = "Current Accounts Summaries";
     private const string TransactionsHeading = "Current Accounts Transaction Statements";
 
@@ -47,16 +51,16 @@ internal sealed record RevolutCustomStatementPdf(
 
         var periodLine = pages.FirstOrDefault()?.Select(l => Period.Match(l.Text)).FirstOrDefault(m => m.Success);
         if (periodLine is null
-            || !pages[0].Any(l => l.Text == "Custom Statement")
+            || !pages[0].Any(l => l.Text == Title)
             || !pages.SelectMany(p => p).Any(l => l.Text == SummariesHeading)
             || !TryDate(periodLine.Groups["from"].Value, out var periodStart)
             || !TryDate(periodLine.Groups["to"].Value, out var periodEnd))
             throw new StatementFormatException($"This PDF isn't a Revolut Custom statement in English. {ExportHint}");
 
         var reading = new Reading(periodLine.Value);
-        foreach (var page in pages) reading.Page(page);
+        foreach (var page in pages) reading.ReadPage(page);
         return new RevolutCustomStatementPdf(periodStart, periodEnd, reading.Summaries(), reading.Tables(),
-            reading.SkippedSectionsWithEntries());
+            reading.SkippedAccounts, reading.SkippedSectionsWithEntries());
     }
 
     /// The statement's layout wasn't what Treasury expects.
@@ -135,17 +139,18 @@ internal sealed record RevolutCustomStatementPdf(
         private double _headingSize;
         private readonly List<SummaryInProgress> _summaries = [];
         private readonly List<TableInProgress> _tables = [];
+        private readonly List<string> _skippedAccounts = [];
         private readonly List<(string Heading, bool HasEntries)> _skipped = [];
         private SummaryInProgress? _summary;
         private TableInProgress? _table;
 
-        public void Page(List<Line> lines)
+        public void ReadPage(List<Line> lines)
         {
             // The table header is three lines ("Money in" above and "/out" below "Date ... Fees").
             var headers = lines.Where(IsTableHeader).ToList();
             foreach (var line in lines)
             {
-                if (line.Text == "Custom Statement" || line.Text == periodText
+                if (line.Text == Title || line.Text == periodText
                     || line.Text.StartsWith("Generated on the ", StringComparison.Ordinal))
                     continue;
                 if (_section == Section.BeforeFirst)
@@ -188,49 +193,61 @@ internal sealed record RevolutCustomStatementPdf(
         private static bool IsTableHeader(Line line) =>
             new[] { "Date", "Description", "Category", "Balance", "Fees" }.All(h => line.Words.Any(w => w.Text == h));
 
-        private static string? Currency(Line line)
+        /// Whether the line is an account's heading. Only a "Personal Account (CUR)" is read: for any other kind
+        /// (e.g. a joint account) <paramref name="currency"/> is null and the heading is kept as skipped.
+        private bool IsAccountHeading(Line line, out string? currency)
         {
+            currency = null;
             var heading = AccountHeading.Match(line.Text);
-            if (!heading.Success) return null;
-            if (heading.Groups["kind"].Value != "Personal Account")
-                throw Unreadable($"it has a \"{line.Text}\", and Treasury reads only Personal Accounts");
-            return heading.Groups["currency"].Value;
+            if (!heading.Success) return false;
+            if (heading.Groups["kind"].Value == "Personal Account") currency = heading.Groups["currency"].Value;
+            else if (!_skippedAccounts.Contains(line.Text)) _skippedAccounts.Add(line.Text);
+            return true;
         }
 
         private void SummaryLine(Line line)
         {
-            if (Currency(line) is { } currency)
+            if (IsAccountHeading(line, out var currency))
             {
-                _summaries.Add(_summary = new SummaryInProgress(currency));
+                // The lines of an account that isn't read belong to no summary.
+                _summary = currency is null ? null : new SummaryInProgress(currency);
+                if (_summary is not null) _summaries.Add(_summary);
                 return;
             }
             if (_summary is null) return;
             var where = $"the {_summary.Currency} account's summary";
-            if (IbanLine.Match(line.Text) is { Success: true } iban)
-                _summary.Iban = _summary.Iban is null
-                    ? iban.Groups["iban"].Value.Replace(" ", "")
-                    : throw Unreadable($"{where} has two IBANs");
-            if (OpeningBalance.Match(line.Text) is { Success: true } opening)
-                _summary.Opening = _summary.Opening is null
-                    ? ParseAmount(opening.Groups["amount"].Value, $"{where}, opening balance")
-                    : throw Unreadable($"{where} has two opening balances");
-            if (ClosingBalance.Match(line.Text) is { Success: true } closing)
-                _summary.Closing = _summary.Closing is null
-                    ? ParseAmount(closing.Groups["amount"].Value, $"{where}, closing balance")
-                    : throw Unreadable($"{where} has two closing balances");
+            // What the line gives for one of the summary's figures, which the summary must not have yet.
+            string? Found(Regex figure, string group, bool alreadyRead, string twice)
+            {
+                var match = figure.Match(line.Text);
+                if (!match.Success) return null;
+                return alreadyRead ? throw Unreadable($"{where} has two {twice}") : match.Groups[group].Value;
+            }
+
+            if (Found(IbanLine, "iban", _summary.Iban is not null, "IBANs") is { } iban)
+                _summary.Iban = iban.Replace(" ", "");
+            if (Found(OpeningBalance, "amount", _summary.Opening is not null, "opening balances") is { } opening)
+                _summary.Opening = ParseAmount(opening, $"{where}, opening balance");
+            if (Found(ClosingBalance, "amount", _summary.Closing is not null, "closing balances") is { } closing)
+                _summary.Closing = ParseAmount(closing, $"{where}, closing balance");
         }
 
         private void TableLine(Line line)
         {
-            if (Currency(line) is { } currency)
+            if (IsAccountHeading(line, out var currency))
             {
-                _tables.Add(_table = new TableInProgress(currency));
+                // The lines of an account that isn't read belong to no table.
+                if (currency is null) _table = null;
+                // A table that runs onto the next page may get its account's heading printed again there: until
+                // its Total row, the same heading continues the table. After it, the account is listed twice.
+                else if (_table is null || _table.Currency != currency || _table.Total is not null)
+                    _tables.Add(_table = new TableInProgress(currency));
                 return;
             }
             // Between the account's heading and its table there is only the sub-heading "Transaction statement".
             if (_table?.Columns is null || line.Text == "Transaction statement") return;
 
-            var where = $"the {_table.Currency} transaction statement";
+            var where = _table.Where;
             var cells = _table.Columns.Split(line);
             if (cells[Columns.Date].Length > 0)
             {
@@ -254,7 +271,7 @@ internal sealed record RevolutCustomStatementPdf(
 
         public IReadOnlyList<RevolutAccountTable> Tables() => _tables.Select(t =>
         {
-            var where = $"the {t.Currency} transaction statement";
+            var where = t.Where;
             decimal Cell(string?[] row, int column, string name) => ParseAmount(row[column] ?? "", $"{where}, {name}");
             var total = t.Total ?? throw Unreadable($"{where} has no Total row");
             return new RevolutAccountTable(t.Currency,
@@ -271,6 +288,8 @@ internal sealed record RevolutCustomStatementPdf(
                     Cell(total, Columns.Fees, "Total of Fees")));
         }).ToList();
 
+        public IReadOnlyList<string> SkippedAccounts => _skippedAccounts;
+
         public IReadOnlyList<string> SkippedSectionsWithEntries() =>
             _skipped.Where(s => s.HasEntries).Select(s => s.Heading).Distinct().ToList();
     }
@@ -286,6 +305,9 @@ internal sealed record RevolutCustomStatementPdf(
     private sealed class TableInProgress(string currency)
     {
         public string Currency => currency;
+
+        /// How messages name the table.
+        public string Where => $"the {currency} transaction statement";
         public Columns? Columns { get; set; }
 
         /// The text of each row's cells so far, by column.
