@@ -8,6 +8,7 @@ using Treasury.Api.Imports;
 using Treasury.Api.Categories;
 using Treasury.Api.ExchangeRates;
 using Treasury.Api.Rules;
+using Treasury.Api.Settings;
 using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
 
@@ -43,6 +44,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
     public DbSet<Rule> Rules => Set<Rule>();
 
     public DbSet<RuleTag> RuleTags => Set<RuleTag>();
+
+    public DbSet<FamilySettings> FamilySettings => Set<FamilySettings>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -88,6 +91,8 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             t.Ignore(x => x.Owner);
             t.Ignore(x => x.Type);
             t.Ignore(x => x.IsTransfer);
+            t.Ignore(x => x.IsReimbursement);
+            t.Ignore(x => x.CountsAsIncomeOrExpense);
             // The other leg of a Transfer/Contribution. Deleting a leg (manual delete, or its Source file with #10's
             // undo) breaks the link: the other leg's pointer becomes null, so it is no longer a Transfer.
             t.HasOne<Transaction>().WithOne().HasForeignKey<Transaction>(x => x.LinkedTransactionId)
@@ -201,6 +206,9 @@ public class TreasuryDbContext(DbContextOptions<TreasuryDbContext> options)
             l.HasOne<Tag>().WithMany().HasForeignKey(x => x.TagId).OnDelete(DeleteBehavior.Cascade);
             l.HasIndex(x => x.TagId);
         });
+
+        // One row (Id = FamilySettings.SingleId), created the first time a setting is saved.
+        builder.Entity<FamilySettings>(s => s.Property(x => x.Id).ValueGeneratedNever());
 
         builder.Entity<ExchangeRate>(r =>
         {

@@ -119,6 +119,8 @@ export function EditTransactionForm({
       <OwnerSelect owners={owners} current={t.owner} value={owner} errors={errors.owner} onChange={setOwner} />
       {t.type === 'transfer' ? (
         <p className="tx-hint">A Transfer has no Category. Unlink it to make it an Income or Expense.</p>
+      ) : t.type === 'reimbursement' ? (
+        <p className="tx-hint">A Reimbursement has no Category. Unlink it, or make it a Contribution, to give it one.</p>
       ) : (
         <CategoryField categories={categories} value={categoryId} errors={errors.categoryId} onChange={setCategoryId} />
       )}

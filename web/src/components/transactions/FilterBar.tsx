@@ -2,10 +2,10 @@ import { useState, type FormEvent } from 'react'
 import type { Account, Category, Owner, Tag } from '../../lib/api'
 import { CategoryOptions } from '../CategoryOptions'
 import { OwnerOptions } from '../OwnerSelect'
-import { FILTER_KEYS, SORTS } from './shared'
+import { FILTER_KEYS, NOT_PAID_BACK, SORTS } from './shared'
 
 /**
- * Search box plus Account, Category, Tag, Owner, date range and sort as pill fields; every change goes into the URL.
+ * Search box plus Account, Category, Tag, Owner, paid back, date range and sort as pill fields; every change goes into the URL.
  * The pills carry no visible label: their first option says what they filter ("All Accounts"), and each has an
  * accessible name.
  */
@@ -112,6 +112,15 @@ export function FilterBar({
         <select className="input" aria-label="Owner" value={value('owner')} onChange={e => onChange({ owner: e.target.value })}>
           <option value="">Any Owner</option>
           <OwnerOptions owners={owners} />
+        </select>
+        <select
+          className="input"
+          aria-label="Paid back"
+          value={value('paidBack')}
+          onChange={e => onChange({ paidBack: e.target.value })}
+        >
+          <option value="">Paid back or not</option>
+          <option value={NOT_PAID_BACK}>Not yet paid back</option>
         </select>
         <select
           className="input"

@@ -3,26 +3,28 @@ import { Link } from 'react-router'
 import {
   deleteTransaction,
   sourceFileContentUrl,
+  switchLinkKind,
   tagReportPath,
   unlinkTransaction,
   type Category,
   type Owner,
+  type PaidBack,
   type Tag,
   type TagRef,
   type Transaction,
   type TransactionLink,
 } from '../../lib/api'
-import { formatDate } from '../../lib/format'
+import { formatAmount, formatDate } from '../../lib/format'
 import { RuleOffer } from '../RuleOffer'
 import { EditTransactionForm } from './EditTransactionForm'
 import { LinkForm } from './LinkForm'
 import { KindIcon, RowAmount } from './RowParts'
-import { HIDDEN_ACCOUNT, kindClass, toTransactionErrors } from './shared'
+import { HIDDEN_ACCOUNT, isNeutral, kindClass, toTransactionErrors } from './shared'
 
 /**
  * One Transaction in the list: kind icon, Display name with its Tags, a muted second line (original description,
- * counterparty, Category, Account · Owner, link, note, Source file), the amount, actions (edit, delete, link/unlink)
- * and the selection checkbox. `showDate` puts the date on the second line when the list isn't grouped by day.
+ * counterparty, Category, Account · Owner, link, paid-back marker, note, Source file), the amount, actions (edit,
+ * delete, link/unlink, Contribution <-> Reimbursement) and the selection checkbox. `showDate` puts the date on the second line when the list isn't grouped by day.
  */
 export function TransactionRow({
   transaction: t,
@@ -60,6 +62,20 @@ export function TransactionRow({
       onChanged()
     } catch {
       setError('Couldn’t unlink it.')
+    }
+  }
+
+  // A pair with different Owners is a Contribution or a Reimbursement; the Member can switch it.
+  const otherKind = t.link?.kind === 'contribution' ? 'reimbursement' : t.link?.kind === 'reimbursement' ? 'contribution' : null
+
+  async function switchKind() {
+    if (!otherKind) return
+    setError(null)
+    try {
+      await switchLinkKind(t.id, otherKind)
+      onChanged()
+    } catch (err) {
+      setError(toTransactionErrors(err).kind?.[0] ?? 'Couldn’t change it.')
     }
   }
 
@@ -102,12 +118,13 @@ export function TransactionRow({
     showDate && formatDate(t.date),
     t.displayName && t.description,
     t.counterparty,
-    // A linked Transfer says so in its link ("Transfer with Savings") below.
-    t.type === 'transfer'
+    // A linked Transfer or Reimbursement says so in its link ("Transfer with Savings") below.
+    isNeutral(t)
       ? !t.link && 'Transfer'
       : (t.category?.path ?? <span className="tx-uncat">Uncategorised</span>),
     `${t.accountName ?? HIDDEN_ACCOUNT} · ${t.owner.name}`,
     t.link && <LinkLabel link={t.link} />,
+    t.paidBack && <PaidBackLabel paidBack={t.paidBack} />,
     t.note,
     t.sourceFile && (
       <a href={sourceFileContentUrl(t.sourceFile.id)} title="Download the Source file">
@@ -154,6 +171,20 @@ export function TransactionRow({
               Link…
             </button>
           )
+        )}
+        {otherKind && (
+          <button
+            type="button"
+            className="button-link"
+            title={
+              otherKind === 'contribution'
+                ? 'Count it as an Expense for the sender and an Income for the receiver'
+                : 'Count it as paying back, neither Income nor Expense'
+            }
+            onClick={() => void switchKind()}
+          >
+            Make {otherKind === 'contribution' ? 'Contribution' : 'Reimbursement'}
+          </button>
         )}
         {canEditFacts && (
           <button type="button" className="button-link tx-delete" onClick={() => void remove()}>
@@ -213,7 +244,23 @@ function TagChips({ tags }: { tags: TagRef[] }) {
 function LinkLabel({ link }: { link: TransactionLink }) {
   return (
     <span className="tx-link">
-      {link.kind === 'transfer' ? 'Transfer' : 'Contribution'} with {link.accountName ?? HIDDEN_ACCOUNT}
+      {LINK_KIND_LABELS[link.kind]} with {link.accountName ?? HIDDEN_ACCOUNT}
+    </span>
+  )
+}
+
+const LINK_KIND_LABELS: Record<TransactionLink['kind'], string> = {
+  transfer: 'Transfer',
+  contribution: 'Contribution',
+  reimbursement: 'Reimbursement',
+}
+
+/** Whether a Transaction made on another Owner's Account is paid back; what is still open stands out. */
+function PaidBackLabel({ paidBack }: { paidBack: PaidBack }) {
+  if (paidBack.status === 'paidBack') return <span>Paid back</span>
+  return (
+    <span className="tx-open">
+      {paidBack.status === 'outstanding' ? 'Outstanding' : `Partly paid back, CHF ${formatAmount(paidBack.outstanding)} open`}
     </span>
   )
 }

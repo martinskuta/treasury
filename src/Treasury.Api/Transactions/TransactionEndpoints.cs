@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using Treasury.Api.AmountsOwed;
 using Treasury.Api.Categories;
 using Treasury.Api.Data;
 using Treasury.Api.ExchangeRates;
@@ -43,13 +44,18 @@ public static class TransactionEndpoints
     /// the viewer owns it): AccountId, AccountName and SourceFile are then null, so nothing else of that Account
     /// shows (US37).</param>
     /// <param name="SourceFile">The Source file an imported Transaction came from; null for manual ones.</param>
+    /// <param name="PaidBack">For a Transaction on another Owner's Account: how far it is paid back (GLOSSARY: Amount
+    /// owed). Null for any other Transaction, one before the Family's start date, or one without a CHF rate yet.</param>
     public record TransactionResponse(Guid Id, Guid? AccountId, string? AccountName, bool AccountHidden, DateOnly Date,
         decimal Amount, string Currency, decimal? ChfAmount, string Type, string Description, string? DisplayName,
         string? Counterparty, string? Reference, decimal? OriginalAmount, string? OriginalCurrency, string? Note,
         OwnerResponse Owner, string Origin, CategoryRef? Category, TagRef[] Tags, string[] ManuallySet,
-        SourceFileRef? SourceFile, LinkRef? Link);
+        SourceFileRef? SourceFile, LinkRef? Link, PaidBackRef? PaidBack);
 
-    /// The other leg of a Transfer or Contribution. Kind "transfer" | "contribution". AccountName is the other leg's
+    /// Status "paidBack" | "partlyPaidBack" | "outstanding"; Outstanding = the CHF amount still open.
+    public record PaidBackRef(string Status, decimal Outstanding);
+
+    /// The other leg of a Transfer, Contribution or Reimbursement. Kind "transfer" | "contribution" | "reimbursement". AccountName is the other leg's
     /// Account, or null with AccountHidden when the viewer can't see that Account (GET on the leg may then be 404).
     public record LinkRef(string Kind, Guid TransactionId, string? AccountName, bool AccountHidden);
 
@@ -67,7 +73,7 @@ public static class TransactionEndpoints
         transactions.MapGet("/", async ([AsParameters] TransactionListRequest request, ClaimsPrincipal user,
             HttpResponse response, TreasuryDbContext db, ChfConverter chf) =>
         {
-            var (query, errors) = await TransactionList.FilterAsync(db, user.MemberId(), request);
+            var (query, errors) = await TransactionList.FilterAsync(db, chf, user.MemberId(), request);
             if (query is null) return Results.ValidationProblem(errors);
             var total = await query.CountAsync();
             var list = await TransactionList.SortAndPage(query, request)
@@ -210,7 +216,7 @@ public static class TransactionEndpoints
 
         // Bulk edit: the same Owner / Category / Tag change on several Transactions, with exactly the rules of PATCH
         // (TransactionClassification). All or nothing: if any Transaction can't take the change (not visible, or a
-        // Transfer given a Category), nothing is changed and the 400 lists each refused id under `transactions[<id>]`.
+        // Transfer or Reimbursement given a Category), nothing is changed and the 400 lists each refused id under `transactions[<id>]`.
         transactions.MapPost("/bulk-edit", async (BulkEditRequest request, ClaimsPrincipal user, TreasuryDbContext db,
             ChfConverter chf, TransactionMatcher matcher) =>
         {
@@ -303,6 +309,7 @@ public static class TransactionEndpoints
             : await db.Transactions.Where(t => linkedIds.Contains(t.Id))
                 .Select(t => new { t.Id, t.Account.Name, t.Account.OwnerMemberId })
                 .ToDictionaryAsync(t => t.Id, t => new Owner(t.OwnerMemberId).IsVisibleTo(viewer) ? t.Name : null);
+        var ledger = list.Any(AmountOwedLedger.IsOnAnotherOwnersAccount) ? await AmountOwedLedger.LoadAsync(db, chf) : null;
         return list.Select(t =>
         {
             var accountVisible = t.Account.Owner.IsVisibleTo(viewer);
@@ -316,7 +323,8 @@ public static class TransactionEndpoints
                 t is { LinkedTransactionId: { } linked, LinkKind: { } kind }
                     ? new LinkRef(kind.ToApi(), linked,
                         otherLegAccounts.GetValueOrDefault(linked), otherLegAccounts.GetValueOrDefault(linked) is null)
-                    : null);
+                    : null,
+                ledger?.PaidBackOf(t.Id) is { } paidBack ? new PaidBackRef(paidBack.Status.ToApi(), paidBack.Outstanding) : null);
         }).ToList();
     }
 

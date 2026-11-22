@@ -64,7 +64,7 @@ public class Transaction : IOwned
     /// Null = Uncategorised (for Income and Expense; Transfers never have a Category, #16).
     public Guid? CategoryId { get; set; }
 
-    /// The other leg of a Transfer or Contribution (GLOSSARY), set by matching or by a Member linking two Transactions.
+    /// The other leg of a Transfer, Contribution or Reimbursement (GLOSSARY), set by matching or by a Member linking two Transactions.
     /// Both legs point at each other. Deleting one leg (e.g. undoing its import) sets this to null on the other.
     public Guid? LinkedTransactionId { get; set; }
 
@@ -82,9 +82,17 @@ public class Transaction : IOwned
     /// A leg of a Transfer: neither Income nor Expense, never has a Category. SQL: TransactionQueries.IsTransfer.
     public bool IsTransfer => LinkedTransactionId != null && LinkKind == Transactions.LinkKind.Transfer;
 
-    /// Transfer when linked as one, otherwise Income or Expense from the sign (a Contribution leg is an Expense for
-    /// the sender and an Income for the receiver).
+    /// One side of a Reimbursement: neither Income nor Expense, never has a Category.
+    public bool IsReimbursement => LinkedTransactionId != null && LinkKind == Transactions.LinkKind.Reimbursement;
+
+    /// Income or Expense (also a Contribution leg). False for the legs of a Transfer or Reimbursement.
+    /// SQL: TransactionQueries.CountsAsIncomeOrExpense.
+    public bool CountsAsIncomeOrExpense => !IsTransfer && !IsReimbursement;
+
+    /// Transfer or Reimbursement when linked as one, otherwise Income or Expense from the sign (a Contribution leg is
+    /// an Expense for the sender and an Income for the receiver).
     public TransactionType Type => IsTransfer ? TransactionType.Transfer
+        : IsReimbursement ? TransactionType.Reimbursement
         : Amount >= 0 ? TransactionType.Income : TransactionType.Expense;
 
     public bool FactsEditable => Origin == TransactionOrigin.Manual;
@@ -101,6 +109,7 @@ public enum TransactionType
     Income,
     Expense,
     Transfer,
+    Reimbursement,
 }
 
 /// The kind of a link between two Transactions on different Accounts.
@@ -111,6 +120,10 @@ public enum LinkKind
 
     /// Different Owners: an Expense for the sender, an Income for the receiver, with Contribution Categories.
     Contribution = 2,
+
+    /// Different Owners: one pays the other back (GLOSSARY: Reimbursement). Neither Income nor Expense, no Category;
+    /// it pays down the Amount owed between the two (ADR 0011).
+    Reimbursement = 3,
 }
 
 /// Which classification fields were set manually (stored as a bit mask, so new fields need no new column).
@@ -123,4 +136,7 @@ public enum ManuallySetFields
     /// A Member added or removed a Tag by hand (per-Tag stickiness lives in TransactionTagRemovals).
     Tags = 4,
     DisplayName = 8,
+    /// A Member chose between Contribution and Reimbursement for the pair (set on both legs); later Owner changes
+    /// keep the choice while the legs still have different Owners.
+    LinkKind = 16,
 }

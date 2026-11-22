@@ -1,6 +1,6 @@
 // Pure helpers behind the Dashboard (pages/DashboardPage.tsx): month names, the Latest Tag rule, Category slices for
 // the stacked bar, and the Accounts of one Owner filter with their CHF total and their "Last import" rows.
-import type { Account, Me, MultiCurrencyAccount, ReportOwner, ReportSection, Tag } from './api'
+import type { Account, AmountOwed, Me, MultiCurrencyAccount, Owner, ReportOwner, ReportSection, Tag } from './api'
 
 const shortMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const monthNames = [
@@ -127,4 +127,30 @@ export function accountBadge(name: string): string {
   const first = name.trim().split(/\s+/)[0] ?? ''
   if (/^[A-Z0-9]{2,4}$/.test(first)) return first
   return (first[0] ?? '?').toUpperCase()
+}
+
+/** One line of the Amounts owed UI component: "The Family owes you", the CHF amount, and how many amounts wait for a rate. */
+export type OwedRow = { key: string; text: string; amount: number; pending: number }
+
+/**
+ * The Amounts owed of an Owner filter, worded for the viewer: the Family filter lists what the Family and each
+ * Member owe each other, the Mine filter the amounts that involve the viewer.
+ */
+export function owedRows(amounts: AmountOwed[], filter: ReportOwner, me: Me): OwedRow[] {
+  const isMe = (o: Owner) => o.kind === 'member' && o.memberId === me.id
+  const involved = (o: Owner) => (filter === 'family' ? o.kind === 'family' : isMe(o))
+  const name = (o: Owner) => (o.kind === 'family' ? 'the Family' : isMe(o) ? 'you' : o.name)
+  const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+  return amounts
+    .filter(a => involved(a.debtor) || involved(a.creditor))
+    .map(a => ({
+      key: `${a.debtor.memberId ?? 'family'}|${a.creditor.memberId ?? 'family'}`,
+      text: sentence(
+        a.amount === 0
+          ? `${name(a.debtor)} and ${name(a.creditor)} are even`
+          : `${name(a.debtor)} ${isMe(a.debtor) ? 'owe' : 'owes'} ${name(a.creditor)}`,
+      ),
+      amount: a.amount,
+      pending: a.pendingConversion,
+    }))
 }

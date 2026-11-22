@@ -18,7 +18,7 @@ public sealed record ClassificationChange(Owner? Owner, Guid? CategoryId, bool U
 /// and the bulk edit (#17), so both behave the same:
 /// - Owner: the Family or an active Member (deactivated ones are refused); sets the Owner manual-set flag.
 /// - Category: an existing Category (sets the Category flag), or Uncategorise (clears Category and flag);
-///   a Transfer can't get a Category (<see cref="Refusal"/>).
+///   a Transfer or Reimbursement can't get a Category (<see cref="Refusal"/>).
 /// - Tags: manual adds and sticky manual removals (<see cref="Tagging"/>); sets the Tags flag.
 /// - A changed Owner (or date, for PATCH) re-applies date-range Tags, whose Owner limit depends on it.
 /// Visibility is the caller's job: only pass Transactions the Member can see (anyone who sees one may classify it).
@@ -67,9 +67,10 @@ public static class TransactionClassification
 
     /// Why the change can't be made to this Transaction (message for the Member, under `categoryId`), or null.
     public static string? Refusal(Transaction transaction, ClassificationChange change) =>
-        change.CategoryId is not null && transaction.IsTransfer
-            ? "A Transfer has no Category. Unlink it first to make it an Income or Expense."
-            : null;
+        change.CategoryId is null ? null
+        : transaction.IsTransfer ? "A Transfer has no Category. Unlink it first to make it an Income or Expense."
+        : transaction.IsReimbursement ? "A Reimbursement has no Category. Unlink it, or make it a Contribution, first."
+        : null;
 
     /// Sets Owner and Category with their manual-set flags (and the Tags flag when Tags change). Tags themselves are
     /// changed by <see cref="SaveAsync"/>. Returns true when the Owner actually changed.

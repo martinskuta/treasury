@@ -265,7 +265,8 @@
   color: inherit;
 }
 
-.tx-uncat {
+.tx-uncat,
+.tx-open {
   font-weight: 600;
   color: var(--exp-ink);
 }
