@@ -19,9 +19,15 @@ public static class AccountEndpoints
 
     public record RenameAccountRequest(string? Name);
 
+    /// <param name="Reach">The date the Account's data reaches: the later of its latest Transaction date and its
+    /// statements' latest closing balance date; null when it has neither (#37).</param>
+    /// <param name="LastImportedAt">When its most recent Source file was imported (its Multi-currency account's, for
+    /// an Account in one); null when there is none.</param>
+    /// <param name="Lagging">The reach is before the last day of the last complete calendar month, or missing.</param>
     public record AccountResponse(Guid Id, string Name, string Slug, OwnerResponse Owner, string IntegrationKey,
         string Currency, decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance,
-        BalanceWarningResponse? BalanceWarning, Guid? MultiCurrencyAccountId, decimal? BalanceChf);
+        BalanceWarningResponse? BalanceWarning, Guid? MultiCurrencyAccountId, decimal? BalanceChf, DateOnly? Reach,
+        DateTimeOffset? LastImportedAt, bool Lagging);
 
     /// The Account's most recent statement closing balance differs from the calculated balance on that date (#11).
     public record BalanceWarningResponse(DateOnly Date, decimal StatementBalance, decimal CalculatedBalance,
@@ -47,7 +53,8 @@ public static class AccountEndpoints
             var balances = await AccountBalances.CurrentAsync(db, list);
             var mismatches = await AccountBalances.MismatchesAsync(db, list);
             var rates = await TodaysRates.LoadAsync(converter, clock);
-            return Results.Ok(list.Select(a => ToResponse(a, names, balances, mismatches, rates)));
+            var reach = await AccountReach.LoadAsync(db, clock, list);
+            return Results.Ok(list.Select(a => ToResponse(a, names, balances, mismatches, rates, reach)));
         });
 
         accounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TreasuryDbContext db,
@@ -138,11 +145,12 @@ public static class AccountEndpoints
     private static async Task<AccountResponse> ToResponseAsync(TreasuryDbContext db, ChfConverter converter,
         TimeProvider clock, Account account) =>
         ToResponse(account, await MemberNamesAsync(db, [account]), await AccountBalances.CurrentAsync(db, [account]),
-            await AccountBalances.MismatchesAsync(db, [account]), await TodaysRates.LoadAsync(converter, clock));
+            await AccountBalances.MismatchesAsync(db, [account]), await TodaysRates.LoadAsync(converter, clock),
+            await AccountReach.LoadAsync(db, clock, [account]));
 
     internal static AccountResponse ToResponse(Account a, IReadOnlyDictionary<Guid, string> memberNames,
         IReadOnlyDictionary<Guid, decimal> balances, IReadOnlyDictionary<Guid, BalanceMismatch> mismatches,
-        TodaysRates rates) =>
+        TodaysRates rates, AccountReach reach) =>
         new(a.Id, a.Name, a.Slug, OwnerResponse.From(a.Owner, memberNames), a.IntegrationKey, a.Currency,
             a.OpeningBalance, a.OpeningDate, a.Identifier, balances[a.Id],
             mismatches.TryGetValue(a.Id, out var m)
@@ -150,5 +158,6 @@ public static class AccountEndpoints
                     new TransactionEndpoints.SourceFileRef(m.SourceFileId, m.FileName))
                 : null,
             a.MultiCurrencyAccountId,
-            rates.ToChf(balances[a.Id], a.Currency));
+            rates.ToChf(balances[a.Id], a.Currency),
+            reach.Of(a), reach.LastImportedAt(a), reach.IsLagging(a));
 }

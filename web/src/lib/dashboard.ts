@@ -1,5 +1,5 @@
-// Pure helpers behind the Dashboard (pages/DashboardPage.tsx): which months to load, the Latest Tag rule, Category
-// slices for the donut / stacked bar, and the Accounts of one Owner filter with their CHF total.
+// Pure helpers behind the Dashboard (pages/DashboardPage.tsx): month names, the Latest Tag rule, Category slices for
+// the stacked bar, and the Accounts of one Owner filter with their CHF total and their "Last import" rows.
 import type { Account, Me, MultiCurrencyAccount, ReportOwner, ReportSection, Tag } from './api'
 
 const shortMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -10,23 +10,14 @@ const monthNames = [
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** The last `count` months as yyyy-MM, oldest first, ending with the month of `today`. */
-export function lastMonths(today: Date, count: number): string[] {
-  return Array.from({ length: count }, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth() - (count - 1 - i), 1)
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
-  })
-}
-
 /** "2026-11" -> "Nov". */
 export const shortMonthLabel = (month: string) => shortMonthNames[Number(month.slice(5, 7)) - 1]
 
-/** "November so far · 1.–21.11.2026" */
-export function monthSoFar(today: Date): string {
-  const m = today.getMonth()
-  // Word joiners keep the date range on one line when the greeting wraps on a phone.
-  return `${monthNames[m]} so far · 1.⁠–⁠${today.getDate()}.${pad(m + 1)}.${today.getFullYear()}`
-}
+/** "2026-10" -> "October". */
+export const monthName = (month: string) => monthNames[Number(month.slice(5, 7)) - 1]
+
+/** "2026-10" -> "October 2026". */
+export const monthAndYear = (month: string) => `${monthName(month)} ${month.slice(0, 4)}`
 
 /** ISO date as an ISO-comparable local yyyy-MM-dd. */
 export const isoDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -111,6 +102,25 @@ export function accountsSummary(
 }
 
 const entryName = (e: AccountEntry) => (e.kind === 'account' ? e.account.name : e.multi.name)
+
+/** One row of the Last import UI component: how far an Account's data reaches and when it was last imported. */
+export type LastImportRow = {
+  id: string
+  name: string
+  /** ISO date; null when it has neither a Transaction nor a closing balance. */
+  reach: string | null
+  /** ISO date-time of its most recent Source file; null when never imported. */
+  lastImportedAt: string | null
+  lagging: boolean
+}
+
+/** The Last import rows of the Accounts UI component's entries, in the same order. */
+export function lastImportRows(entries: AccountEntry[]): LastImportRow[] {
+  return entries.map(entry => {
+    const { id, name, reach, lastImportedAt, lagging } = entry.kind === 'account' ? entry.account : entry.multi
+    return { id, name, reach, lastImportedAt, lagging }
+  })
+}
 
 /** Short badge text for an Account icon: an all-caps first word ("TKB Privatkonto" -> "TKB"), else its initial. */
 export function accountBadge(name: string): string {

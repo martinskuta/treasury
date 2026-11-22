@@ -1,17 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import {
   Accounts,
   LastSixMonths,
+  LastImport,
   LatestTag,
-  SpendingByCategory,
-  ThisMonth,
   Uncategorised,
   WelcomeStrip,
 } from '../components/dashboard/DashboardComponents'
 import { useLoad, type Load } from '../components/dashboard/useLoad'
 import {
-  getMonthlyReport,
+  getRecentMonthsReport,
   getTagReport,
   listAccounts,
   listMultiCurrencyAccounts,
@@ -24,33 +23,30 @@ import { useMe } from '../lib/auth'
 import {
   accountsSummary,
   isoDate,
-  lastMonths,
   latestTag,
-  monthSoFar,
-  shortMonthLabel,
+  monthAndYear,
+  monthName,
 } from '../lib/dashboard'
 import { reportOwnerFromParams } from '../lib/reportParams'
 import '../styles/dashboard.css'
 
 /**
- * The Dashboard at `/`: welcome strip with Frankie and this month's net, then the bento grid of UI components.
- * Everything follows the Owner filter (?owner=me|family, as on the reports). Data comes from the existing report,
- * Accounts, Tags and Uncategorised endpoints; each UI component loads and fails on its own.
+ * The Dashboard at `/`: welcome strip with Frankie and the end month's net, then the bento grid of UI components.
+ * It follows the data, not the calendar: the recent months report names the Owner filter's end month (the month of its
+ * latest Transaction, never later than the last complete month) and the six months ending at it. Everything follows
+ * the Owner filter (?owner=me|family, as on the reports); each UI component loads and fails on its own.
  */
 export function DashboardPage() {
   const me = useMe()
   const [params, setParams] = useSearchParams()
   const owner = reportOwnerFromParams(params)
 
-  // Fixed for the life of the page so the month keys don't change under a render.
+  // Fixed for the life of the page so the Latest Tag doesn't change under a render.
   const [today] = useState(() => new Date())
-  const months = useMemo(() => lastMonths(today, 6), [today])
-  const thisMonth = months[months.length - 1]
 
-  const reports = useLoad(`reports|${thisMonth}|${owner}`, signal =>
-    Promise.all(months.map(month => getMonthlyReport(month, owner, signal))),
-  )
-  const current = mapLoad(reports, r => r[r.length - 1])
+  const recent = useLoad(`recent-months|${owner}`, signal => getRecentMonthsReport(owner, signal))
+  const endMonth = recent.status === 'ready' ? recent.data.endMonth : null
+  const endMonthNet = mapLoad(recent, r => r.months.find(m => m.month === r.endMonth)?.net ?? 0)
 
   const accounts = useLoad('accounts', signal =>
     Promise.all([listAccounts(signal), listMultiCurrencyAccounts(signal)]),
@@ -78,17 +74,23 @@ export function DashboardPage() {
     <div className="dash-bento">
       <WelcomeStrip
         name={me.firstName}
-        subtitle={monthSoFar(today)}
+        subtitle={
+          endMonth
+            ? monthAndYear(endMonth)
+            : recent.status === 'failed'
+              ? 'Couldn’t load the latest month.'
+              : 'Loading the latest month…'
+        }
+        netLabel={endMonth ? `Net in ${monthName(endMonth)}` : 'Net'}
         owner={owner}
         onOwnerChange={setOwner}
-        net={mapLoad(current, r => r.net)}
+        net={endMonthNet}
       />
-      <ThisMonth report={current} />
-      <SpendingByCategory report={current} />
       <Accounts summary={summary} />
-      <LastSixMonths labels={months.map(shortMonthLabel)} reports={reports} />
-      <LatestTag tag={latest} />
+      <LastImport summary={summary} />
       <Uncategorised count={uncategorisedCount} owner={owner} />
+      <LastSixMonths report={recent} />
+      <LatestTag tag={latest} />
     </div>
   )
 }

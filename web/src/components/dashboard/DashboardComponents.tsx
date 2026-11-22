@@ -4,23 +4,24 @@
  */
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
-import type { MonthlyReport, ReportOwner, TagReport } from '../../lib/api'
+import type { RecentMonthsReport, ReportOwner, TagReport } from '../../lib/api'
 import {
   accountBadge,
+  lastImportRows,
+  shortMonthLabel,
   tagRange,
   topLevelSlices,
   type AccountEntry,
   type AccountsSummary,
+  type LastImportRow,
   type Slice,
 } from '../../lib/dashboard'
-import { formatAmount } from '../../lib/format'
+import { formatAmount, formatDate } from '../../lib/format'
 import { ownerHref } from '../../lib/reportParams'
 import { Amount } from '../Amount'
 import { Balance } from '../Balance'
 import {
   ChartLegend,
-  Donut,
-  ProgressBar,
   StackedBar,
   TrendChart,
   seriesColor,
@@ -32,7 +33,7 @@ import { ReportOwnerToggle } from '../ReportViews'
 import { UiComponent } from '../UiComponent'
 import type { Load } from './useLoad'
 
-/** Whole francs for legends and the donut centre: 1842.6 -> "1'843". */
+/** Whole francs for legends: 1842.6 -> "1'843". */
 const wholeFrancs = (value: number) => formatAmount(value, { whole: true })
 
 /** Category slices with their series colours, and the matching legend items in whole francs. */
@@ -58,12 +59,14 @@ function Empty({ children }: { children: ReactNode }) {
 export function WelcomeStrip({
   name,
   subtitle,
+  netLabel,
   owner,
   onOwnerChange,
   net,
 }: {
   name: string
   subtitle: string
+  netLabel: string
   owner: ReportOwner
   onOwnerChange: (owner: ReportOwner) => void
   net: Load<number>
@@ -81,7 +84,7 @@ export function WelcomeStrip({
       <div className="dash-net">
         <div className="dash-net-label">
           <ReportOwnerToggle owner={owner} onChange={onOwnerChange} />
-          <span>Net this month</span>
+          <span>{netLabel}</span>
         </div>
         {net.status === 'ready' ? (
           <Amount value={net.data} signed tone="auto" size="l" />
@@ -95,79 +98,6 @@ export function WelcomeStrip({
         )}
       </div>
     </section>
-  )
-}
-
-// ---- This month ----
-
-export function ThisMonth({ report }: { report: Load<MonthlyReport> }) {
-  return (
-    <UiComponent title="This month" className="dash-month a-month">
-      <NotReady load={report} what="this month" />
-      {report.status === 'ready' && <ThisMonthBody report={report.data} />}
-    </UiComponent>
-  )
-}
-
-function ThisMonthBody({ report }: { report: MonthlyReport }) {
-  const income = report.income.total
-  const expense = report.expense.total
-  const max = Math.max(income, expense)
-  const pending = report.income.pendingConversion + report.expense.pendingConversion
-  if (income === 0 && expense === 0 && pending === 0) return <Empty>No Transactions this month yet.</Empty>
-  return (
-    <>
-      <div className="dash-bar-row">
-        <div className="dash-bar-top">
-          <span>Income</span>
-          <b className="num">{formatAmount(income)}</b>
-        </div>
-        <ProgressBar label="Income" value={income} max={max} color={toneColors.income.fill} />
-      </div>
-      <div className="dash-bar-row">
-        <div className="dash-bar-top">
-          <span>Expense</span>
-          <b className="num">{formatAmount(expense)}</b>
-        </div>
-        <ProgressBar label="Expense" value={expense} max={max} color={toneColors.expense.fill} />
-      </div>
-      {pending > 0 && (
-        <p className="dash-note">
-          {pending} {pending === 1 ? 'amount waits' : 'amounts wait'} for an exchange rate.
-        </p>
-      )}
-      <div className="dash-foot">
-        <span className="muted">Net</span>
-        <Amount value={report.net} signed tone="auto" className="dash-foot-amount" />
-      </div>
-    </>
-  )
-}
-
-// ---- Spending by Category ----
-
-export function SpendingByCategory({ report }: { report: Load<MonthlyReport> }) {
-  return (
-    <UiComponent title="Spending by Category" className="dash-spend a-spend">
-      <NotReady load={report} what="the spending" />
-      {report.status === 'ready' && <SpendingBody report={report.data} />}
-    </UiComponent>
-  )
-}
-
-function SpendingBody({ report }: { report: MonthlyReport }) {
-  const { segments, legend } = colouredSlices(topLevelSlices(report.expense, 7))
-  if (segments.length === 0) return <Empty>No Expenses this month yet.</Empty>
-  return (
-    <div className="dash-donut-wrap">
-      <Donut
-        ariaLabel="Spending by Category this month"
-        segments={segments}
-        centreLabel="CHF"
-        centreValue={wholeFrancs(report.expense.total)}
-      />
-      <ChartLegend items={legend} />
-    </div>
   )
 }
 
@@ -268,20 +198,70 @@ function AccountItem({ entry }: { entry: AccountEntry }) {
   )
 }
 
+// ---- Last import ----
+
+/** One row per entry of the Accounts UI component: how far its data reaches and when it was last imported. */
+export function LastImport({ summary }: { summary: Load<AccountsSummary> }) {
+  return (
+    <UiComponent title="Last import" className="a-import">
+      <NotReady load={summary} what="the last imports" />
+      {summary.status === 'ready' &&
+        (summary.data.entries.length === 0 ? (
+          <Empty>No Accounts here yet, so nothing to import.</Empty>
+        ) : (
+          <ul className="dash-imports">
+            {lastImportRows(summary.data.entries).map(row => (
+              <LastImportItem key={row.id} row={row} />
+            ))}
+          </ul>
+        ))}
+    </UiComponent>
+  )
+}
+
+function LastImportItem({ row }: { row: LastImportRow }) {
+  const reachClass = row.lagging ? 'dash-import-reach lagging' : 'dash-import-reach'
+  const imported = row.lastImportedAt ? `imported ${formatDate(row.lastImportedAt)}` : null
+  return (
+    <li className="dash-import">
+      <span className="dash-import-name">{row.name}</span>
+      <div className="dash-import-dates">
+        {row.reach === null ? (
+          // No Transaction and no closing balance: the import line is all there is to say, and it needs attention.
+          <span className={reachClass}>{imported ?? 'Never imported'}</span>
+        ) : (
+          <>
+            <span className={reachClass}>
+              through {formatDate(row.reach)}
+              {row.lagging && <span className="visually-hidden"> (behind)</span>}
+            </span>
+            {/* An Account kept by hand has a reach and no Source file: no import line, so it doesn't look broken. */}
+            {imported && <small>{imported}</small>}
+          </>
+        )}
+      </div>
+    </li>
+  )
+}
+
 // ---- Last 6 months ----
 
-export function LastSixMonths({ labels, reports }: { labels: string[]; reports: Load<MonthlyReport[]> }) {
-  if (reports.status !== 'ready')
+/** The six months ending at the Owner filter's end month; the chart puts the last label, the end month, in ink. */
+export function LastSixMonths({ report }: { report: Load<RecentMonthsReport> }) {
+  if (report.status !== 'ready')
     return (
       <UiComponent title="Last 6 months" className="dash-trend a-trend">
-        <NotReady load={reports} what="the last 6 months" />
+        <NotReady load={report} what="the last 6 months" />
       </UiComponent>
     )
-  const income = reports.data.map(r => r.income.total)
-  const expense = reports.data.map(r => r.expense.total)
+  const { months } = report.data
+  const income = months.map(m => m.income)
+  const expense = months.map(m => m.expense)
   const incomeTotal = income.reduce((s, v) => s + v, 0)
   const expenseTotal = expense.reduce((s, v) => s + v, 0)
   const empty = incomeTotal === 0 && expenseTotal === 0
+  // Amounts without a CHF rate yet are in no total, so the totals alone would hide them.
+  const pending = months.reduce((s, m) => s + m.pendingConversion, 0)
   return (
     <UiComponent
       title="Last 6 months"
@@ -289,16 +269,21 @@ export function LastSixMonths({ labels, reports }: { labels: string[]; reports: 
       className="dash-trend a-trend"
     >
       {empty ? (
-        <Empty>No Income or Expense in the last 6 months yet.</Empty>
+        pending === 0 && <Empty>No Income or Expense in the last 6 months yet.</Empty>
       ) : (
         <TrendChart
           ariaLabel="Income and Expense, last 6 months"
-          labels={labels}
+          labels={months.map(m => shortMonthLabel(m.month))}
           series={[
             { name: 'Income', values: income, tone: 'income' },
             { name: 'Expense', values: expense, tone: 'expense' },
           ]}
         />
+      )}
+      {pending > 0 && (
+        <p className="dash-note">
+          {pending} {pending === 1 ? 'amount waits' : 'amounts wait'} for an exchange rate.
+        </p>
       )}
     </UiComponent>
   )

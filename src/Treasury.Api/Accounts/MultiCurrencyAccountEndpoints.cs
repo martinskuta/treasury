@@ -25,9 +25,12 @@ public static class MultiCurrencyAccountEndpoints
     /// null while a needed rate is missing.</param>
     /// <param name="TotalBalanceChf">The same total in CHF at today's exchange rates; null while a needed rate is
     /// missing.</param>
+    /// <param name="Reach">The latest reach among its Accounts; null when none of them has one (#37).</param>
+    /// <param name="LastImportedAt">When its most recent Source file was imported; null when there is none.</param>
+    /// <param name="Lagging">The reach is before the last day of the last complete calendar month, or missing.</param>
     public record MultiCurrencyAccountResponse(Guid Id, string Name, string Slug, OwnerResponse Owner,
         string IntegrationKey, string MainCurrency, string? Identifier, IReadOnlyList<AccountResponse> Accounts,
-        decimal? TotalBalance, decimal? TotalBalanceChf);
+        decimal? TotalBalance, decimal? TotalBalanceChf, DateOnly? Reach, DateTimeOffset? LastImportedAt, bool Lagging);
 
     public static void MapMultiCurrencyAccounts(this RouteGroupBuilder api)
     {
@@ -140,15 +143,17 @@ public static class MultiCurrencyAccountEndpoints
         var balances = await AccountBalances.CurrentAsync(db, allAccounts);
         var mismatches = await AccountBalances.MismatchesAsync(db, allAccounts);
         var rates = await TodaysRates.LoadAsync(converter, clock);
+        var reach = await AccountReach.LoadAsync(db, clock, allAccounts);
 
         return multiCurrencyAccounts.Select(m =>
         {
             var accounts = m.Accounts.OrderBy(a => a.Currency != m.MainCurrency).ThenBy(a => a.Name)
-                .Select(a => ToResponse(a, names, balances, mismatches, rates)).ToList();
+                .Select(a => ToResponse(a, names, balances, mismatches, rates, reach)).ToList();
             var converted = accounts.Select(a => rates.Convert(a.Balance, a.Currency, m.MainCurrency));
             return new MultiCurrencyAccountResponse(m.Id, m.Name, m.Slug, OwnerResponse.From(m.Owner, names),
                 m.IntegrationKey, m.MainCurrency, m.Identifier, accounts, SumOrNull(converted),
-                SumOrNull(accounts.Select(a => a.BalanceChf)));
+                SumOrNull(accounts.Select(a => a.BalanceChf)), reach.Of(m), reach.LastImportedAt(m),
+                reach.IsLagging(m));
         }).ToList();
     }
 

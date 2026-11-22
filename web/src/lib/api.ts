@@ -137,6 +137,12 @@ export type Account = {
   multiCurrencyAccountId: string | null
   /** The balance in CHF at today's exchange rate (unchanged for CHF); null while the rate is missing. */
   balanceChf: number | null
+  /** ISO date its data reaches: the later of its latest Transaction and its statements' latest closing balance; null when it has neither. */
+  reach: string | null
+  /** ISO date-time its most recent Source file was imported (its Multi-currency account's, for an Account in one); null when never imported. */
+  lastImportedAt: string | null
+  /** The reach is before the last day of the last complete calendar month, or missing. */
+  lagging: boolean
 }
 
 /** Computed on every read: it disappears once the balances match again. */
@@ -186,6 +192,12 @@ export type MultiCurrencyAccount = {
   totalBalance: number | null
   /** The same total in CHF at today's rates; null while a rate is missing. */
   totalBalanceChf: number | null
+  /** ISO date its data reaches: the latest reach among its Accounts; null when none has one. */
+  reach: string | null
+  /** ISO date-time its most recent Source file was imported; null when never imported. */
+  lastImportedAt: string | null
+  /** The reach is before the last day of the last complete calendar month, or missing. */
+  lagging: boolean
 }
 
 export type NewMultiCurrencyAccount = {
@@ -640,6 +652,32 @@ export type MonthlyReport = {
 
 export const getMonthlyReport = (month: string, owner: ReportOwner, signal?: AbortSignal) =>
   apiFetch<MonthlyReport>(`/api/reports/monthly?month=${encodeURIComponent(month)}&owner=${owner}`, { signal })
+
+/**
+ * One month's totals, counted like the Monthly overview: `income` and `expense` are positive CHF amounts,
+ * `net` = income - expense. `pendingConversion` counts the amounts (both sides) without a CHF rate yet.
+ */
+export type MonthTotals = {
+  month: string // yyyy-MM
+  income: number
+  expense: number
+  net: number
+  pendingConversion: number
+}
+
+/**
+ * The six months ending at the Owner filter's end month, oldest first. `endMonth` = the month of the Owner filter's
+ * latest Transaction, never later than the last complete calendar month (which it is without Transactions).
+ */
+export type RecentMonthsReport = {
+  owner: ReportOwner
+  currency: 'CHF'
+  endMonth: string // yyyy-MM
+  months: MonthTotals[]
+}
+
+export const getRecentMonthsReport = (owner: ReportOwner, signal?: AbortSignal) =>
+  apiFetch<RecentMonthsReport>(`/api/reports/recent-months?owner=${owner}`, { signal })
 
 /** `from`/`to` = the period counted (inclusive; null = open-ended, both null = all time). */
 export type TagReport = {
