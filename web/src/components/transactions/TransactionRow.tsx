@@ -187,7 +187,7 @@ export function TransactionRow({
   )
 }
 
-/** The Tags on a Transaction; automatically applied ones (date range, Rule) are drawn outlined. Each opens its Tag report. */
+/** The Tags on a Transaction; automatically applied ones (date range, Rule, import) are drawn outlined. Each opens its Tag report. */
 function TagChips({ tags }: { tags: TagRef[] }) {
   if (tags.length === 0) return null
   return (

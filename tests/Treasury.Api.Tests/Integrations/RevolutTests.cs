@@ -244,20 +244,61 @@ public class RevolutTests
     }
 
     [Test]
-    public async Task A_fee_becomes_a_second_row_charged_by_revolut()
+    public async Task A_fee_is_taken_out_of_the_amount_into_a_second_row_charged_by_revolut()
     {
         var statement = Read(new RevolutCustomStatement()
             .Account("CHF", "1,000.00 CHF", "766.50 CHF", t => t
-                .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-200.00 CHF", "796.50 CHF", fees: "3.50 CHF")
+                .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-203.50 CHF", "796.50 CHF", fees: "3.50 CHF")
                 .Row("Nov 8, 2026", "Bookshop", "Merchant", "-30.00 CHF", "766.50 CHF")
-                .Total("-230.00 CHF", fees: "3.50 CHF")));
+                .Total("-233.50 CHF", fees: "3.50 CHF")));
 
-        await Assert.That(statement.Rows).IsEquivalentTo(new[]
-        {
-            new StatementRow(Nov(6), -200.00m, "CHF", "Cash at Bahnhofstrasse"),
-            new StatementRow(Nov(6), -3.50m, "CHF", "Fee: Cash at Bahnhofstrasse", "Revolut"),
-            new StatementRow(Nov(8), -30.00m, "CHF", "Bookshop", "Bookshop"),
-        });
+        await Assert.That(statement.Rows.Select(r => (r.Date, r.Amount, r.Currency ?? "", r.Description, r.Counterparty ?? "")))
+            .IsEquivalentTo([
+                (Nov(6), -200.00m, "CHF", "Cash at Bahnhofstrasse", ""),
+                (Nov(6), -3.50m, "CHF", "Fee: Cash at Bahnhofstrasse", "Revolut"),
+                (Nov(8), -30.00m, "CHF", "Bookshop", "Bookshop"),
+            ]);
+    }
+
+    [Test]
+    public async Task The_fee_taken_out_of_a_row_suggests_the_tag_fee_and_the_other_rows_suggest_none()
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("CHF", "1,000.00 CHF", "766.50 CHF", t => t
+                .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-203.50 CHF", "796.50 CHF", fees: "3.50 CHF")
+                .Row("Nov 8, 2026", "Bookshop", "Merchant", "-30.00 CHF", "766.50 CHF")
+                .Total("-233.50 CHF", fees: "3.50 CHF")));
+
+        await Assert.That(statement.Rows.Select(r => (r.Description, string.Join(",", r.SuggestedTags)))).IsEquivalentTo([
+            ("Cash at Bahnhofstrasse", ""), ("Fee: Cash at Bahnhofstrasse", "fee"), ("Bookshop", ""),
+        ]);
+    }
+
+    [Test]
+    public async Task A_row_revolut_categorises_as_fees_is_charged_by_revolut()
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("CHF", "50.00 CHF", "43.00 CHF", t => t
+                .Row("Nov 6, 2026", "Card Delivery Fee", "Fees", "-7.00 CHF", "43.00 CHF")
+                .Total("-7.00 CHF")));
+
+        await Assert.That(statement.Rows.Select(r => (r.Date, r.Amount, r.Currency ?? "", r.Description, r.Counterparty ?? "")))
+            .IsEquivalentTo([(Nov(6), -7.00m, "CHF", "Card Delivery Fee", "Revolut")]);
+    }
+
+    [Test]
+    public async Task A_row_revolut_categorises_as_fees_suggests_the_tag_fee()
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("CHF", "50.00 CHF", "33.00 CHF", t => t
+                .Row("Nov 6, 2026", "Card Delivery Fee", "Fees", "-7.00 CHF", "43.00 CHF")
+                // "Fee" in the description alone doesn't make a row a fee: Revolut's Category does.
+                .Row("Nov 7, 2026", "Entrance Fee Museum", "Merchant", "-10.00 CHF", "33.00 CHF")
+                .Total("-17.00 CHF")));
+
+        await Assert.That(statement.Rows.Select(r => (r.Description, string.Join(",", r.SuggestedTags)))).IsEquivalentTo([
+            ("Card Delivery Fee", "fee"), ("Entrance Fee Museum", ""),
+        ]);
     }
 
     [Test]
@@ -265,8 +306,8 @@ public class RevolutTests
     {
         var statement = Read(new RevolutCustomStatement()
             .Account("AUD", "AU$90.00", "AU$67.75", t => t
-                .Row("Nov 6, 2026", "Cash at George Street", "Cash", "-AU$20.00", "AU$67.75", fees: "AU$2.25")
-                .Total("-AU$20.00", fees: "AU$2.25"), zero: "AU$0.00"));
+                .Row("Nov 6, 2026", "Cash at George Street", "Cash", "-AU$22.25", "AU$67.75", fees: "AU$2.25")
+                .Total("-AU$22.25", fees: "AU$2.25"), zero: "AU$0.00"));
 
         await Assert.That(statement.Rows.Select(r => (r.Description, r.Amount))).IsEquivalentTo([
             ("Cash at George Street", -20.00m), ("Fee: Cash at George Street", -2.25m),
@@ -325,9 +366,9 @@ public class RevolutTests
     {
         var error = ErrorOf(new RevolutCustomStatement()
             .Account("CHF", "1,000.00 CHF", "766.50 CHF", t => t
-                .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-200.00 CHF", "796.50 CHF", fees: "3.50 CHF")
+                .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-203.50 CHF", "796.50 CHF", fees: "3.50 CHF")
                 .Row("Nov 8, 2026", "Bookshop", "Merchant", "-30.00 CHF", "766.50 CHF")
-                .Total("-230.00 CHF", fees: "5.00 CHF")));
+                .Total("-233.50 CHF", fees: "5.00 CHF")));
 
         await Assert.That(error).Contains("CHF rows' fees add up to 3.50 CHF").And.Contains("Total row says 5.00 CHF");
     }

@@ -23,7 +23,7 @@ namespace Treasury.Api.Imports;
 ///  3. Deduplicate — IImportStep stage: drop rows already imported (#9) from <see cref="ImportContext.Rows"/>
 ///  4. store     — keep ONE Source file and create its Transactions (saved inside a DB transaction)
 ///  5. Match     — IImportStep stage: Transfers and Contributions (#16)
-///  6. Classify  — IImportStep stage: date-range Tags (#14), then Rules (#15)
+///  6. Classify  — IImportStep stage: date-range Tags (#14), the Tags the Integration suggests, then Rules (#15)
 ///  7. Verify    — IImportStep stage: closing balance (#11), adds <see cref="ImportContext.Warnings"/>
 ///  8. commit, then move the file to the target's processed/ folder and ask for an exchange-rate backfill (#12)
 ///     when the earliest imported date has no stored rate yet

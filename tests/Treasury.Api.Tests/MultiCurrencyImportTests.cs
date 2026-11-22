@@ -336,6 +336,33 @@ public class MultiCurrencyImportTests : ApiTestBase
     }
 
     [Test]
+    public async Task A_tag_the_integration_suggests_in_several_currencies_is_created_once_and_undo_keeps_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var import = (await (await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("CHF", "2026-10-31", 1000m, "2026-11-30", 976.50m)
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 39m)
+            .Row("2026-11-03", -20m, "Migros")
+            .Row("2026-11-04", -3.50m, "Fee: Cash", suggestedTags: ["fee"])
+            .Row("2026-11-06", -10m, "Trattoria", currency: "EUR")
+            .Row("2026-11-06", -1m, "Fee: Trattoria", currency: "EUR", suggestedTags: ["fee"])))
+            .Content.ReadFromJsonAsync<ImportResult>())!;
+
+        await Assert.That(await TagNamesAsync(anna)).IsEquivalentTo(["fee"]);
+        await Assert.That((await ListAsync(anna)).Select(t => (t.Currency, t.Description, string.Join(",", t.Tags.Select(x => x.Name)))))
+            .IsEquivalentTo([
+                ("CHF", "Migros", ""), ("CHF", "Fee: Cash", "fee"), ("EUR", "Trattoria", ""), ("EUR", "Fee: Trattoria", "fee"),
+            ]);
+
+        // Undoing the import removes its Transactions with their Tags; the Tag itself stays.
+        await anna.DeleteAsync($"/api/source-files/{import.SourceFile.Id}");
+        await Assert.That(await ListAsync(anna)).IsEmpty();
+        await Assert.That(await TagNamesAsync(anna)).IsEquivalentTo(["fee"]);
+    }
+
+    [Test]
     public async Task An_exchange_between_two_of_its_accounts_is_matched_as_a_transfer()
     {
         // 1 EUR = 1.087 CHF: +92 EUR is 100.00 CHF, against -100 CHF.
@@ -533,6 +560,31 @@ public class MultiCurrencyImportTests : ApiTestBase
             .IsEqualTo((new DateOnly(2026, 11, 10), -1500m, "Jan Novak", (Guid?)accounts.Single(a => a.Currency == "CHF").Id));
         await Assert.That((await SourceFilesAsync(anna, group.Id)).Select(f => f.FileName))
             .IsEquivalentTo([OctoberStatement, NovemberStatement]);
+    }
+
+    [Test]
+    public async Task Importing_a_revolut_custom_statement_tags_its_fees_as_fee()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31",
+            integrationKey: "revolut");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", NovemberStatement,
+            new RevolutCustomStatement("Nov 1, 2026 - Nov 20, 2026")
+                .Account("CHF", "1,000.00 CHF", "759.50 CHF", t => t
+                    .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-203.50 CHF", "796.50 CHF", fees: "3.50 CHF")
+                    .Row("Nov 7, 2026", "Card Delivery Fee", "Fees", "-7.00 CHF", "789.50 CHF")
+                    .Row("Nov 8, 2026", "Bookshop", "Merchant", "-30.00 CHF", "759.50 CHF")
+                    .Total("-240.50 CHF", fees: "3.50 CHF"))
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await Assert.That(await TagNamesAsync(anna)).IsEquivalentTo(["fee"]);
+        await Assert.That((await ListAsync(anna)).Select(t => (t.Description, t.Amount, string.Join(",", t.Tags.Select(x => x.Name)))))
+            .IsEquivalentTo([
+                ("Cash at Bahnhofstrasse", -200.00m, ""), ("Fee: Cash at Bahnhofstrasse", -3.50m, "fee"),
+                ("Card Delivery Fee", -7.00m, "fee"), ("Bookshop", -30.00m, ""),
+            ]);
     }
 
     [Test]
@@ -788,6 +840,10 @@ public class MultiCurrencyImportTests : ApiTestBase
 
     private static async Task<Group> GetGroupAsync(HttpClient client, Guid id) =>
         (await client.GetFromJsonAsync<Group>($"/api/multi-currency-accounts/{id}"))!;
+
+    /// The names of the Family's Tags.
+    private static async Task<List<string>> TagNamesAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<List<TagRef>>("/api/tags"))!.Select(t => t.Name).ToList();
 
     private static async Task<List<TransactionDto>> ListAsync(HttpClient client) =>
         (await client.GetFromJsonAsync<List<TransactionDto>>("/api/transactions"))!;
