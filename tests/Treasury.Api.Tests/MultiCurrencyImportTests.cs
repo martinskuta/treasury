@@ -554,7 +554,7 @@ public class MultiCurrencyImportTests : ApiTestBase
             .IsEquivalentTo([("CHF", 890m, (BalanceWarning?)null), ("EUR", 40m, null)]);
         // The EUR Account is opened where the statement's period starts.
         var euros = accounts.Single(a => a.Currency == "EUR");
-        await Assert.That((euros.OpeningBalance, euros.OpeningDate)).IsEqualTo((0m, new DateOnly(2026, 10, 31)));
+        await Assert.That((euros.OpeningBalance, euros.OpeningDate)).IsEqualTo((0m, new DateOnly(2026, 11, 1)));
         var payment = (await ListAsync(anna)).Single(t => t.Description == "To Jan Novak");
         await Assert.That((payment.Date, payment.Amount, payment.Counterparty, payment.AccountId))
             .IsEqualTo((new DateOnly(2026, 11, 10), -1500m, "Jan Novak", (Guid?)accounts.Single(a => a.Currency == "CHF").Id));
@@ -639,8 +639,8 @@ public class MultiCurrencyImportTests : ApiTestBase
         await Assert.That(accounts.Select(a => (a.Currency, a.OpeningBalance, a.OpeningDate, a.Balance, a.BalanceWarning)))
             .IsEquivalentTo([
                 ("CHF", 2450m, new DateOnly(2026, 10, 31), 890m, (BalanceWarning?)null),
-                ("EUR", 0m, new DateOnly(2026, 10, 31), 40m, null),
-                ("USD", 120m, new DateOnly(2026, 10, 31), 120m, null),
+                ("EUR", 0m, new DateOnly(2026, 11, 1), 40m, null),
+                ("USD", 120m, new DateOnly(2026, 11, 1), 120m, null),
             ]);
     }
 

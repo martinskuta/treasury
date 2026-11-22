@@ -130,7 +130,7 @@ public class ImportChecksTests : ApiTestBase
 
         var result = await UploadOkAsync(anna, account.Id, "november.txt", new TestStatement()
             .Closing("2026-11-30", 970m)
-            .Row("2026-10-31", -999m, "Already in the opening balance")
+            .Row("2026-10-30", -999m, "Already in the opening balance")
             .Row("2026-11-10", -30m, "Groceries")
             .Row("2026-12-01", -5m, "After the closing date"));
 

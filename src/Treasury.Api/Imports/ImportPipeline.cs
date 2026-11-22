@@ -17,7 +17,7 @@ namespace Treasury.Api.Imports;
 ///                 split by currency, one "leg" per currency the statement has rows or balances in, each for its
 ///                 Account in that currency; a currency without an Account that the statement shows money in
 ///                 gets one (saved with the import), opened with the statement's opening balance for that
-///                 currency, on the day before the statement's period starts (ADR-0010)
+///                 currency, on the first day of the statement's period (ADR-0010)
 ///  2. Check     — IImportStep stage: reject the file (identifier mismatch, #11; a Multi-currency account's
 ///                 identifier is checked in step 1, before the split)
 ///  3. Deduplicate — IImportStep stage: drop rows already imported (#9) from <see cref="ImportContext.Rows"/>
@@ -190,7 +190,7 @@ public sealed class ImportPipeline(
     /// One leg per currency the statement has rows or balances in, for the Multi-currency account's Account in that
     /// currency; a currency with balances and no rows gets a leg without rows, so that its closing balance is kept
     /// and checked too (ADR-0010). A currency without an Account gets a new (not yet saved) one: "&lt;its name&gt;
-    /// &lt;CUR&gt;", its Owner, opened on the statement's opening date (the day before its period starts) with its
+    /// &lt;CUR&gt;", its Owner, opened on the statement's opening date (the first day of its period) with its
     /// opening balance for the currency.
     ///
     /// A currency without an Account gets none, and no leg, when the statement shows no money in it, or only a

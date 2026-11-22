@@ -190,7 +190,7 @@ Multi-currency account. Revolut's CSV account statement is not supported.
 - Each row goes to the Multi-currency account's Account in the currency of the row's "Personal Account (CUR)". A
   currency without an Account yet gets one during the import when the statement shows money in it (a row, or an
   opening or closing balance other than zero), named `<Multi-currency account name> <CUR>` (renamable), with the
-  Multi-currency account's Owner, opened on the day before the statement's period starts with the statement's
+  Multi-currency account's Owner, opened on the first day of the statement's period with the statement's
   opening balance. A currency with no rows and a zero balance gets no Account. The import result says "Created
   Account ...". Only currencies Treasury has exchange rates for can have Accounts (see [Currencies](#currencies)):
   a statement with rows in another currency is rejected; a balance without rows in another currency is skipped,

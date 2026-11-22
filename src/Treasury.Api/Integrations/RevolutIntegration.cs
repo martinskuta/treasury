@@ -52,7 +52,7 @@ public sealed class RevolutIntegration : IIntegration
             Reconcile(summary, table);
             rows.AddRange(table.Rows.SelectMany(row => Rows(summary.Currency, row)));
             // Also of a currency holding nothing: its Account, when it has one, is checked against the zero.
-            balances.Add(new CurrencyBalances(summary.Currency, pdf.PeriodStart.AddDays(-1), summary.Opening,
+            balances.Add(new CurrencyBalances(summary.Currency, pdf.PeriodStart, summary.Opening,
                 new ClosingBalance(pdf.PeriodEnd, summary.Closing)));
         }
 
