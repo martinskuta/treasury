@@ -159,5 +159,5 @@ public static class AccountEndpoints
                 : null,
             a.MultiCurrencyAccountId,
             rates.ToChf(balances[a.Id], a.Currency),
-            reach.Of(a), reach.LastImportedAt(a), reach.IsLagging(reach.Of(a)));
+            reach.Of(a), reach.LastImportedAt(a), reach.IsLagging(a));
 }

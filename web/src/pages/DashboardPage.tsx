@@ -32,7 +32,7 @@ import '../styles/dashboard.css'
 
 /**
  * The Dashboard at `/`: welcome strip with Frankie and the end month's net, then the bento grid of UI components.
- * It follows the data, not the calendar: the recent months report names the Owner view's end month (the month of its
+ * It follows the data, not the calendar: the recent months report names the Owner filter's end month (the month of its
  * latest Transaction, never later than the last complete month) and the six months ending at it. Everything follows
  * the Owner filter (?owner=me|family, as on the reports); each UI component loads and fails on its own.
  */

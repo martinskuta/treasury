@@ -666,7 +666,7 @@ export type MonthTotals = {
 }
 
 /**
- * The six months ending at the Owner view's end month, oldest first. `endMonth` = the month of the Owner view's
+ * The six months ending at the Owner filter's end month, oldest first. `endMonth` = the month of the Owner filter's
  * latest Transaction, never later than the last complete calendar month (which it is without Transactions).
  */
 export type RecentMonthsReport = {

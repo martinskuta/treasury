@@ -69,9 +69,7 @@ public sealed class AccountReach
             .Select(g => new { Id = g.Key, ImportedAt = g.Max(f => f.ImportedAt) })
             .ToDictionaryAsync(x => x.Id, x => x.ImportedAt);
 
-        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-        return new AccountReach(reach, accountImports, multiCurrencyAccountImports,
-            new DateOnly(today.Year, today.Month, 1).AddDays(-1));
+        return new AccountReach(reach, accountImports, multiCurrencyAccountImports, LastCompleteMonth.LastDay(clock));
     }
 
     /// The date the Account's data reaches; null when it has neither a Transaction nor a closing balance.
@@ -91,6 +89,11 @@ public sealed class AccountReach
     public DateTimeOffset? LastImportedAt(MultiCurrencyAccount multiCurrencyAccount) =>
         _multiCurrencyAccountImports.TryGetValue(multiCurrencyAccount.Id, out var at) ? at : null;
 
-    /// Whether data reaching <paramref name="reach"/> leaves the last complete calendar month unfinished.
-    public bool IsLagging(DateOnly? reach) => reach is null || reach < _lastCompleteMonthEnd;
+    /// Whether the Account's reach leaves the last complete calendar month unfinished.
+    public bool IsLagging(Account account) => IsLagging(Of(account));
+
+    /// Whether the Multi-currency account's reach leaves the last complete calendar month unfinished.
+    public bool IsLagging(MultiCurrencyAccount multiCurrencyAccount) => IsLagging(Of(multiCurrencyAccount));
+
+    private bool IsLagging(DateOnly? reach) => reach is null || reach < _lastCompleteMonthEnd;
 }

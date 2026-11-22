@@ -11,7 +11,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas:
     'welcome welcome welcome'
-    'accounts imports uncat'
+    'accounts import uncat'
     'trend trend trend'
     'tag tag tag';
 }
@@ -22,7 +22,7 @@
 
 .a-welcome { grid-area: welcome; }
 .a-accounts { grid-area: accounts; }
-.a-imports { grid-area: imports; }
+.a-import { grid-area: import; }
 .a-trend { grid-area: trend; }
 .a-tag { grid-area: tag; }
 .a-uncat { grid-area: uncat; }
@@ -341,7 +341,7 @@
     grid-template-areas:
       'welcome welcome'
       'trend trend'
-      'accounts imports'
+      'accounts import'
       'uncat tag';
   }
 }
@@ -350,7 +350,7 @@
 @media (max-width: 700px) {
   .dash-bento {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'welcome' 'uncat' 'trend' 'imports' 'accounts' 'tag';
+    grid-template-areas: 'welcome' 'uncat' 'trend' 'import' 'accounts' 'tag';
   }
 
   .dash-bento > .ui-component {

@@ -153,7 +153,7 @@ public static class MultiCurrencyAccountEndpoints
             return new MultiCurrencyAccountResponse(m.Id, m.Name, m.Slug, OwnerResponse.From(m.Owner, names),
                 m.IntegrationKey, m.MainCurrency, m.Identifier, accounts, SumOrNull(converted),
                 SumOrNull(accounts.Select(a => a.BalanceChf)), reach.Of(m), reach.LastImportedAt(m),
-                reach.IsLagging(reach.Of(m)));
+                reach.IsLagging(m));
         }).ToList();
     }
 

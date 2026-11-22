@@ -16,7 +16,7 @@ public static class ReportEndpoints
     public record MonthlyReportResponse(string Month, string Owner, string Currency, CategoryBreakdown Income,
         CategoryBreakdown Expense, decimal Net);
 
-    /// The six months ending at an Owner view's end month, oldest first. EndMonth = the month of the Owner view's
+    /// The six months ending at an Owner filter's end month, oldest first. EndMonth = the month of the Owner filter's
     /// latest Transaction, never later than the last complete calendar month (which it is without Transactions).
     public record RecentMonthsResponse(string Owner, string Currency, string EndMonth, IReadOnlyList<MonthTotals> Months);
 
@@ -56,7 +56,7 @@ public static class ReportEndpoints
                 ChfConverter.ReportingCurrency, income, expense, net));
         });
 
-        // ?owner=me|family (default: me). The Dashboard's chart and welcome strip: the Owner view's end month and
+        // ?owner=me|family (default: me). The Dashboard's chart and welcome strip: the Owner filter's end month and
         // the six months ending at it, each counted exactly like /monthly.
         reports.MapGet("/recent-months", async (string? owner, ClaimsPrincipal user, TreasuryDbContext db,
             ChfConverter chf, TimeProvider clock, CancellationToken ct) =>
@@ -66,8 +66,8 @@ public static class ReportEndpoints
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
             var scoped = db.Transactions.InReportScope(user.MemberId(), reportOwner);
-            var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
-            var end = new DateOnly(today.Year, today.Month, 1).AddMonths(-1); // the last complete calendar month
+            // Transfers deliberately don't count: the chart would end on a month with nothing to show.
+            var end = LastCompleteMonth.FirstDay(clock);
             if (await scoped.MaxAsync(t => (DateOnly?)t.Date, ct) is { } latest && latest < end)
                 end = new DateOnly(latest.Year, latest.Month, 1);
             var start = end.AddMonths(1 - RecentMonthCount);

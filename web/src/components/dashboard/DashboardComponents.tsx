@@ -203,7 +203,7 @@ function AccountItem({ entry }: { entry: AccountEntry }) {
 /** One row per entry of the Accounts UI component: how far its data reaches and when it was last imported. */
 export function LastImport({ summary }: { summary: Load<AccountsSummary> }) {
   return (
-    <UiComponent title="Last import" className="a-imports">
+    <UiComponent title="Last import" className="a-import">
       <NotReady load={summary} what="the last imports" />
       {summary.status === 'ready' &&
         (summary.data.entries.length === 0 ? (
@@ -221,21 +221,22 @@ export function LastImport({ summary }: { summary: Load<AccountsSummary> }) {
 
 function LastImportItem({ row }: { row: LastImportRow }) {
   const reachClass = row.lagging ? 'dash-import-reach lagging' : 'dash-import-reach'
-  const imported = row.lastImportedAt ? `imported ${formatDate(row.lastImportedAt)}` : 'Never imported'
+  const imported = row.lastImportedAt ? `imported ${formatDate(row.lastImportedAt)}` : null
   return (
     <li className="dash-import">
       <span className="dash-import-name">{row.name}</span>
       <div className="dash-import-dates">
         {row.reach === null ? (
-          // No Transaction and no statement: the import line is all there is to say, and it needs attention.
-          <span className={reachClass}>{imported}</span>
+          // No Transaction and no closing balance: the import line is all there is to say, and it needs attention.
+          <span className={reachClass}>{imported ?? 'Never imported'}</span>
         ) : (
           <>
             <span className={reachClass}>
               through {formatDate(row.reach)}
               {row.lagging && <span className="visually-hidden"> (behind)</span>}
             </span>
-            <small>{imported}</small>
+            {/* An Account kept by hand has a reach and no Source file: no import line, so it doesn't look broken. */}
+            {imported && <small>{imported}</small>}
           </>
         )}
       </div>
@@ -245,7 +246,7 @@ function LastImportItem({ row }: { row: LastImportRow }) {
 
 // ---- Last 6 months ----
 
-/** The six months ending at the Owner view's end month; the chart puts the last label, the end month, in ink. */
+/** The six months ending at the Owner filter's end month; the chart puts the last label, the end month, in ink. */
 export function LastSixMonths({ report }: { report: Load<RecentMonthsReport> }) {
   if (report.status !== 'ready')
     return (
@@ -259,6 +260,8 @@ export function LastSixMonths({ report }: { report: Load<RecentMonthsReport> }) 
   const incomeTotal = income.reduce((s, v) => s + v, 0)
   const expenseTotal = expense.reduce((s, v) => s + v, 0)
   const empty = incomeTotal === 0 && expenseTotal === 0
+  // Amounts without a CHF rate yet are in no total, so the totals alone would hide them.
+  const pending = months.reduce((s, m) => s + m.pendingConversion, 0)
   return (
     <UiComponent
       title="Last 6 months"
@@ -266,7 +269,7 @@ export function LastSixMonths({ report }: { report: Load<RecentMonthsReport> }) 
       className="dash-trend a-trend"
     >
       {empty ? (
-        <Empty>No Income or Expense in the last 6 months yet.</Empty>
+        pending === 0 && <Empty>No Income or Expense in the last 6 months yet.</Empty>
       ) : (
         <TrendChart
           ariaLabel="Income and Expense, last 6 months"
@@ -276,6 +279,11 @@ export function LastSixMonths({ report }: { report: Load<RecentMonthsReport> }) 
             { name: 'Expense', values: expense, tone: 'expense' },
           ]}
         />
+      )}
+      {pending > 0 && (
+        <p className="dash-note">
+          {pending} {pending === 1 ? 'amount waits' : 'amounts wait'} for an exchange rate.
+        </p>
       )}
     </UiComponent>
   )

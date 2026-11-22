@@ -107,7 +107,7 @@ const entryName = (e: AccountEntry) => (e.kind === 'account' ? e.account.name : 
 export type LastImportRow = {
   id: string
   name: string
-  /** ISO date; null when it has neither a Transaction nor a statement. */
+  /** ISO date; null when it has neither a Transaction nor a closing balance. */
   reach: string | null
   /** ISO date-time of its most recent Source file; null when never imported. */
   lastImportedAt: string | null

@@ -5,8 +5,9 @@ using System.Text;
 
 namespace Treasury.Api.Tests;
 
-/// GET /api/reports/recent-months: the end month of an Owner view and the six months ending at it, each with its
-/// Income, Expense and net in CHF. The clock stands at 2026-11-20, so the last complete month is 2026-10.
+/// GET /api/reports/recent-months: the end month of an Owner filter (Mine or Family) and the six months ending at
+/// it, each with its Income, Expense and net in CHF. The clock stands at 2026-11-20, so the last complete month is
+/// 2026-10.
 public class RecentMonthsReportTests : ApiTestBase
 {
     [Test]
@@ -163,6 +164,26 @@ public class RecentMonthsReportTests : ApiTestBase
         await Assert.That(withManual.EndMonth).IsEqualTo("2026-09");
         await Assert.That(withManual.Months.Select(m => m.Expense).ToList()).IsEquivalentTo(
             [0m, 0m, 0m, 45m, 0m, 5m], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    /// A decision, not an accident: a month holding only a Transfer has no Income or Expense, so the chart would
+    /// end on a month with nothing to show.
+    [Test]
+    public async Task A_transfer_alone_does_not_move_the_end_month()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var me = await MeAsync(anna);
+        var checking = await CreateAccountAsync(anna, "Checking", me);
+        var savings = await CreateAccountAsync(anna, "Savings", me);
+        await AddAsync(anna, checking, -60m, "2026-07-20");
+        await AddAsync(anna, checking, -1000m, "2026-09-10"); // to savings ...
+        await AddAsync(anna, savings, 1000m, "2026-09-11");   // ... matched as a Transfer: all September holds
+
+        var report = await RecentMonthsAsync(anna, "me");
+
+        await Assert.That(report.EndMonth).IsEqualTo("2026-07");
+        await Assert.That(report.Months[^1].Expense).IsEqualTo(60m);
+        await Assert.That(report.Months.Sum(m => m.Income)).IsEqualTo(0m);
     }
 
     [Test]
