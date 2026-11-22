@@ -224,7 +224,10 @@ internal sealed record RevolutCustomStatementPdf(
         {
             if (Currency(line) is { } currency)
             {
-                _tables.Add(_table = new TableInProgress(currency));
+                // A table that runs onto the next page may get its account's heading printed again there: until
+                // its Total row, the same heading continues the table. After it, the account is listed twice.
+                if (_table is null || _table.Currency != currency || _table.Total is not null)
+                    _tables.Add(_table = new TableInProgress(currency));
                 return;
             }
             // Between the account's heading and its table there is only the sub-heading "Transaction statement".

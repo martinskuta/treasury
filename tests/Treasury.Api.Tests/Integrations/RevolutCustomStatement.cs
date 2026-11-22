@@ -189,6 +189,11 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                 {
                     page = NewPage();
                     y = 688;
+                    if (pageBreak.RepeatAccountHeading)
+                    {
+                        Put(page, Left, y, 9.6, $"Personal Account ({account.Currency})");
+                        y -= 24;
+                    }
                     if (pageBreak.RepeatHeader) y = TableHeader(page, y - 36, account);
                     continue;
                 }
@@ -305,8 +310,21 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
         /// Leaves the Total row out.
         public AccountBuilder NoTotal() { _noTotal = true; return this; }
 
-        /// Continues the table on a new page, with or without the table header printed again.
-        public AccountBuilder NextPage(bool repeatHeader = true) { _rows.Add(new PageBreak(repeatHeader)); return this; }
+        /// Continues the table on a new page, with or without the table header printed again, and with or
+        /// without the account's heading printed again above it.
+        public AccountBuilder NextPage(bool repeatHeader = true, bool repeatAccountHeading = false)
+        {
+            _rows.Add(new PageBreak(repeatHeader, repeatAccountHeading));
+            return this;
+        }
+
+        /// The rest of the description of the row above, as a line of its own: after <see cref="NextPage"/>, a
+        /// description that wraps over the page break.
+        public AccountBuilder DescriptionContinued(string description)
+        {
+            _rows.Add(new TableRow("", description, "", "", "", "", "", ""));
+            return this;
+        }
 
         /// Prints "Account Number GB" above "Account Number (LT IBAN)", as Revolut does for the GBP account.
         public AccountBuilder GbAccountNumber(string number) { GbNumber = number; return this; }
@@ -321,7 +339,7 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
             _noTotal ? _rows : [.. _rows, _total ?? new TableRow("Total", "", "", zero, "", null, null, null)];
     }
 
-    private sealed record PageBreak(bool RepeatHeader);
+    private sealed record PageBreak(bool RepeatHeader, bool RepeatAccountHeading);
 
     private sealed record TableRow(string Date, string Description, string Category, string Money, string Balance,
         string? Tax, string? OtherTaxes, string? Fees)

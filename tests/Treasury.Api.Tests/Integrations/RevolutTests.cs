@@ -206,6 +206,44 @@ public class RevolutTests
     }
 
     [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task A_table_continued_on_a_page_that_repeats_the_account_heading_is_read_as_one(bool headerRepeated)
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("CHF", "100.00 CHF", "60.00 CHF", t => t
+                .Row("Nov 2, 2026", "Bakery", "Merchant", "-10.00 CHF", "90.00 CHF")
+                .Row("Nov 3, 2026", "Kiosk", "Merchant", "-10.00 CHF", "80.00 CHF")
+                .NextPage(headerRepeated, repeatAccountHeading: true)
+                .Row("Nov 4, 2026", "Florist", "Merchant", "-10.00 CHF", "70.00 CHF")
+                .Row("Nov 5, 2026", "Cinema", "Merchant", "-10.00 CHF", "60.00 CHF")
+                .Total("-40.00 CHF"))
+            .Account("EUR", "€5.00", "€5.00", zero: "€0.00"));
+
+        await Assert.That(statement.Rows.Select(r => (r.Date, r.Description, r.Amount))).IsEquivalentTo([
+            (Nov(2), "Bakery", -10.00m), (Nov(3), "Kiosk", -10.00m), (Nov(4), "Florist", -10.00m), (Nov(5), "Cinema", -10.00m),
+        ]);
+        await Assert.That(statement.BalancesByCurrency.Select(b => (b.Currency, b.Closing.Amount)))
+            .IsEquivalentTo([("CHF", 60.00m), ("EUR", 5.00m)]);
+    }
+
+    [Test]
+    public async Task A_description_wrapped_onto_the_page_that_continues_the_table_is_read_as_one()
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("EUR", "€100.00", "€40.00", t => t
+                .Row("Nov 3, 2026", "Trattoria Roma Centro", "Merchant", "-€25.00", "€75.00")
+                .NextPage(repeatAccountHeading: true)
+                .DescriptionContinued("Storico Di Milano")
+                .Row("Nov 5, 2026", "To Jan Novak", "Others", "-€35.00", "€40.00")
+                .Total("-€60.00"), zero: "€0.00"));
+
+        await Assert.That(statement.Rows.Select(r => (r.Date, r.Description, r.Amount))).IsEquivalentTo([
+            (Nov(3), "Trattoria Roma Centro Storico Di Milano", -25.00m), (Nov(5), "To Jan Novak", -35.00m),
+        ]);
+    }
+
+    [Test]
     public async Task A_fee_becomes_a_second_row_charged_by_revolut()
     {
         var statement = Read(new RevolutCustomStatement()
@@ -355,6 +393,16 @@ public class RevolutTests
         var error = ErrorOf(new RevolutCustomStatement()
             .Account("EUR", "€5.00", "€5.00", zero: "€0.00")
             .Account("EUR", "€7.00", "€7.00", zero: "€0.00"));
+
+        await Assert.That(error).Contains("lists the EUR account twice");
+    }
+
+    [Test]
+    public async Task A_second_transaction_statement_for_a_currency_after_its_total_row_rejects_the_file()
+    {
+        var error = ErrorOf(new RevolutCustomStatement()
+            .Account("EUR", "€5.00", "€5.00", zero: "€0.00")
+            .Account("EUR", "€5.00", "€5.00", t => t.OnlyInTransactionStatements(), zero: "€0.00"));
 
         await Assert.That(error).Contains("lists the EUR account twice");
     }
