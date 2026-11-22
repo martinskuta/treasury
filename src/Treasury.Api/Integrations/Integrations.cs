@@ -48,27 +48,32 @@ public sealed class SourceFileContent(string fileName, byte[] bytes)
 /// <param name="AccountIdentifier">IBAN / last card digits, when the format has one (see CanProvideIdentifier).</param>
 /// <param name="ClosingBalance">The statement's closing balance, when the format has one (single-currency formats).</param>
 /// <param name="BalancesByCurrency">For a format holding several currencies (Multi-currency account): the balances of
-/// each currency that has rows, ordered by currency code. Empty for single-currency formats, which use
-/// <paramref name="ClosingBalance"/>.</param>
+/// each currency that has rows or a balance other than zero, ordered by currency code. Empty for single-currency
+/// formats, which use <paramref name="ClosingBalance"/>.</param>
+/// <param name="Notes">What the Integration saw in the file but didn't read (e.g. entries in a section Treasury
+/// doesn't track), written for a Member.</param>
 public sealed record ParsedStatement(
     IReadOnlyList<StatementRow> Rows,
     string? AccountIdentifier = null,
     ClosingBalance? ClosingBalance = null,
-    IReadOnlyList<CurrencyBalances>? BalancesByCurrency = null)
+    IReadOnlyList<CurrencyBalances>? BalancesByCurrency = null,
+    IReadOnlyList<string>? Notes = null)
 {
     public IReadOnlyList<CurrencyBalances> BalancesByCurrency { get; init; } = BalancesByCurrency ?? [];
+
+    public IReadOnlyList<string> Notes { get; init; } = Notes ?? [];
 }
 
-/// The balances a multi-currency statement reports for one currency.
+/// The balances a multi-currency statement reports for one currency over the statement's period (ADR-0010).
 /// <param name="Currency">ISO code.</param>
-/// <param name="FirstRowDate">Date of the currency's first row on the statement.</param>
-/// <param name="BalanceBeforeFirstRow">The currency's balance just before its first row, i.e. before any row of the
-/// statement in that currency; an import can use it to open the currency's Account.</param>
-/// <param name="Closing">The currency's balance after its last row, dated on that row's date.</param>
+/// <param name="OpeningDate">The day before the statement's period starts.</param>
+/// <param name="OpeningBalance">The currency's balance at the end of <paramref name="OpeningDate"/>, i.e. before any
+/// row of the statement; an import can use it to open the currency's Account.</param>
+/// <param name="Closing">The currency's balance at the end of the period's last day.</param>
 public sealed record CurrencyBalances(
     string Currency,
-    DateOnly FirstRowDate,
-    decimal BalanceBeforeFirstRow,
+    DateOnly OpeningDate,
+    decimal OpeningBalance,
     ClosingBalance Closing);
 
 /// One movement on a statement.

@@ -15,8 +15,8 @@ namespace Treasury.Api.Imports;
 ///
 ///  1. read      — the Integration parses the file; rows are validated. Into a Multi-currency account, the rows are
 ///                 split by currency, one "leg" per currency, each for its Account in that currency; a
-///                 currency without an Account gets one (saved with the import), opened with the statement's balance
-///                 before that currency's first row, on the day before that row
+///                 currency without an Account gets one (saved with the import), opened with the statement's
+///                 opening balance for that currency, on the day before the statement's period starts (ADR-0010)
 ///  2. Check     — IImportStep stage: reject the file (identifier mismatch, #11)
 ///  3. Deduplicate — IImportStep stage: drop rows already imported (#9) from <see cref="ImportContext.Rows"/>
 ///  4. store     — keep ONE Source file and create its Transactions (saved inside a DB transaction)
@@ -180,7 +180,7 @@ public sealed class ImportPipeline(
 
     /// One leg per currency of the statement's rows, for the Multi-currency account's Account in that currency. A
     /// currency without one gets a new (not yet saved) Account: "&lt;its name&gt; &lt;CUR&gt;", its Owner, opened on
-    /// the day before the currency's first row with the statement's balance before that row.
+    /// the statement's opening date (the day before its period starts) with its opening balance for the currency.
     private static List<Leg> LegsByCurrency(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement)
     {
         for (var i = 0; i < statement.Rows.Count; i++)
@@ -208,8 +208,8 @@ public sealed class ImportPipeline(
                     "exchange rates for (the ECB reference rates). Nothing was imported.");
             if (balances is null)
                 throw new ImportFailedException(
-                    $"The statement doesn't say the {currency} balance before its first {currency} row, so Treasury " +
-                    $"can't open an Account for {currency}. Nothing was imported.");
+                    $"The statement doesn't say the {currency} opening balance, so Treasury can't open an Account " +
+                    $"for {currency}. Nothing was imported.");
             var account = new Account
             {
                 Name = $"{multiCurrencyAccount.Name} {currency}",
@@ -219,8 +219,8 @@ public sealed class ImportPipeline(
                 Owner = multiCurrencyAccount.Owner,
                 IntegrationKey = multiCurrencyAccount.IntegrationKey,
                 Currency = currency,
-                OpeningBalance = balances.BalanceBeforeFirstRow,
-                OpeningDate = balances.FirstRowDate.AddDays(-1),
+                OpeningBalance = balances.OpeningBalance,
+                OpeningDate = balances.OpeningDate,
                 MultiCurrencyAccountId = multiCurrencyAccount.Id,
             };
             legs.Add(new Leg(account, IsNew: true, legStatement));

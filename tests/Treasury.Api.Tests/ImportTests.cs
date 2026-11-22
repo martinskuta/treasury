@@ -313,11 +313,11 @@ public class ImportTests : ApiTestBase
     }
 
     [Test]
-    public async Task The_revolut_integration_is_available_without_an_identifier()
+    public async Task The_revolut_integration_is_available_with_an_identifier()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var integrations = (await anna.GetFromJsonAsync<List<IntegrationDto>>("/api/integrations"))!;
-        await Assert.That(integrations).Contains(new IntegrationDto("revolut", "Revolut", false));
+        await Assert.That(integrations).Contains(new IntegrationDto("revolut", "Revolut", true));
     }
 
     [Test]
