@@ -7,6 +7,7 @@ namespace Treasury.Api.Integrations;
 /// - read: the period, and per "Personal Account (CUR)" its IBAN, opening and closing balance and its table of rows
 /// - a row's currency is its account's; every row is imported; Money in/out includes the row's fee, and a
 ///   non-zero fee is taken out of it into a second row
+/// - a fee (that second row, or a row Revolut's Category calls Fees) suggests the Tag "fee"
 /// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
 ///   gives: each row's running balance, each currency's closing balance and its Total row (Money in/out and Fees)
 /// - the IBAN is the Account identifier; the balances of every Personal Account, also of one holding nothing
@@ -124,10 +125,19 @@ public sealed class RevolutIntegration : IIntegration
     /// are the row's Money in/out, which includes the fee.
     private static IEnumerable<StatementRow> Rows(string currency, RevolutTableRow row)
     {
-        yield return new StatementRow(row.Date, row.Money + row.Fees, currency, row.Description, Counterparty(row));
+        yield return new StatementRow(row.Date, row.Money + row.Fees, currency, row.Description, Counterparty(row))
+        {
+            SuggestedTags = row.Category == "Fees" ? FeeTags : [],
+        };
         if (row.Fees != 0)
-            yield return new StatementRow(row.Date, -row.Fees, currency, $"Fee: {row.Description}", "Revolut");
+            yield return new StatementRow(row.Date, -row.Fees, currency, $"Fee: {row.Description}", "Revolut")
+            {
+                SuggestedTags = FeeTags,
+            };
     }
+
+    /// The Tag suggested for a fee Revolut charges.
+    private static readonly IReadOnlyList<string> FeeTags = ["fee"];
 
     /// A card payment's merchant, Revolut for its own charges, or the person behind "To X" / "From X".
     private static string? Counterparty(RevolutTableRow row) =>
