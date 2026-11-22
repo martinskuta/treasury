@@ -68,8 +68,8 @@ public sealed record ParsedStatement(
 
 /// The balances a multi-currency statement reports for one currency over the statement's period (ADR-0010).
 /// <param name="Currency">ISO code.</param>
-/// <param name="OpeningDate">The day before the statement's period starts.</param>
-/// <param name="OpeningBalance">The currency's balance at the end of <paramref name="OpeningDate"/>, i.e. before any
+/// <param name="OpeningDate">The first day of the statement's period.</param>
+/// <param name="OpeningBalance">The currency's balance at the start of <paramref name="OpeningDate"/>, i.e. before any
 /// row of the statement; an import can use it to open the currency's Account.</param>
 /// <param name="Closing">The currency's balance at the end of the period's last day.</param>
 public sealed record CurrencyBalances(

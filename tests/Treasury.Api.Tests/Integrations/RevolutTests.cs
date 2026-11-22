@@ -54,10 +54,10 @@ public class RevolutTests
         });
         await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
         {
-            // Opened the day before the period starts, closed on its last day.
-            new CurrencyBalances("CHF", new DateOnly(2026, 10, 31), 1000.00m, new ClosingBalance(Nov(20), 935.00m)),
-            new CurrencyBalances("EUR", new DateOnly(2026, 10, 31), 5.00m, new ClosingBalance(Nov(20), 159.50m)),
-            new CurrencyBalances("USD", new DateOnly(2026, 10, 31), 120.00m, new ClosingBalance(Nov(20), 108.00m)),
+            // Opened on the period's first day, closed on its last day.
+            new CurrencyBalances("CHF", Nov(1), 1000.00m, new ClosingBalance(Nov(20), 935.00m)),
+            new CurrencyBalances("EUR", Nov(1), 5.00m, new ClosingBalance(Nov(20), 159.50m)),
+            new CurrencyBalances("USD", Nov(1), 120.00m, new ClosingBalance(Nov(20), 108.00m)),
         });
         await Assert.That(statement.AccountIdentifier).IsEqualTo(RevolutCustomStatement.Iban);
         await Assert.That(statement.ClosingBalance).IsNull();
@@ -81,7 +81,7 @@ public class RevolutTests
         {
             new StatementRow(new DateOnly(2026, 10, 12), -20.00m, "CHF", "Padel Club", "Padel Club"),
         });
-        var opened = new DateOnly(2026, 9, 30);
+        var opened = new DateOnly(2026, 10, 1);
         var closed = new DateOnly(2026, 10, 31);
         await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
         {
@@ -105,8 +105,8 @@ public class RevolutTests
         await Assert.That(statement.Rows).IsEmpty();
         await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
         {
-            new CurrencyBalances("CHF", new DateOnly(2026, 10, 31), 1234.50m, new ClosingBalance(Nov(30), 1234.50m)),
-            new CurrencyBalances("USD", new DateOnly(2026, 10, 31), 0m, new ClosingBalance(Nov(30), 0m)),
+            new CurrencyBalances("CHF", Nov(1), 1234.50m, new ClosingBalance(Nov(30), 1234.50m)),
+            new CurrencyBalances("USD", Nov(1), 0m, new ClosingBalance(Nov(30), 0m)),
         });
     }
 

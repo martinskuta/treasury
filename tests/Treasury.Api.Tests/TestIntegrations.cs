@@ -127,7 +127,7 @@ public sealed class TestStatement
     public TestStatement Closing(string date, decimal amount) =>
         Line($"# closing: {date} {amount.ToString(CultureInfo.InvariantCulture)}");
 
-    /// One currency's balances on a multi-currency statement: at the end of the opening date and of the closing date.
+    /// One currency's balances on a multi-currency statement: at the start of the opening date and at the end of the closing date.
     public TestStatement Balances(string currency, string openingDate, decimal opening, string closingDate, decimal closing) =>
         Line($"# balances: {currency} {openingDate} {opening.ToString(CultureInfo.InvariantCulture)} " +
              $"{closingDate} {closing.ToString(CultureInfo.InvariantCulture)}");

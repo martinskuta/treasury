@@ -4,7 +4,7 @@ Revolut Personal has no API, and its CSV account statement has to be exported on
 
 Reading a PDF is fragile, so the reader trusts nothing it can't verify: the statement gives an opening balance, a closing balance and a total per currency and a running balance per row, and a file is rejected unless all of them agree with the rows that were read. The PDF also carries the IBAN, which the CSV never did, so a Multi-currency account can have an identifier that is checked on import like an Account's.
 
-This amends ADR-0009. An Account for a new currency is opened from the statement's opening balance for the period (dated the day before the period starts), not from a running balance before the first row, and a currency that has a balance but no rows in the period gets an Account too. A currency with no rows and a zero balance gets none.
+This amends ADR-0009. An Account for a new currency is opened from the statement's opening balance for the period (dated the first day of the period; an opening balance is the balance at the start of its date), not from a running balance before the first row, and a currency that has a balance but no rows in the period gets an Account too. A currency with no rows and a zero balance gets none.
 
 ## Considered options
 

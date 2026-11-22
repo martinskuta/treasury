@@ -3,8 +3,9 @@ using Treasury.Api.Data;
 
 namespace Treasury.Api.Accounts;
 
-/// An Account's balance (spec #1): the opening balance plus ALL of its Transactions dated strictly after the opening
-/// date (a Transaction on the opening date is part of the opening balance), whatever the Transactions' Owners.
+/// An Account's balance: the opening balance plus ALL of its Transactions dated on or after the opening date,
+/// whatever the Transactions' Owners. The opening balance is the balance at the start of the opening date, so a
+/// Transaction on that day counts; only earlier ones are already part of the opening balance.
 ///
 /// The closing-balance warning (#11) is computed here on read, never stored: it compares the Account's most recent
 /// statement closing balance (latest closing date; same date -> latest import, then the newer v7 Source file id) with the calculated balance on that
@@ -15,7 +16,7 @@ public static class AccountBalances
     /// The calculated balance at the end of <paramref name="date"/> (dates before the opening date give the opening balance).
     public static async Task<decimal> OnAsync(TreasuryDbContext db, Account account, DateOnly date, CancellationToken ct = default) =>
         account.OpeningBalance + await db.Transactions
-            .Where(t => t.AccountId == account.Id && t.Date > account.OpeningDate && t.Date <= date)
+            .Where(t => t.AccountId == account.Id && t.Date >= account.OpeningDate && t.Date <= date)
             .SumAsync(t => t.Amount, ct);
 
     /// The current balance of each Account.
@@ -23,7 +24,7 @@ public static class AccountBalances
     {
         var ids = accounts.Select(a => a.Id).ToList();
         var sums = await db.Transactions
-            .Where(t => ids.Contains(t.AccountId) && t.Date > t.Account.OpeningDate)
+            .Where(t => ids.Contains(t.AccountId) && t.Date >= t.Account.OpeningDate)
             .GroupBy(t => t.AccountId)
             .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
             .ToDictionaryAsync(x => x.AccountId, x => x.Sum);

@@ -82,21 +82,21 @@ public class TransactionTests : ApiTestBase
     }
 
     [Test]
-    public async Task The_account_balance_is_the_opening_balance_plus_transactions_after_the_opening_date()
+    public async Task The_account_balance_is_the_opening_balance_plus_transactions_from_the_opening_date_on()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var wallet = await CreateAccountAsync(anna, "Cash", await MeAsync(anna), openingBalance: 100m, openingDate: "2026-01-01");
         var other = await CreateAccountAsync(anna, "Other", await MeAsync(anna), openingBalance: 0m);
 
         await AddAsync(anna, wallet.Id, -50m, date: "2025-12-31");   // before the opening date: already in the opening balance
-        await AddAsync(anna, wallet.Id, -7m, date: "2026-01-01");    // on the opening date: also included in it
+        await AddAsync(anna, wallet.Id, -7m, date: "2026-01-01");    // on the opening date: counts
         await AddAsync(anna, wallet.Id, 20m, date: "2026-01-02");
         await AddAsync(anna, wallet.Id, -5.25m, date: "2026-11-18");
         await AddAsync(anna, other.Id, -1000m, date: "2026-11-18");  // another Account
 
-        await Assert.That((await GetAccountAsync(anna, wallet.Id)).Balance).IsEqualTo(114.75m);
+        await Assert.That((await GetAccountAsync(anna, wallet.Id)).Balance).IsEqualTo(107.75m);
         var accounts = (await anna.GetFromJsonAsync<List<Account>>("/api/accounts"))!;
-        await Assert.That(accounts.Single(a => a.Id == wallet.Id).Balance).IsEqualTo(114.75m);
+        await Assert.That(accounts.Single(a => a.Id == wallet.Id).Balance).IsEqualTo(107.75m);
         await Assert.That(accounts.Single(a => a.Id == other.Id).Balance).IsEqualTo(-1000m);
     }
 
