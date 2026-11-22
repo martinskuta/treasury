@@ -36,7 +36,7 @@ public class Tag
 }
 
 /// One reason a Tag is on a Transaction. A Transaction carries a Tag when at least one link exists; the same
-/// Tag can be linked by several sources at once (by hand, by its date range, by a Rule), so each source can add
+/// Tag can be linked by several sources at once (by hand, by its date range, by a Rule, by an import), so each source can add
 /// and withdraw its own link without clobbering the others.
 public class TransactionTag : ITransactionTagPair
 {
@@ -57,10 +57,13 @@ public enum TransactionTagSource
 
     /// Added by a Rule (#15).
     Rule = 2,
+
+    /// Put there during an import, because the Integration recognised the Transaction in the statement (e.g. a fee).
+    Integration = 3,
 }
 
 /// A Member removed this Tag from this Transaction by hand: no source may add it again automatically (date range,
-/// Rules). Adding the Tag by hand deletes the removal.
+/// Rules, imports). Adding the Tag by hand deletes the removal.
 public class TransactionTagRemoval : ITransactionTagPair
 {
     public Guid TransactionId { get; init; }

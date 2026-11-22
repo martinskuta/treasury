@@ -36,7 +36,7 @@ public static class TransactionEndpoints
 
     /// Category null = Uncategorised. ManuallySet lists the classification fields a Member set by hand
     /// ("owner", "category", "tags", "displayName"). Tags lists each Tag with the sources that put it there
-    /// ("manual", "dateRange", "rule").
+    /// ("manual", "dateRange", "rule", "integration").
     /// <param name="Description">The original description (never replaced by the Display name).</param>
     /// <param name="OriginalAmount">Foreign-currency purchase: the amount in <paramref name="OriginalCurrency"/>.</param>
     /// <param name="AccountHidden">The Transaction sits in another Member's personal Account (it is visible because
