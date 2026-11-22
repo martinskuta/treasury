@@ -7,7 +7,7 @@ namespace Treasury.Api.Integrations;
 /// - read: the period, and per "Personal Account (CUR)" its IBAN, opening and closing balance and its table of rows
 /// - a row's currency is its account's; every row is imported; a non-zero fee becomes a second row
 /// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
-///   gives: each row's running balance, each currency's closing balance and its Total row
+///   gives: each row's running balance, each currency's closing balance and its Total row (Money in/out and Fees)
 /// - the IBAN is the Account identifier; the balances of every Personal Account, also of one holding nothing
 /// - other sections (investments, savings, crypto) are not read; when one has entries, a note says so
 public sealed class RevolutIntegration : IIntegration
@@ -66,11 +66,18 @@ public sealed class RevolutIntegration : IIntegration
         var currency = summary.Currency;
         string Money(decimal amount) => $"{Format(amount)} {currency}";
 
-        if (table.Rows.Select(r => (r.Tax, r.OtherTaxes)).Append((table.Total.Tax, table.Total.OtherTaxes))
-            .Any(taxes => taxes != (0m, 0m)))
-            throw Rejected(
-                $"The {currency} account has an amount under \"Tax withheld\" or \"Other taxes\", which Treasury " +
-                "doesn't support yet.");
+        foreach (var (column, amount, where) in table.Rows
+                     .SelectMany(r => new[]
+                     {
+                         ("Tax withheld", r.Tax, $"the row of {Day(r.Date)}"),
+                         ("Other taxes", r.OtherTaxes, $"the row of {Day(r.Date)}"),
+                     })
+                     .Append(("Tax withheld", table.Total.Tax, "the Total row"))
+                     .Append(("Other taxes", table.Total.OtherTaxes, "the Total row")))
+            if (amount != 0)
+                throw Rejected(
+                    $"The {currency} account has {Money(amount)} under \"{column}\" in {where}, which Treasury " +
+                    "doesn't support yet.");
 
         var balance = summary.Opening;
         foreach (var row in table.Rows)
@@ -79,7 +86,7 @@ public sealed class RevolutIntegration : IIntegration
             var expected = balance + row.Money - row.Fees;
             if (row.Balance != expected)
                 throw Rejected(
-                    $"The {currency} row \"{row.Description}\" of {row.Date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} " +
+                    $"The {currency} row \"{row.Description}\" of {Day(row.Date)} " +
                     $"doesn't follow from the balance before it: {Money(balance)} with {Money(row.Money)} in/out and " +
                     $"{Money(row.Fees)} fees gives {Money(expected)}, but the statement says {Money(row.Balance)}.");
             balance = row.Balance;
@@ -96,6 +103,12 @@ public sealed class RevolutIntegration : IIntegration
         if (sum != table.Total.Money)
             throw Rejected(
                 $"The {currency} rows add up to {Money(sum)}, but the statement's Total row says {Money(table.Total.Money)}.");
+
+        var fees = table.Rows.Sum(r => r.Fees);
+        if (fees != table.Total.Fees)
+            throw Rejected(
+                $"The {currency} rows' fees add up to {Money(fees)}, but the statement's Total row says " +
+                $"{Money(table.Total.Fees)}.");
     }
 
     /// The statement and what Treasury read from it disagree: importing could store wrong numbers.
@@ -116,6 +129,8 @@ public sealed class RevolutIntegration : IIntegration
         : row.Description.StartsWith("To ", StringComparison.Ordinal) ? row.Description["To ".Length..]
         : row.Description.StartsWith("From ", StringComparison.Ordinal) ? row.Description["From ".Length..]
         : null;
+
+    private static string Day(DateOnly date) => date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
 
     /// Swiss style like the import warnings: 1'234.50.
     private static string Format(decimal amount) =>

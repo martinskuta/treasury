@@ -283,6 +283,18 @@ public class RevolutTests
     }
 
     [Test]
+    public async Task Fees_that_do_not_add_up_to_the_total_row_reject_the_file()
+    {
+        var error = ErrorOf(new RevolutCustomStatement()
+            .Account("CHF", "1,000.00 CHF", "766.50 CHF", t => t
+                .Row("Nov 6, 2026", "Cash at Bahnhofstrasse", "Cash", "-200.00 CHF", "796.50 CHF", fees: "3.50 CHF")
+                .Row("Nov 8, 2026", "Bookshop", "Merchant", "-30.00 CHF", "766.50 CHF")
+                .Total("-230.00 CHF", fees: "5.00 CHF")));
+
+        await Assert.That(error).Contains("CHF rows' fees add up to 3.50 CHF").And.Contains("Total row says 5.00 CHF");
+    }
+
+    [Test]
     public async Task A_table_without_a_total_row_rejects_the_file()
     {
         var error = ErrorOf(new RevolutCustomStatement()
@@ -301,7 +313,8 @@ public class RevolutTests
                 .Row("Nov 3, 2026", "Interest", "Others", "€1.00", "€101.00", tax: "€0.15")
                 .Total("€1.00"), zero: "€0.00"));
 
-        await Assert.That(error).Contains("EUR").And.Contains("Tax withheld").And.Contains("doesn't support yet");
+        await Assert.That(error).Contains("0.15 EUR").And.Contains("\"Tax withheld\"").And.Contains("03.11.2026")
+            .And.Contains("doesn't support yet");
     }
 
     [Test]
@@ -312,7 +325,8 @@ public class RevolutTests
                 .Row("Nov 3, 2026", "Interest", "Others", "1.00 CHF", "101.00 CHF")
                 .Total("1.00 CHF", otherTaxes: "0.35 CHF")));
 
-        await Assert.That(error).Contains("CHF").And.Contains("Other taxes").And.Contains("doesn't support yet");
+        await Assert.That(error).Contains("0.35 CHF").And.Contains("\"Other taxes\"").And.Contains("Total row")
+            .And.Contains("doesn't support yet");
     }
 
     [Test]
