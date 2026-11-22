@@ -65,7 +65,7 @@ public class RevolutTests
     }
 
     [Test]
-    public async Task A_currency_with_a_balance_and_no_rows_has_balances_and_one_with_nothing_is_left_out()
+    public async Task A_currency_without_rows_has_balances_whether_it_holds_money_or_not()
     {
         var statement = Read(new RevolutCustomStatement("Oct 1, 2026 - Oct 31, 2026")
             .Account("CHF", "500.00 CHF", "480.00 CHF", t => t
@@ -88,6 +88,10 @@ public class RevolutTests
             new CurrencyBalances("CHF", opened, 500.00m, new ClosingBalance(closed, 480.00m)),
             new CurrencyBalances("GBP", opened, 15.40m, new ClosingBalance(closed, 15.40m)),
             new CurrencyBalances("ISK", opened, 6400m, new ClosingBalance(closed, 6400m)),
+            // Whether an empty currency gets an Account is the import's call, not the reader's.
+            new CurrencyBalances("AUD", opened, 0m, new ClosingBalance(closed, 0m)),
+            new CurrencyBalances("CZK", opened, 0m, new ClosingBalance(closed, 0m)),
+            new CurrencyBalances("JPY", opened, 0m, new ClosingBalance(closed, 0m)),
         });
     }
 
@@ -102,6 +106,7 @@ public class RevolutTests
         await Assert.That(statement.BalancesByCurrency).IsEquivalentTo(new[]
         {
             new CurrencyBalances("CHF", new DateOnly(2026, 10, 31), 1234.50m, new ClosingBalance(Nov(30), 1234.50m)),
+            new CurrencyBalances("USD", new DateOnly(2026, 10, 31), 0m, new ClosingBalance(Nov(30), 0m)),
         });
     }
 

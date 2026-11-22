@@ -662,6 +662,36 @@ public class MultiCurrencyImportTests : ApiTestBase
             .IsEquivalentTo([(OctoberStatement, 0)]);
     }
 
+    [Test]
+    public async Task A_revolut_custom_statement_checks_an_empty_currency_without_rows_that_already_has_an_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+        var url = $"/api/multi-currency-accounts/{group.Id}/imports";
+        await UploadAsync(anna, url, OctoberStatement, October().Build());
+        // Opens the EUR Account and leaves 40 EUR in it.
+        await UploadAsync(anna, url, NovemberStatement, November().Build());
+
+        // December says EUR was empty all month: whatever emptied it was never imported.
+        var res = await UploadAsync(anna, url, "custom-statement_2026-12-01_2026-12-31.pdf",
+            new RevolutCustomStatement("Dec 1, 2026 - Dec 31, 2026")
+                .Account("CHF", "890.00 CHF", "890.00 CHF")
+                .Account("EUR", "€0.00", "€0.00", zero: "€0.00")
+                .Account("USD", "$0.00", "$0.00", zero: "$0.00")
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.CreatedAccounts).IsEmpty();
+        await Assert.That(result.Warnings.Single()).Contains("31.12.2026").And.Contains("0.00 EUR").And.Contains("40.00 EUR");
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => (a.Currency, a.BalanceWarning)))
+            .IsEquivalentTo([
+                ("CHF", (BalanceWarning?)null),
+                ("EUR", new BalanceWarning(new DateOnly(2026, 12, 31), 0m, 40m)),
+            ]);
+    }
+
     // ---- helpers ----
 
     /// One CHF row and one row in EUR, a currency the Multi-currency account has no Account for yet.

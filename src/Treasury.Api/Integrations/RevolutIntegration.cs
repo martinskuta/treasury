@@ -8,7 +8,7 @@ namespace Treasury.Api.Integrations;
 /// - a row's currency is its account's; every row is imported; a non-zero fee becomes a second row
 /// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
 ///   gives: each row's running balance, each currency's closing balance and its Total row
-/// - the IBAN is the Account identifier; a balance per currency that has rows or holds money
+/// - the IBAN is the Account identifier; the balances of every Personal Account, also of one holding nothing
 /// - other sections (investments, savings, crypto) are not read; when one has entries, a note says so
 public sealed class RevolutIntegration : IIntegration
 {
@@ -48,9 +48,9 @@ public sealed class RevolutIntegration : IIntegration
             var table = pdf.Tables.Single(t => t.Currency == summary.Currency);
             Reconcile(summary, table);
             rows.AddRange(table.Rows.SelectMany(row => Rows(summary.Currency, row)));
-            if (table.Rows.Count > 0 || summary.Opening != 0 || summary.Closing != 0)
-                balances.Add(new CurrencyBalances(summary.Currency, pdf.PeriodStart.AddDays(-1), summary.Opening,
-                    new ClosingBalance(pdf.PeriodEnd, summary.Closing)));
+            // Also of a currency holding nothing: its Account, when it has one, is checked against the zero.
+            balances.Add(new CurrencyBalances(summary.Currency, pdf.PeriodStart.AddDays(-1), summary.Opening,
+                new ClosingBalance(pdf.PeriodEnd, summary.Closing)));
         }
 
         return new ParsedStatement(rows, ibans.SingleOrDefault(),
