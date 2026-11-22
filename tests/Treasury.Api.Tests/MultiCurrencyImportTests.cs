@@ -7,8 +7,8 @@ using Treasury.Api.Tests.Integrations;
 namespace Treasury.Api.Tests;
 
 /// #25: importing a Source file into a Multi-currency account (ADR-0009), by upload or from its Ingest folder.
-/// Uses the test multi-currency Integration, so the tests are about the pipeline and not about a format; the last
-/// two import synthetic Revolut Custom statement PDFs through the real revolut Integration (ADR-0010).
+/// Uses the test multi-currency Integrations, so the tests are about the pipeline and not about a format; the last
+/// ones import synthetic Revolut Custom statement PDFs through the real revolut Integration (#36, ADR-0010).
 public class MultiCurrencyImportTests : ApiTestBase
 {
     [Test]
@@ -556,6 +556,110 @@ public class MultiCurrencyImportTests : ApiTestBase
         await Assert.That(accounts.Select(a => (a.Currency, a.Balance, a.BalanceWarning)))
             .IsEquivalentTo([("CHF", 890m, (BalanceWarning?)null), ("EUR", 40m, null)]);
         await Assert.That(await SourceFilesAsync(anna, group.Id)).Count().IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_opens_accounts_for_the_currencies_holding_money()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        // The identifier is the statement's IBAN, written the way a Member would type it.
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2450m, openingDate: "2026-10-31",
+            integrationKey: "revolut", identifier: "LT12 1000 0111 0100 1000");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", NovemberStatement,
+            November()
+                .Account("USD", "$120.00", "$120.00", zero: "$0.00")
+                .Account("GBP", "£0.00", "£0.00", zero: "£0.00")
+                .Section("Investment Services Summaries", "Stocks Account (USD)", "Opening balance $1,500.00")
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(5);
+        await Assert.That(result.CreatedAccounts.Select(a => a.Name)).IsEquivalentTo(["Revolut EUR", "Revolut USD"]);
+        await Assert.That(result.Warnings).IsEquivalentTo([
+            "The statement has entries under \"Investment Services Summaries\", which Treasury doesn't read.",
+        ]);
+        var accounts = (await GetGroupAsync(anna, group.Id)).Accounts;
+        await Assert.That(accounts.Select(a => (a.Currency, a.OpeningBalance, a.OpeningDate, a.Balance, a.BalanceWarning)))
+            .IsEquivalentTo([
+                ("CHF", 2450m, new DateOnly(2026, 10, 31), 890m, (BalanceWarning?)null),
+                ("EUR", 0m, new DateOnly(2026, 10, 31), 40m, null),
+                ("USD", 120m, new DateOnly(2026, 10, 31), 120m, null),
+            ]);
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_with_another_iban_is_rejected()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut", identifier: "LT60 1010 0123 4567 8901");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", OctoberStatement,
+            October().Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"].Single()).Contains(RevolutCustomStatement.Iban)
+            .And.Contains("LT60 1010 0123 4567 8901");
+        await Assert.That(await ListAsync(anna)).IsEmpty();
+        await Assert.That(await SourceFilesAsync(anna, group.Id)).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_imported_again_or_overlapping_an_earlier_one_skips_what_is_imported()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+        var url = $"/api/multi-currency-accounts/{group.Id}/imports";
+        await UploadAsync(anna, url, OctoberStatement, October().Build());
+
+        var again = (await (await UploadAsync(anna, url, "october (copy).pdf", October().Build()))
+            .Content.ReadFromJsonAsync<ImportResult>())!;
+        // From the middle of October: its first row is October's second.
+        var overlapping = (await (await UploadAsync(anna, url, "custom-statement_2026-10-15_2026-11-20.pdf",
+            new RevolutCustomStatement("Oct 15, 2026 - Nov 20, 2026")
+                .Account("CHF", "2,470.00 CHF", "890.00 CHF", t => t
+                    .Row("Oct 20, 2026", "Padel Club", "Merchant", "-20.00 CHF", "2,450.00 CHF")
+                    .Row("Nov 3, 2026", "Top-up by card", "Others", "40.00 CHF", "2,490.00 CHF")
+                    .Row("Nov 5, 2026", "Bakery", "Merchant", "-100.00 CHF", "2,390.00 CHF")
+                    .Row("Nov 10, 2026", "To Jan Novak", "Others", "-1,500.00 CHF", "890.00 CHF")
+                    .Total("-1,580.00 CHF"))
+                .Build())).Content.ReadFromJsonAsync<ImportResult>())!;
+
+        await Assert.That((again.ImportedCount, again.SkippedCount)).IsEqualTo((0, 2));
+        await Assert.That((overlapping.ImportedCount, overlapping.SkippedCount)).IsEqualTo((3, 1));
+        await Assert.That(again.Warnings.Concat(overlapping.Warnings)).IsEmpty();
+        await Assert.That(await ListAsync(anna)).Count().IsEqualTo(5);
+        var francs = (await GetGroupAsync(anna, group.Id)).Accounts.Single();
+        await Assert.That((francs.Balance, francs.BalanceWarning)).IsEqualTo((890m, (BalanceWarning?)null));
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_without_any_transaction_imports_cleanly()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", OctoberStatement,
+            new RevolutCustomStatement("Oct 1, 2026 - Oct 31, 2026")
+                .Account("CHF", "2,500.00 CHF", "2,500.00 CHF")
+                .Account("EUR", "€0.00", "€0.00", zero: "€0.00")
+                .Account("USD", "$120.00", "$120.00", zero: "$0.00")
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(0);
+        await Assert.That(result.CreatedAccounts.Select(a => a.Name)).IsEquivalentTo(["Revolut USD"]);
+        await Assert.That(result.Warnings).IsEmpty();
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => (a.Currency, a.Balance, a.BalanceWarning)))
+            .IsEquivalentTo([("CHF", 2500m, (BalanceWarning?)null), ("USD", 120m, null)]);
+        await Assert.That((await SourceFilesAsync(anna, group.Id)).Select(f => (f.FileName, f.TransactionCount)))
+            .IsEquivalentTo([(OctoberStatement, 0)]);
     }
 
     // ---- helpers ----
