@@ -205,6 +205,10 @@ Multi-currency account. Revolut's CSV account statement is not supported.
   value is taken out into a second Transaction on the same date and in the same currency: minus the fee, described
   as `Fee: <description>`, with counterparty `Revolut`. The first Transaction is Money in/out without the fee, so
   the two add up to Money in/out (a withdrawal of -107.14 with a fee of 1.41 becomes -105.73 and -1.41).
+- A fee gets the Tag `fee`, put there by the import: the `Fee: <description>` Transaction taken out of a row, and a
+  row whose Revolut Category is `Fees` (such as a card delivery fee). Nothing else is tagged. The Tag is found by
+  name, ignoring case, and created when it doesn't exist yet (a plain Tag: no date range, no Owner limit). Removing
+  it from a Transaction by hand sticks; undoing the import keeps the Tag itself.
 - The file is one Source file. Rules, date-range Tags and the balance check work per Account as usual: each
   currency's closing balance, on the last day of the period, is compared with its Account's calculated balance,
   also for a currency with no rows in the period, and also when that balance is zero. An exchange between two of

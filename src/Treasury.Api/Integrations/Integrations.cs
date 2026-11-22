@@ -97,7 +97,12 @@ public sealed record StatementRow(
     string? Counterparty = null,
     string? Reference = null,
     decimal? OriginalAmount = null,
-    string? OriginalCurrency = null);
+    string? OriginalCurrency = null)
+{
+    /// Names of the Tags the Integration suggests for the row's Transaction (e.g. "fee" on a fee the bank
+    /// charges); the import finds each Tag by name, or creates it, and puts it on the Transaction.
+    public IReadOnlyList<string> SuggestedTags { get; init; } = [];
+}
 
 /// The balance a statement reports at the end of <paramref name="Date"/>.
 public sealed record ClosingBalance(DateOnly Date, decimal Amount);

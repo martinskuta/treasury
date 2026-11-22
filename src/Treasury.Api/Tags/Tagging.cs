@@ -10,6 +10,8 @@ namespace Treasury.Api.Tags;
 ///   (whatever the source) and records a <see cref="TransactionTagRemoval"/>, so no automatic source adds it again.
 /// - date range: DateRange links follow the Tag's range and Owner limit, except where a removal exists.
 /// - Rules (#15): add Rule links with <see cref="AddAutomaticallyAsync"/>, which skips removed Tags.
+/// - imports: the Tags an Integration suggests for a row get Integration links on the new Transaction, once, when it
+///   is imported (<see cref="SuggestedTagsImportStep"/>).
 /// All methods change tracked entities only; the caller saves. They read the database, so save earlier changes
 /// that they depend on (e.g. a removal made in the same request) first.
 public static class Tagging

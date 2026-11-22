@@ -477,7 +477,7 @@ export const removeCategory = (id: string, transactions: RemovedCategoryTransact
 // ---- Tags ----
 
 /** Why a Tag is on a Transaction: added by hand, by the Tag's date range, or by a Rule. */
-export type TagSource = 'manual' | 'dateRange' | 'rule'
+export type TagSource = 'manual' | 'dateRange' | 'rule' | 'integration'
 
 /** A Tag as Transactions carry it. */
 export type TagRef = { id: string; name: string; sources: TagSource[] }

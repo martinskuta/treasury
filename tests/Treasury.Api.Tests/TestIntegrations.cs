@@ -12,6 +12,7 @@ namespace Treasury.Api.Tests;
 /// # note: The statement has entries under "Savings".   (optional, any number: something the file held that wasn't read)
 /// 2026-11-18;-12.50;CHF;Coffee shop                         date;amount;currency;description
 /// 2026-11-19;-46.20;CHF;Trattoria;Trattoria Roma;R-1;-48.00;EUR   ...;counterparty;reference;original amount;original currency
+/// 2026-11-20;-1.50;CHF;Fee: Cash;;;;;fee,bank                ...;names of the Tags suggested for the row, ','-separated
 /// </code>
 /// Optional trailing fields may be empty or left out; blank lines are ignored; an empty currency means "the
 /// Account's". Anything else is a format error naming the line. Build files with <see cref="TestStatement"/>.
@@ -65,7 +66,7 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
             }
 
             var f = line.Split(';');
-            if (f.Length is < 4 or > 8) throw new StatementFormatException($"{at}: expected 4 to 8 ';'-separated fields.");
+            if (f.Length is < 4 or > 9) throw new StatementFormatException($"{at}: expected 4 to 9 ';'-separated fields.");
             string? Opt(int index) => index < f.Length && f[index].Trim().Length > 0 ? f[index].Trim() : null;
             rows.Add(new StatementRow(
                 ParseDate(f[0], at),
@@ -75,7 +76,10 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
                 Opt(4),
                 Opt(5),
                 Opt(6) is { } original ? ParseAmount(original, at) : null,
-                Opt(7)));
+                Opt(7))
+            {
+                SuggestedTags = Opt(8)?.Split(',') ?? [],
+            });
         }
         return new ParsedStatement(rows, identifier, closing, balances, notes);
     }
@@ -133,9 +137,10 @@ public sealed class TestStatement
 
     public TestStatement Row(string date, decimal amount, string description, string? currency = "CHF",
         string? counterparty = null, string? reference = null, decimal? originalAmount = null,
-        string? originalCurrency = null) =>
+        string? originalCurrency = null, string[]? suggestedTags = null) =>
         Line(string.Join(';', date, amount.ToString(CultureInfo.InvariantCulture), currency, description, counterparty,
-            reference, originalAmount?.ToString(CultureInfo.InvariantCulture), originalCurrency));
+            reference, originalAmount?.ToString(CultureInfo.InvariantCulture), originalCurrency,
+            string.Join(',', suggestedTags ?? [])));
 
     public TestStatement Line(string line) { _lines.Add(line); return this; }
 

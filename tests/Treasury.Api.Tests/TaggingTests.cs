@@ -186,6 +186,80 @@ public class TaggingTests : ApiTestBase
     }
 
     [Test]
+    public async Task An_import_puts_the_tags_its_integration_suggests_on_those_transactions_and_creates_a_missing_tag()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var card = await CreateAccountAsync(anna, "Card", await MeAsync(anna));
+
+        await UploadOkAsync(anna, card.Id, "november.txt", new TestStatement()
+            .Row("2026-11-06", -200m, "Cash at Bahnhofstrasse")
+            .Row("2026-11-06", -3.50m, "Fee: Cash at Bahnhofstrasse", suggestedTags: ["fee"])
+            .Row("2026-11-07", -7m, "Card Delivery Fee", suggestedTags: ["fee"]));
+
+        // A plain Tag: no date range, no Owner limit.
+        var fee = (await TagsAsync(anna)).Single();
+        await Assert.That((fee.Name, fee.DateFrom, fee.DateTo, fee.Owners.Length)).IsEqualTo(("fee", null, null, 0));
+        var list = await ListAsync(anna);
+        await Assert.That(list.Single(t => t.Description == "Cash at Bahnhofstrasse").Tags).IsEmpty();
+        await Assert.That((await ListAsync(anna, fee.Id)).Select(t => t.Description))
+            .IsEquivalentTo(["Fee: Cash at Bahnhofstrasse", "Card Delivery Fee"]);
+        var charged = list.Single(t => t.Description == "Card Delivery Fee");
+        await Assert.That(charged.Tags.Single().Sources).IsEquivalentTo(["integration"]);
+        await Assert.That(charged.ManuallySet).DoesNotContain("tags");
+    }
+
+    [Test]
+    public async Task An_import_reuses_the_tag_with_the_suggested_name_and_leaves_its_other_sources_alone()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var card = await CreateAccountAsync(anna, "Card", await MeAsync(anna));
+        // The same name the way creating a Tag by hand compares names: ignoring case.
+        var fee = await CreateTagAsync(anna, new { name = "Fee", dateFrom = "2026-11-01", dateTo = "2026-11-06" });
+
+        await UploadOkAsync(anna, card.Id, "november.txt", new TestStatement()
+            .Row("2026-11-06", -3.50m, "Fee: Cash at Bahnhofstrasse", suggestedTags: ["fee"])
+            .Row("2026-11-07", -7m, "Card Delivery Fee", suggestedTags: ["fee"])
+            .Row("2026-11-08", -30m, "Bookshop"));
+
+        await Assert.That((await TagsAsync(anna)).Select(t => (t.Id, t.Name))).IsEquivalentTo([(fee.Id, "Fee")]);
+        var list = await ListAsync(anna);
+        await Assert.That(list.Single(t => t.Description == "Fee: Cash at Bahnhofstrasse").Tags.Single().Sources)
+            .IsEquivalentTo(["dateRange", "integration"]);
+        await Assert.That(list.Single(t => t.Description == "Card Delivery Fee").Tags.Single().Sources)
+            .IsEquivalentTo(["integration"]);
+        await Assert.That(list.Single(t => t.Description == "Bookshop").Tags).IsEmpty();
+
+        // The date range withdraws only its own link.
+        await PutTagOkAsync(anna, fee.Id, new { name = "Fee" });
+        await Assert.That((await ListAsync(anna, fee.Id)).Select(t => t.Description))
+            .IsEquivalentTo(["Fee: Cash at Bahnhofstrasse", "Card Delivery Fee"]);
+    }
+
+    [Test]
+    public async Task Removing_a_tag_an_import_applied_sticks_and_rows_skipped_as_duplicates_get_no_tag()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var card = await CreateAccountAsync(anna, "Card", await MeAsync(anna));
+        var statement = new TestStatement().Row("2026-11-07", -7m, "Card Delivery Fee", suggestedTags: ["fee"]);
+        await UploadOkAsync(anna, card.Id, "november.txt", statement);
+        var fee = (await TagsAsync(anna)).Single();
+        var charged = (await ListAsync(anna)).Single();
+
+        var removed = await PatchOkAsync(anna, charged.Id, new { removeTagIds = new[] { fee.Id } });
+        await Assert.That(removed.Tags).IsEmpty();
+        await Assert.That(removed.ManuallySet).Contains("tags");
+
+        // Importing the statement again skips the row: no second Transaction, and the Tag stays off.
+        await UploadOkAsync(anna, card.Id, "november (copy).txt", statement);
+        await Assert.That((await ListAsync(anna)).Select(t => (t.Id, t.Tags.Count))).IsEquivalentTo([(charged.Id, 0)]);
+        await Assert.That((await TagsAsync(anna)).Select(t => t.Id)).IsEquivalentTo([fee.Id]);
+
+        // Adding it back by hand works.
+        var readded = await PatchOkAsync(anna, charged.Id, new { addTagIds = new[] { fee.Id } });
+        await Assert.That(readded.Tags.Single().Sources).IsEquivalentTo(["manual"]);
+    }
+
+    [Test]
     public async Task Tags_can_be_given_when_adding_a_transaction_and_unknown_tags_are_rejected()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
@@ -264,6 +338,11 @@ public class TaggingTests : ApiTestBase
             throw new InvalidOperationException($"Update tag failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
         return (await res.Content.ReadFromJsonAsync<Tag>())!;
     }
+
+    private static async Task<List<TagDetails>> TagsAsync(HttpClient client) =>
+        (await client.GetFromJsonAsync<List<TagDetails>>("/api/tags"))!;
+
+    private record TagDetails(Guid Id, string Name, DateOnly? DateFrom, DateOnly? DateTo, OwnerDto[] Owners);
 
     private static async Task<string[]> TagNamesAsync(HttpClient client, Guid transactionId) =>
         (await GetAsync(client, transactionId)).Tags.Select(t => t.Name).ToArray();
