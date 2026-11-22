@@ -97,7 +97,13 @@ public static class TestIntegrations
     public static readonly TestIntegration MultiCurrency = new("test-multi", "Test multi-currency bank",
         canProvideIdentifier: false, holdsSeveralCurrencies: true);
 
-    public static IReadOnlyList<TestIntegration> All => [WithIdentifier, WithoutIdentifier, MultiCurrency];
+    /// Holds several currencies and its format carries an identifier, so a Multi-currency account using it may have
+    /// one.
+    public static readonly TestIntegration MultiCurrencyWithIdentifier = new("test-multi-id",
+        "Test multi-currency bank with identifier", canProvideIdentifier: true, holdsSeveralCurrencies: true);
+
+    public static IReadOnlyList<TestIntegration> All =>
+        [WithIdentifier, WithoutIdentifier, MultiCurrency, MultiCurrencyWithIdentifier];
 }
 
 /// Builds Source file content in the test Integrations' format.
