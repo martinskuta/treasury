@@ -27,7 +27,13 @@ export const SORTS: { value: TransactionSort; label: string }[] = [
 ]
 
 /** URL query keys of the filters (sort and page are kept apart: changing a filter goes back to page 1). */
-export const FILTER_KEYS = ['q', 'account', 'owner', 'category', 'tag', 'from', 'to'] as const
+export const FILTER_KEYS = ['q', 'account', 'owner', 'category', 'tag', 'paidBack', 'from', 'to'] as const
+
+/** ?paidBack=open: only Transactions on another Owner's Account that are not (fully) paid back yet. */
+export const NOT_PAID_BACK = 'open'
+
+/** The Transactions list showing what is not paid back yet (the Dashboard's Amounts owed links here). */
+export const NOT_PAID_BACK_HREF = `/transactions?paidBack=${NOT_PAID_BACK}`
 
 /** The 1-based page number in the URL (?page=). */
 export const pageFromParams = (params: URLSearchParams) =>
@@ -35,7 +41,7 @@ export const pageFromParams = (params: URLSearchParams) =>
 
 /**
  * The list request for the URL's query string: ?q=&account=&owner=family|<memberId>&category=<id>|uncategorised
- * &tag=&from=&to=&sort=&page=. Filters live in the URL so Back works and a filtered list can be bookmarked or shared.
+ * &tag=&paidBack=open&from=&to=&sort=&page=. Filters live in the URL so Back works and a filtered list can be bookmarked or shared.
  */
 export function filterFromParams(params: URLSearchParams): TransactionFilter {
   const get = (key: string) => params.get(key) || undefined
@@ -48,6 +54,7 @@ export function filterFromParams(params: URLSearchParams): TransactionFilter {
     categoryId: category === 'uncategorised' ? undefined : category,
     uncategorised: category === 'uncategorised' || undefined,
     tagId: get('tag'),
+    notPaidBack: get('paidBack') === NOT_PAID_BACK || undefined,
     from: get('from'),
     to: get('to'),
     sort,
@@ -83,9 +90,15 @@ export function groupByDay<T extends { date: string }>(items: T[]): { date: stri
 
 export type TransactionKind = 'income' | 'expense' | 'transfer' | 'uncategorised'
 
-/** Uncategorised wins over Income / Expense: it is what needs attention. A Transfer never has a Category. */
+/** A Transfer or Reimbursement: neither Income nor Expense, never has a Category. */
+export const isNeutral = (t: Transaction) => t.type === 'transfer' || t.type === 'reimbursement'
+
+/**
+ * Uncategorised wins over Income / Expense: it is what needs attention. A Reimbursement is drawn like a Transfer
+ * (teal, neutral movement).
+ */
 export const kindOf = (t: Transaction): TransactionKind =>
-  t.type === 'transfer' ? 'transfer' : t.category === null ? 'uncategorised' : t.type
+  t.type === 'transfer' || t.type === 'reimbursement' ? 'transfer' : t.category === null ? 'uncategorised' : t.type
 
 /** Row class carrying the kind's colours (icon tint, amount colour; styles/transactions.css). */
 export const kindClass = (t: Transaction) => `tx-${kindOf(t)}`

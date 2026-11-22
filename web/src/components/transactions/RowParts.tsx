@@ -19,11 +19,13 @@ const KIND_LABELS: Record<TransactionKind, string> = {
   uncategorised: 'Uncategorised Transaction',
 }
 
+const kindLabel = (t: Transaction) => (t.type === 'reimbursement' ? 'Reimbursement' : KIND_LABELS[kindOf(t)])
+
 /** The first letter of the shown name on a round icon tinted by kind (the kind is also named for screen readers). */
 export function KindIcon({ transaction: t }: { transaction: Transaction }) {
   const name = (t.displayName ?? t.description).trim()
   return (
-    <span className="tx-icon" role="img" aria-label={KIND_LABELS[kindOf(t)]} title={KIND_LABELS[kindOf(t)]}>
+    <span className="tx-icon" role="img" aria-label={kindLabel(t)} title={kindLabel(t)}>
       {name.charAt(0).toUpperCase() || '·'}
     </span>
   )

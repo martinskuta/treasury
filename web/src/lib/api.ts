@@ -240,7 +240,7 @@ export type Transaction = {
   currency: Currency
   /** The amount in CHF at the rate of its date (= amount for CHF); null until a rate is available. */
   chfAmount: number | null
-  /** A Transfer (a leg of money moved between one Owner's Accounts) is neither Income nor Expense. */
+  /** A Transfer (money moved between one Owner's Accounts) or Reimbursement (one Owner paying another back) is neither Income nor Expense. */
   type: TransactionType
   /** The original description (as entered, or as the bank wrote it); never replaced by the Display name. */
   description: string
@@ -260,18 +260,29 @@ export type Transaction = {
   /** The Tags on this Transaction, by name, each with the sources that put it there. */
   tags: TagRef[]
   /** Classification fields a Member set by hand (Rules leave them alone). */
-  manuallySet: ('owner' | 'category' | 'tags' | 'displayName')[]
+  manuallySet: ('owner' | 'category' | 'tags' | 'displayName' | 'linkKind')[]
   /** The Source file an imported Transaction came from. */
   sourceFile: { id: string; fileName: string } | null
-  /** The other leg of a Transfer or Contribution; it may sit in an Account the viewer can't see. */
+  /** The other leg of a Transfer, Contribution or Reimbursement; it may sit in an Account the viewer can't see. */
   link: TransactionLink | null
+  /**
+   * For a Transaction on another Owner's Account: how far it is paid back (Amount owed). null for any other
+   * Transaction, one before the Family's start date, or one without a CHF rate yet.
+   */
+  paidBack: PaidBack | null
 }
 
-export type TransactionType = 'income' | 'expense' | 'transfer'
+export type TransactionType = 'income' | 'expense' | 'transfer' | 'reimbursement'
+
+/** `outstanding` = the CHF amount still open. */
+export type PaidBack = { status: 'paidBack' | 'partlyPaidBack' | 'outstanding'; outstanding: number }
+
+/** The kinds a pair with different Owners can be switched between. */
+export type SwitchableLinkKind = 'contribution' | 'reimbursement'
 
 /** The other leg; accountName is null (accountHidden) when it sits in an Account the viewer can't see. */
 export type TransactionLink = {
-  kind: 'transfer' | 'contribution'
+  kind: 'transfer' | SwitchableLinkKind
   transactionId: string
   accountName: string | null
   accountHidden: boolean
@@ -322,6 +333,8 @@ export type TransactionFilter = {
   /** Only Uncategorised Income and Expense. */
   uncategorised?: boolean
   tagId?: string
+  /** Only Transactions on another Owner's Account that are outstanding or partly paid back. */
+  notPaidBack?: boolean
   /** Inclusive ISO dates. */
   from?: string
   to?: string
@@ -389,13 +402,43 @@ export const updateTransaction = (id: string, changes: TransactionChanges) =>
 
 export const deleteTransaction = (id: string) => apiFetch<void>(`/api/transactions/${id}`, { method: 'DELETE' })
 
-/** Links two Transactions as a pair: a Transfer (same Owner) or a Contribution (different Owners). */
+/**
+ * Links two Transactions as a pair: a Transfer (same Owner); with different Owners a Reimbursement (the Family pays
+ * a Member) or a Contribution.
+ */
 export const linkTransactions = (id: string, otherId: string) =>
   apiFetch<Transaction>(`/api/transactions/${id}/link`, { method: 'POST', body: { transactionId: otherId } })
 
 /** Breaks a pair: both legs become Income or Expense again. */
 export const unlinkTransaction = (id: string) =>
   apiFetch<Transaction>(`/api/transactions/${id}/link`, { method: 'DELETE' })
+
+/** Makes a pair with different Owners a Contribution or a Reimbursement; the choice sticks. */
+export const switchLinkKind = (id: string, kind: SwitchableLinkKind) =>
+  apiFetch<Transaction>(`/api/transactions/${id}/link/kind`, { method: 'PUT', body: { kind } })
+
+// ---- Amounts owed ----
+
+/** `debtor` owes `creditor` `amount` CHF (0 = even). `pendingConversion` = Transactions between them without a CHF rate yet. */
+export type AmountOwed = { debtor: Owner; creditor: Owner; amount: number; pendingConversion: number }
+
+/**
+ * What Owners owe each other, as far as the Member may see: every pair with the Family, and pairs of two Members
+ * only when the Member is one of them. `startDate` = the Family's start date (null = every Transaction counts).
+ */
+export type AmountsOwed = { currency: 'CHF'; startDate: string | null; amounts: AmountOwed[] }
+
+export const getAmountsOwed = (signal?: AbortSignal) => apiFetch<AmountsOwed>('/api/amounts-owed', { signal })
+
+// ---- Family settings ----
+
+/** `amountOwedStartDate`: only Transactions from this ISO date on count towards Amounts owed; null = all. */
+export type FamilySettings = { amountOwedStartDate: string | null }
+
+export const getFamilySettings = (signal?: AbortSignal) => apiFetch<FamilySettings>('/api/settings', { signal })
+
+export const saveFamilySettings = (settings: FamilySettings) =>
+  apiFetch<FamilySettings>('/api/settings', { method: 'PUT', body: settings })
 
 // ---- Imports and Source files ----
 

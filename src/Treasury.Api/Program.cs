@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Treasury.Api;
 using Treasury.Api.Accounts;
+using Treasury.Api.AmountsOwed;
 using Treasury.Api.Auth;
 using Treasury.Api.Categories;
 using Treasury.Api.Data;
@@ -11,6 +12,7 @@ using Treasury.Api.Ownership;
 using Treasury.Api.Members;
 using Treasury.Api.Reports;
 using Treasury.Api.Rules;
+using Treasury.Api.Settings;
 using Treasury.Api.Storage;
 using Treasury.Api.Tags;
 using Treasury.Api.Transactions;
@@ -62,6 +64,8 @@ api.MapOwners();
 api.MapMembers();
 api.MapCategories();
 api.MapReports();
+api.MapAmountsOwed();
+api.MapFamilySettings();
 api.MapTags();
 api.MapRules();
 api.MapFallback(() => Results.NotFound()).AllowAnonymous(); // unknown /api/* must never fall through to the SPA

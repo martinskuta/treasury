@@ -13,7 +13,7 @@
     'welcome welcome welcome'
     'accounts import uncat'
     'trend trend trend'
-    'tag tag tag';
+    'tag tag owed';
 }
 
 .dash-bento > .ui-component {
@@ -26,6 +26,7 @@
 .a-trend { grid-area: trend; }
 .a-tag { grid-area: tag; }
 .a-uncat { grid-area: uncat; }
+.a-owed { grid-area: owed; }
 
 /* ---- Shared bits inside the Dashboard's UI components ---- */
 .dash-note {
@@ -249,6 +250,34 @@
   color: var(--muted);
 }
 
+/* ---- Amounts owed ---- */
+.dash-owed {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dash-owed li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dash-owed-text {
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.dash-owed + .dash-note {
+  margin-top: 14px;
+}
+
 /* ---- Last 6 months ---- */
 .dash-trend {
   padding: 22px 26px 16px;
@@ -342,7 +371,8 @@
       'welcome welcome'
       'trend trend'
       'accounts import'
-      'uncat tag';
+      'uncat owed'
+      'tag tag';
   }
 }
 
@@ -350,7 +380,7 @@
 @media (max-width: 700px) {
   .dash-bento {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'welcome' 'uncat' 'trend' 'import' 'accounts' 'tag';
+    grid-template-areas: 'welcome' 'uncat' 'trend' 'owed' 'import' 'accounts' 'tag';
   }
 
   .dash-bento > .ui-component {

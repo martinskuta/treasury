@@ -33,15 +33,15 @@ The Member, or the Family as a whole, that an Account or Transaction belongs to.
 _Avoid_: Payer, holder, assignee
 
 **Transaction**:
-A single movement of money recorded in Treasury: an Income, an Expense or a Transfer.
+A single movement of money recorded in Treasury: an Income, an Expense, a Transfer or one side of a Reimbursement.
 _Avoid_: Entry, record, movement, booking
 
 **Income**:
-A Transaction that brings money to an Owner from outside that Owner, including money another Member or the Family sends them.
+A Transaction that brings money to an Owner from outside that Owner, including money another Member or the Family sends them, unless it is a Reimbursement.
 _Avoid_: Revenue, earning, credit
 
 **Expense**:
-A Transaction that sends money away from an Owner, including money they send to another Member or to the Family.
+A Transaction that sends money away from an Owner, including money they send to another Member or to the Family, unless it is a Reimbursement.
 _Avoid_: Spending, cost, payment, debit
 
 **Transfer**:
@@ -51,6 +51,14 @@ _Avoid_: Internal payment, move
 **Contribution**:
 A matched pair of Transactions in which one Owner sends money to another (for example a Member paying into a Family Account): an Expense for the sender and an Income for the receiver.
 _Avoid_: Transfer (for money between different Owners), allowance, deposit
+
+**Reimbursement**:
+A matched pair of Transactions in which one Owner pays another back for Expenses the other paid from their own Account on the first Owner's behalf (for example the Family paying a Member back for groceries bought with the Member's card). It is neither Income nor Expense for either Owner: the Expenses it pays back are already counted, for the Owner they were made for, on the day they were made.
+_Avoid_: Payback, refund, settlement, Contribution (for money that only pays someone back)
+
+**Amount owed**:
+What one Owner owes another, in CHF, because Transactions that belong to the one were made on an Account of the other: an Expense paid on the other's Account raises it, an Income received there lowers it, and a Reimbursement pays it down, oldest Transactions first. Whatever a Reimbursement leaves over, in either direction, stays owed.
+_Avoid_: Debt, IOU, balance (alone), outstanding
 
 **Display name**:
 The friendly, editable name shown for a Transaction in place of the bank's original description, which is kept unchanged.

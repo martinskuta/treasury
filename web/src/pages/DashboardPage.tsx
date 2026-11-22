@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router'
 import {
   Accounts,
+  AmountsOwed,
   LastSixMonths,
   LastImport,
   LatestTag,
@@ -10,6 +11,7 @@ import {
 } from '../components/dashboard/DashboardComponents'
 import { useLoad, type Load } from '../components/dashboard/useLoad'
 import {
+  getAmountsOwed,
   getRecentMonthsReport,
   getTagReport,
   listAccounts,
@@ -26,6 +28,7 @@ import {
   latestTag,
   monthAndYear,
   monthName,
+  owedRows,
 } from '../lib/dashboard'
 import { reportOwnerFromParams } from '../lib/reportParams'
 import '../styles/dashboard.css'
@@ -55,6 +58,9 @@ export function DashboardPage() {
 
   const uncategorised = useLoad(`uncategorised|${owner}`, signal => listUncategorised(signal, owner))
   const uncategorisedCount = mapLoad(uncategorised, items => items.length)
+
+  const amountsOwed = useLoad('amounts-owed', getAmountsOwed)
+  const owed = mapLoad(amountsOwed, a => ({ rows: owedRows(a.amounts, owner, me), startDate: a.startDate }))
 
   const tags = useLoad('tags', listTags)
   const tag = tags.status === 'ready' ? latestTag(tags.data, isoDate(today)) : null
@@ -91,6 +97,7 @@ export function DashboardPage() {
       <Uncategorised count={uncategorisedCount} owner={owner} />
       <LastSixMonths report={recent} />
       <LatestTag tag={latest} />
+      <AmountsOwed owed={owed} />
     </div>
   )
 }

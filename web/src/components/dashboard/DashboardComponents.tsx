@@ -14,6 +14,7 @@ import {
   type AccountEntry,
   type AccountsSummary,
   type LastImportRow,
+  type OwedRow,
   type Slice,
 } from '../../lib/dashboard'
 import { formatAmount, formatDate } from '../../lib/format'
@@ -29,6 +30,7 @@ import {
   type LegendItem,
 } from '../charts'
 import { Frankie } from '../frankie/Frankie'
+import { NOT_PAID_BACK_HREF } from '../transactions/shared'
 import { ReportOwnerToggle } from '../ReportViews'
 import { UiComponent } from '../UiComponent'
 import type { Load } from './useLoad'
@@ -241,6 +243,50 @@ function LastImportItem({ row }: { row: LastImportRow }) {
         )}
       </div>
     </li>
+  )
+}
+
+// ---- Amounts owed ----
+
+/** What Owners owe each other for Transactions made on each other's Accounts, after Reimbursements. */
+export function AmountsOwed({ owed }: { owed: Load<{ rows: OwedRow[]; startDate: string | null }> }) {
+  const rows = owed.status === 'ready' ? owed.data.rows : []
+  const pending = rows.reduce((s, r) => s + r.pending, 0)
+  return (
+    <UiComponent
+      title="Amounts owed"
+      actions={
+        rows.some(r => r.amount !== 0) && (
+          <Link className="button-link" to={NOT_PAID_BACK_HREF}>
+            Not yet paid back
+          </Link>
+        )
+      }
+      className="a-owed"
+    >
+      <NotReady load={owed} what="the Amounts owed" />
+      {owed.status === 'ready' &&
+        (rows.length === 0 ? (
+          <Empty>Nothing is owed. What someone pays for the Family from their own Account shows here.</Empty>
+        ) : (
+          <ul className="dash-owed">
+            {rows.map(row => (
+              <li key={row.key}>
+                <span className="dash-owed-text">{row.text}</span>
+                {row.amount !== 0 && <Amount value={row.amount} size="s" />}
+              </li>
+            ))}
+          </ul>
+        ))}
+      {pending > 0 && (
+        <p className="dash-note">
+          {pending} {pending === 1 ? 'amount waits' : 'amounts wait'} for an exchange rate.
+        </p>
+      )}
+      {owed.status === 'ready' && owed.data.startDate && rows.length > 0 && (
+        <p className="dash-note">Counting from {formatDate(owed.data.startDate)}.</p>
+      )}
+    </UiComponent>
   )
 }
 

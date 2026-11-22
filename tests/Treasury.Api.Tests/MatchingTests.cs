@@ -5,7 +5,7 @@ using System.Text;
 
 namespace Treasury.Api.Tests;
 
-/// Transfers and Contributions: pairs of Transactions on two of the Family's Accounts (GLOSSARY).
+/// Transfers and Contributions (Reimbursements: ReimbursementTests): pairs of Transactions on two of the Family's Accounts (GLOSSARY).
 public class MatchingTests : ApiTestBase
 {
     [Test]
@@ -94,14 +94,18 @@ public class MatchingTests : ApiTestBase
     }
 
     [Test]
-    public async Task Money_from_the_family_to_a_member_is_a_contribution_from_the_family()
+    public async Task Money_from_the_family_to_a_member_made_a_contribution_gets_the_from_family_categories()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var personal = await CreateAccountAsync(anna, "Anna's account", await MeAsync(anna));
         var household = await CreateAccountAsync(anna, "Household", Family);
 
         await AddAsync(anna, household.Id, -200m, "2026-11-10", "POCKET MONEY ANNA");
-        await AddAsync(anna, personal.Id, 200m, "2026-11-10", "FROM HOUSEHOLD");
+        var received = await AddAsync(anna, personal.Id, 200m, "2026-11-10", "FROM HOUSEHOLD");
+        // The Family paying a Member is a Reimbursement by default (ReimbursementTests); a Member makes it a Contribution.
+        await Assert.That(received.Link!.Kind).IsEqualTo("reimbursement");
+        var switched = await anna.PutAsJsonAsync($"/api/transactions/{received.Id}/link/kind", new { kind = "contribution" });
+        await Assert.That(switched.StatusCode).IsEqualTo(HttpStatusCode.OK);
 
         var list = await ListAsync(anna);
         await Assert.That(list.Single(t => t.Amount < 0).Category!.Path).IsEqualTo("Contributions › To Members");

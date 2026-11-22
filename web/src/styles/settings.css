@@ -376,3 +376,28 @@
     padding: 14px;
   }
 }
+
+/* ---- Family settings: Amounts owed start date (components/AmountOwedStartDate) ---- */
+.owed-start {
+  max-width: 560px;
+}
+
+.owed-start-intro {
+  margin: 0 0 14px;
+}
+
+.owed-start-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.owed-start-form .field {
+  flex: 1 1 200px;
+  margin-bottom: 0;
+}
+
+.owed-start-form .form-actions {
+  margin-top: 0;
+}

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Treasury.Api.AmountsOwed;
 using Treasury.Api.Categories;
 using Treasury.Api.Data;
+using Treasury.Api.ExchangeRates;
 using Treasury.Api.Ownership;
 
 namespace Treasury.Api.Transactions;
@@ -12,6 +14,7 @@ namespace Treasury.Api.Transactions;
 /// <param name="CategoryId">This Category or any of its subcategories.</param>
 /// <param name="Uncategorised">true: only Uncategorised Income and Expense (no Transfers). Not together with CategoryId.</param>
 /// <param name="TagId">Transactions carrying this Tag (any source).</param>
+/// <param name="NotPaidBack">true: only Transactions made on another Owner's Account that are outstanding or partly paid back (GLOSSARY: Amount owed).</param>
 /// <param name="From">First date, inclusive.</param>
 /// <param name="To">Last date, inclusive.</param>
 /// <param name="Q">Text, case-insensitive, found anywhere in the description, Display name, counterparty, reference or note.</param>
@@ -19,7 +22,7 @@ namespace Treasury.Api.Transactions;
 /// <param name="Offset">Rows to skip (paging), default 0.</param>
 /// <param name="Limit">Page size, default <see cref="TransactionList.DefaultLimit"/>, at most <see cref="TransactionList.MaxLimit"/>.</param>
 public record TransactionListRequest(Guid? AccountId, string? Owner, Guid? CategoryId, bool? Uncategorised, Guid? TagId,
-    DateOnly? From, DateOnly? To, string? Q, string? Sort, int? Offset, int? Limit);
+    bool? NotPaidBack, DateOnly? From, DateOnly? To, string? Q, string? Sort, int? Offset, int? Limit);
 
 public static class TransactionList
 {
@@ -33,7 +36,7 @@ public static class TransactionList
 
     /// The filtered (not yet sorted or paged) query, or validation errors keyed by query parameter.
     public static async Task<(IQueryable<Transaction>? Query, Dictionary<string, string[]> Errors)> FilterAsync(
-        TreasuryDbContext db, Guid viewerId, TransactionListRequest request)
+        TreasuryDbContext db, ChfConverter chf, Guid viewerId, TransactionListRequest request)
     {
         var errors = new Dictionary<string, string[]>();
         var query = db.Transactions.VisibleTo(viewerId);
@@ -57,6 +60,13 @@ public static class TransactionList
         else if (request.Uncategorised == true) query = query.Uncategorised();
 
         if (request.TagId is { } tagId) query = query.TaggedWith(tagId);
+
+        if (request.NotPaidBack == true)
+        {
+            // The status is worked out in memory (oldest first, ADR 0011), so the filter goes by id.
+            var open = (await AmountOwedLedger.LoadAsync(db, chf)).NotPaidBackIds();
+            query = query.Where(t => open.Contains(t.Id));
+        }
 
         if (request.From is { } from) query = query.Where(t => t.Date >= from);
         if (request.To is { } to) query = query.Where(t => t.Date <= to);

@@ -10,8 +10,9 @@ namespace Treasury.Api.Matching;
 /// - a candidate has the opposite sign, sits on a different Account and is dated at most 3 days apart;
 /// - same currency: the amounts are equal; across currencies: the CHF values are within 2% and the dates at most
 ///   1 day apart (no CHF rate yet = no match);
-/// - same Owner on both legs = Transfer (no Category); different Owners = Contribution (built-in Contribution
-///   Categories, unless a Member set a Category by hand);
+/// - same Owner on both legs = Transfer (no Category); different Owners = a Reimbursement (no Category) when the
+///   Family pays a Member, otherwise a Contribution (built-in Contribution Categories, unless a Member set a
+///   Category by hand). A Member can switch a pair between the two (<see cref="SwitchKindAsync"/>, ADR 0011);
 /// - a pair is linked only when each leg is the other's ONLY candidate; anything ambiguous stays unmatched.
 /// Works on tracked entities of the scoped DbContext; callers save.
 public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
@@ -44,8 +45,9 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
             if (CandidatesFor(other, pool, rates).Count != 1) continue;
 
             var kind = KindOf(transaction, other);
-            // A Category set by hand says "this is Income/Expense": don't silently turn it into a Transfer.
-            if (kind == LinkKind.Transfer && (HasManualCategory(transaction) || HasManualCategory(other))) continue;
+            // A Category set by hand says "this is Income/Expense": don't silently turn it into a Transfer or a
+            // Reimbursement, which have none.
+            if (kind != LinkKind.Contribution && (HasManualCategory(transaction) || HasManualCategory(other))) continue;
 
             tree ??= await CategoryTree.LoadAsync(db);
             Link(transaction, other, kind, tree);
@@ -53,7 +55,8 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
     }
 
     /// Links two Transactions a Member chose. Returns an error message (for the `transactionId` field) when they
-    /// can't form a pair. Transfers lose their Category; Contributions get the built-in Categories unless set by hand.
+    /// can't form a pair. Transfers and Reimbursements lose their Category; Contributions get the built-in Categories
+    /// unless set by hand.
     public async Task<string?> LinkByHandAsync(Transaction a, Transaction b, CancellationToken ct = default)
     {
         if (a.Id == b.Id) return "Choose another Transaction.";
@@ -68,8 +71,10 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
 
     /// Brings the kind of each linked pair among <paramref name="reowned"/> (Transactions whose Owner just changed: by
     /// hand, by bulk edit or by a Rule) in line with the Owners: same Owner on both legs = Transfer (no Category),
-    /// different Owners = Contribution (built-in Contribution Categories, which also follow the other leg's new
-    /// Owner, unless a Member set the leg's Category by hand). Unlinked Transactions are left alone.
+    /// different Owners = Contribution or Reimbursement. A kind a Member chose (<see cref="SwitchKindAsync"/>) is
+    /// kept while the Owners differ; otherwise the default applies (<see cref="KindOf"/>). Contribution Categories
+    /// follow the other leg's new Owner, unless a Member set the leg's Category by hand. Unlinked Transactions are
+    /// left alone.
     public async Task RefreshLinksAsync(IReadOnlyCollection<Transaction> reowned, CancellationToken ct = default)
     {
         var linked = reowned.Where(t => t.LinkedTransactionId is not null).ToList();
@@ -78,12 +83,34 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
         foreach (var transaction in linked)
         {
             var other = await db.Transactions.FindAsync([transaction.LinkedTransactionId!.Value], ct);
-            if (other is not null) Link(transaction, other, KindOf(transaction, other), tree);
+            if (other is null) continue;
+            var kind = KindOf(transaction, other);
+            if (kind == LinkKind.Transfer) ForgetChosenKind(transaction, other);
+            else if (HasChosenKind(transaction) && transaction.LinkKind is { } chosen and not LinkKind.Transfer) kind = chosen;
+            Link(transaction, other, kind, tree);
         }
     }
 
+    /// Makes the pair <paramref name="transaction"/> belongs to a Contribution or a Reimbursement, as a Member chose.
+    /// Returns an error message (for the `kind` field) when the pair can't be switched. A Contribution gets the
+    /// built-in Categories (unless set by hand); a Reimbursement loses its Categories.
+    public async Task<string?> SwitchKindAsync(Transaction transaction, LinkKind kind, CancellationToken ct = default)
+    {
+        if (kind == LinkKind.Transfer) return "Choose Contribution or Reimbursement.";
+        var other = transaction.LinkedTransactionId is { } otherId ? await db.Transactions.FindAsync([otherId], ct) : null;
+        if (other is null) return "This Transaction isn't linked to another one.";
+        if (transaction.OwnerMemberId == other.OwnerMemberId)
+            return "Both sides have the same Owner, so this is a Transfer. Change the Owner of one side first.";
+
+        Link(transaction, other, kind, await CategoryTree.LoadAsync(db));
+        transaction.ManuallySet |= ManuallySetFields.LinkKind;
+        other.ManuallySet |= ManuallySetFields.LinkKind;
+        return null;
+    }
+
     /// Breaks the link of <paramref name="transaction"/> (no-op when unlinked). Both legs become plain Income or
-    /// Expense again; Contribution Categories that matching assigned are removed (back to Uncategorised).
+    /// Expense again; Contribution Categories that matching assigned are removed (back to Uncategorised), and a kind
+    /// a Member chose is forgotten.
     /// Returns the other leg (tracked), or null when there was none.
     public async Task<Transaction?> UnlinkAsync(Transaction transaction, CancellationToken ct = default)
     {
@@ -128,21 +155,35 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
         return Math.Abs(Math.Abs(chfA) - Math.Abs(chfB)) <= CrossCurrencyTolerance * larger;
     }
 
-    private static LinkKind KindOf(Transaction a, Transaction b) =>
-        a.OwnerMemberId == b.OwnerMemberId ? LinkKind.Transfer : LinkKind.Contribution;
+    /// THE default kind of a pair (ADR 0011): same Owner = Transfer; the Family paying a Member = Reimbursement
+    /// (the Family pays back what the Member spent for it); anything else between different Owners = Contribution
+    /// (a Member's share paid into a Family Account, money between two Members).
+    private static LinkKind KindOf(Transaction a, Transaction b)
+    {
+        if (a.OwnerMemberId == b.OwnerMemberId) return LinkKind.Transfer;
+        var (sender, receiver) = a.Amount < 0 ? (a, b) : (b, a);
+        return sender.Owner.IsFamily && !receiver.Owner.IsFamily ? LinkKind.Reimbursement : LinkKind.Contribution;
+    }
 
     private static bool HasManualCategory(Transaction t) => t.ManuallySet.HasFlag(ManuallySetFields.Category);
+
+    private static bool HasChosenKind(Transaction t) => t.ManuallySet.HasFlag(ManuallySetFields.LinkKind);
+
+    private static void ForgetChosenKind(params Transaction[] legs)
+    {
+        foreach (var leg in legs) leg.ManuallySet &= ~ManuallySetFields.LinkKind;
+    }
 
     private static void Link(Transaction a, Transaction b, LinkKind kind, CategoryTree tree)
     {
         a.LinkedTransactionId = b.Id;
         b.LinkedTransactionId = a.Id;
         a.LinkKind = b.LinkKind = kind;
-        if (kind == LinkKind.Transfer)
+        if (kind != LinkKind.Contribution)
         {
             foreach (var leg in new[] { a, b })
             {
-                leg.CategoryId = null; // Transfers have no Category
+                leg.CategoryId = null; // Transfers and Reimbursements have no Category
                 leg.ManuallySet &= ~ManuallySetFields.Category;
             }
             return;
@@ -160,5 +201,6 @@ public sealed class TransactionMatcher(TreasuryDbContext db, ChfConverter chf)
         if (leg.LinkKind == LinkKind.Contribution && !HasManualCategory(leg)) leg.CategoryId = null;
         leg.LinkedTransactionId = null;
         leg.LinkKind = null;
+        ForgetChosenKind(leg);
     }
 }
