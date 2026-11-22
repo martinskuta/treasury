@@ -454,6 +454,33 @@ public class RevolutTests
     }
 
     [Test]
+    public async Task An_account_that_is_not_a_personal_account_is_skipped_with_a_note()
+    {
+        var statement = Read(new RevolutCustomStatement()
+            .Account("EUR", "€500.00", "€450.00", t => t
+                .Row("Nov 4, 2026", "Florist", "Merchant", "-€20.00", "€480.00")
+                .NextPage()
+                .Row("Nov 5, 2026", "Cinema", "Merchant", "-€30.00", "€450.00")
+                .Total("-€50.00"), iban: "LT601010012345678901", zero: "€0.00", kind: "Joint Account")
+            .Account("CHF", "100.00 CHF", "90.00 CHF", t => t
+                .Row("Nov 3, 2026", "Bakery", "Merchant", "-10.00 CHF", "90.00 CHF")
+                .Total("-10.00 CHF"))
+            .Account("EUR", "€5.00", "€5.00", zero: "€0.00"));
+
+        await Assert.That(statement.Notes).IsEquivalentTo([
+            "The statement also has \"Joint Account (EUR)\", which Treasury doesn't import.",
+        ]);
+        await Assert.That(statement.Rows).IsEquivalentTo(new[]
+        {
+            new StatementRow(Nov(3), -10.00m, "CHF", "Bakery", "Bakery"),
+        });
+        await Assert.That(statement.BalancesByCurrency.Select(b => (b.Currency, b.OpeningBalance, b.Closing.Amount)))
+            .IsEquivalentTo([("CHF", 100.00m, 90.00m), ("EUR", 5.00m, 5.00m)]);
+        // The joint account's IBAN is another one.
+        await Assert.That(statement.AccountIdentifier).IsEqualTo(RevolutCustomStatement.Iban);
+    }
+
+    [Test]
     public async Task A_revolut_csv_is_rejected_with_a_hint_to_export_the_custom_statement_as_pdf()
     {
         var csv = "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance\n" +

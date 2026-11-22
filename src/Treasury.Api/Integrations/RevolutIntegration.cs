@@ -9,6 +9,7 @@ namespace Treasury.Api.Integrations;
 /// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
 ///   gives: each row's running balance, each currency's closing balance and its Total row (Money in/out and Fees)
 /// - the IBAN is the Account identifier; the balances of every Personal Account, also of one holding nothing
+/// - a current account that isn't a Personal Account (e.g. a joint account) is not read; a note names it
 /// - other sections (investments, savings, crypto) are not read; when one has entries, a note says so
 public sealed class RevolutIntegration : IIntegration
 {
@@ -55,8 +56,10 @@ public sealed class RevolutIntegration : IIntegration
 
         return new ParsedStatement(rows, ibans.SingleOrDefault(),
             BalancesByCurrency: balances.OrderBy(b => b.Currency, StringComparer.Ordinal).ToList(),
-            Notes: pdf.SkippedSectionsWithEntries
-                .Select(section => $"The statement has entries under \"{section}\", which Treasury doesn't read.")
+            Notes: pdf.SkippedAccounts
+                .Select(account => $"The statement also has \"{account}\", which Treasury doesn't import.")
+                .Concat(pdf.SkippedSectionsWithEntries
+                    .Select(section => $"The statement has entries under \"{section}\", which Treasury doesn't read."))
                 .ToList());
     }
 

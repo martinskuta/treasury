@@ -11,12 +11,15 @@ namespace Treasury.Api.Integrations;
 /// <param name="PeriodEnd">Last day of the statement period.</param>
 /// <param name="Summaries">The accounts under "Current Accounts Summaries", in document order.</param>
 /// <param name="Tables">The accounts under "Current Accounts Transaction Statements", in document order.</param>
+/// <param name="SkippedAccounts">Headings of the current accounts that aren't a "Personal Account (CUR)", e.g.
+/// "Joint Account (EUR)": neither their summary nor their table is read.</param>
 /// <param name="SkippedSectionsWithEntries">Headings of the sections Treasury doesn't read that aren't empty.</param>
 internal sealed record RevolutCustomStatementPdf(
     DateOnly PeriodStart,
     DateOnly PeriodEnd,
     IReadOnlyList<RevolutAccountSummary> Summaries,
     IReadOnlyList<RevolutAccountTable> Tables,
+    IReadOnlyList<string> SkippedAccounts,
     IReadOnlyList<string> SkippedSectionsWithEntries)
 {
     public const string ExportHint =
@@ -56,7 +59,7 @@ internal sealed record RevolutCustomStatementPdf(
         var reading = new Reading(periodLine.Value);
         foreach (var page in pages) reading.Page(page);
         return new RevolutCustomStatementPdf(periodStart, periodEnd, reading.Summaries(), reading.Tables(),
-            reading.SkippedSectionsWithEntries());
+            reading.SkippedAccounts, reading.SkippedSectionsWithEntries());
     }
 
     /// The statement's layout wasn't what Treasury expects.
@@ -135,6 +138,7 @@ internal sealed record RevolutCustomStatementPdf(
         private double _headingSize;
         private readonly List<SummaryInProgress> _summaries = [];
         private readonly List<TableInProgress> _tables = [];
+        private readonly List<string> _skippedAccounts = [];
         private readonly List<(string Heading, bool HasEntries)> _skipped = [];
         private SummaryInProgress? _summary;
         private TableInProgress? _table;
@@ -188,20 +192,25 @@ internal sealed record RevolutCustomStatementPdf(
         private static bool IsTableHeader(Line line) =>
             new[] { "Date", "Description", "Category", "Balance", "Fees" }.All(h => line.Words.Any(w => w.Text == h));
 
-        private static string? Currency(Line line)
+        /// Whether the line is an account's heading. Only a "Personal Account (CUR)" is read: for any other kind
+        /// (e.g. a joint account) <paramref name="currency"/> is null and the heading is kept as skipped.
+        private bool IsAccountHeading(Line line, out string? currency)
         {
+            currency = null;
             var heading = AccountHeading.Match(line.Text);
-            if (!heading.Success) return null;
-            if (heading.Groups["kind"].Value != "Personal Account")
-                throw Unreadable($"it has a \"{line.Text}\", and Treasury reads only Personal Accounts");
-            return heading.Groups["currency"].Value;
+            if (!heading.Success) return false;
+            if (heading.Groups["kind"].Value == "Personal Account") currency = heading.Groups["currency"].Value;
+            else if (!_skippedAccounts.Contains(line.Text)) _skippedAccounts.Add(line.Text);
+            return true;
         }
 
         private void SummaryLine(Line line)
         {
-            if (Currency(line) is { } currency)
+            if (IsAccountHeading(line, out var currency))
             {
-                _summaries.Add(_summary = new SummaryInProgress(currency));
+                // The lines of an account that isn't read belong to no summary.
+                _summary = currency is null ? null : new SummaryInProgress(currency);
+                if (_summary is not null) _summaries.Add(_summary);
                 return;
             }
             if (_summary is null) return;
@@ -222,11 +231,13 @@ internal sealed record RevolutCustomStatementPdf(
 
         private void TableLine(Line line)
         {
-            if (Currency(line) is { } currency)
+            if (IsAccountHeading(line, out var currency))
             {
+                // The lines of an account that isn't read belong to no table.
+                if (currency is null) _table = null;
                 // A table that runs onto the next page may get its account's heading printed again there: until
                 // its Total row, the same heading continues the table. After it, the account is listed twice.
-                if (_table is null || _table.Currency != currency || _table.Total is not null)
+                else if (_table is null || _table.Currency != currency || _table.Total is not null)
                     _tables.Add(_table = new TableInProgress(currency));
                 return;
             }
@@ -273,6 +284,8 @@ internal sealed record RevolutCustomStatementPdf(
                     Cell(total, Columns.Tax, "Total of Tax withheld"), Cell(total, Columns.OtherTaxes, "Total of Other taxes"),
                     Cell(total, Columns.Fees, "Total of Fees")));
         }).ToList();
+
+        public IReadOnlyList<string> SkippedAccounts => _skippedAccounts;
 
         public IReadOnlyList<string> SkippedSectionsWithEntries() =>
             _skipped.Where(s => s.HasEntries).Select(s => s.Heading).Distinct().ToList();
