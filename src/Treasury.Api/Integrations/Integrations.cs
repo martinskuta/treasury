@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Treasury.Api.Integrations;
@@ -48,27 +49,33 @@ public sealed class SourceFileContent(string fileName, byte[] bytes)
 /// <param name="AccountIdentifier">IBAN / last card digits, when the format has one (see CanProvideIdentifier).</param>
 /// <param name="ClosingBalance">The statement's closing balance, when the format has one (single-currency formats).</param>
 /// <param name="BalancesByCurrency">For a format holding several currencies (Multi-currency account): the balances of
-/// each currency that has rows, ordered by currency code. Empty for single-currency formats, which use
+/// each currency the statement lists, also of one with no rows and a zero balance (the import decides which
+/// currencies get an Account), ordered by currency code. Empty for single-currency formats, which use
 /// <paramref name="ClosingBalance"/>.</param>
+/// <param name="Notes">What the Integration saw in the file but didn't read (e.g. entries in a section Treasury
+/// doesn't track), written for a Member.</param>
 public sealed record ParsedStatement(
     IReadOnlyList<StatementRow> Rows,
     string? AccountIdentifier = null,
     ClosingBalance? ClosingBalance = null,
-    IReadOnlyList<CurrencyBalances>? BalancesByCurrency = null)
+    IReadOnlyList<CurrencyBalances>? BalancesByCurrency = null,
+    IReadOnlyList<string>? Notes = null)
 {
     public IReadOnlyList<CurrencyBalances> BalancesByCurrency { get; init; } = BalancesByCurrency ?? [];
+
+    public IReadOnlyList<string> Notes { get; init; } = Notes ?? [];
 }
 
-/// The balances a multi-currency statement reports for one currency.
+/// The balances a multi-currency statement reports for one currency over the statement's period (ADR-0010).
 /// <param name="Currency">ISO code.</param>
-/// <param name="FirstRowDate">Date of the currency's first row on the statement.</param>
-/// <param name="BalanceBeforeFirstRow">The currency's balance just before its first row, i.e. before any row of the
-/// statement in that currency; an import can use it to open the currency's Account.</param>
-/// <param name="Closing">The currency's balance after its last row, dated on that row's date.</param>
+/// <param name="OpeningDate">The day before the statement's period starts.</param>
+/// <param name="OpeningBalance">The currency's balance at the end of <paramref name="OpeningDate"/>, i.e. before any
+/// row of the statement; an import can use it to open the currency's Account.</param>
+/// <param name="Closing">The currency's balance at the end of the period's last day.</param>
 public sealed record CurrencyBalances(
     string Currency,
-    DateOnly FirstRowDate,
-    decimal BalanceBeforeFirstRow,
+    DateOnly OpeningDate,
+    decimal OpeningBalance,
     ClosingBalance Closing);
 
 /// One movement on a statement.
@@ -108,4 +115,12 @@ public sealed class IntegrationRegistry(IEnumerable<IIntegration> integrations)
     public IReadOnlyCollection<IIntegration> All => _byKey.Values;
 
     public IIntegration? Find(string? key) => key is not null && _byKey.TryGetValue(key, out var i) ? i : null;
+}
+
+/// How amounts are written in the messages of an import (errors and warnings).
+public static class Amounts
+{
+    /// Swiss style like the frontend's formatAmount: 1'234.50.
+    public static string Format(decimal amount) =>
+        amount.ToString("#,##0.00", new NumberFormatInfo { NumberGroupSeparator = "'", NumberDecimalSeparator = "." });
 }

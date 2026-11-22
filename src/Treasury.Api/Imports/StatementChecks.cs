@@ -1,5 +1,6 @@
 using System.Globalization;
 using Treasury.Api.Accounts;
+using Treasury.Api.Integrations;
 
 namespace Treasury.Api.Imports;
 
@@ -16,20 +17,29 @@ public static class StatementChecks
 /// Rejects a statement dropped into the wrong Account's folder: when both the Account and the statement have an
 /// identifier and they don't match (<see cref="AccountIdentifiers.Matches"/>), nothing is imported and the file goes
 /// to failed/. Skipped when either side has no identifier.
+///
+/// A Multi-currency account has the identifier, not its Accounts (ADR-0010), and a statement for it may have no
+/// leg at all, so the pipeline runs <see cref="Verify"/> on the whole statement before splitting it by currency.
 public sealed class IdentifierCheck : IImportStep
 {
     public ImportStage Stage => ImportStage.Check;
 
     public Task RunAsync(ImportContext context, CancellationToken ct)
     {
-        var expected = context.Account.Identifier;
-        var actual = context.Statement.AccountIdentifier;
-        if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrWhiteSpace(actual)) return Task.CompletedTask;
+        Verify(context.Account, context.Statement);
+        return Task.CompletedTask;
+    }
+
+    /// Throws <see cref="ImportFailedException"/> when the statement is for another identifier than the target's.
+    public static void Verify(IImportTarget target, ParsedStatement statement)
+    {
+        var expected = target.Identifier;
+        var actual = statement.AccountIdentifier;
+        if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrWhiteSpace(actual)) return;
         if (!AccountIdentifiers.Matches(expected, actual))
             throw new ImportFailedException(
-                $"This statement is for account {actual.Trim()}, but the Account '{context.Account.Name}' has the " +
-                $"identifier {expected}. Was it dropped into the wrong folder? Nothing was imported.");
-        return Task.CompletedTask;
+                $"This statement is for account {actual.Trim()}, but {target.Description} has the identifier " +
+                $"{expected}. Was it dropped into the wrong folder? Nothing was imported.");
     }
 }
 
@@ -63,11 +73,7 @@ public sealed class ClosingBalanceCheck : IImportStep
         if (calculated != closing.Amount)
             context.Warnings.Add(
                 $"The statement's closing balance on {closing.Date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)} is " +
-                $"{Format(closing.Amount)} {account.Currency}, but the Account's calculated balance on that date is " +
-                $"{Format(calculated)} {account.Currency}. An import may be missing or doubled.");
+                $"{Amounts.Format(closing.Amount)} {account.Currency}, but the Account's calculated balance on that date is " +
+                $"{Amounts.Format(calculated)} {account.Currency}. An import may be missing or doubled.");
     }
-
-    /// Swiss style like the frontend's formatAmount: 1'234.50.
-    private static string Format(decimal amount) =>
-        amount.ToString("#,##0.00", new NumberFormatInfo { NumberGroupSeparator = "'", NumberDecimalSeparator = "." });
 }

@@ -2,15 +2,15 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using Treasury.Api.Tests.Integrations;
 
 namespace Treasury.Api.Tests;
 
 /// #25: importing a Source file into a Multi-currency account (ADR-0009), by upload or from its Ingest folder.
-/// Uses the real revolut Integration with statements written inline in Revolut's CSV format.
+/// Uses the test multi-currency Integrations, so the tests are about the pipeline and not about a format; the last
+/// ones import synthetic Revolut Custom statement PDFs through the real revolut Integration (#36, ADR-0010).
 public class MultiCurrencyImportTests : ApiTestBase
 {
-    private const string Header = "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance";
-
     [Test]
     public async Task Uploaded_rows_go_to_the_account_of_their_currency()
     {
@@ -18,9 +18,10 @@ public class MultiCurrencyImportTests : ApiTestBase
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
         var chf = group.Accounts.Single();
 
-        var res = await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00",
-            "Card Payment,Current,2026-11-03 12:00:00,2026-11-04 08:00:00,Coop,-30.00,0.00,CHF,COMPLETED,950.00"));
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("CHF", "2026-10-31", 1000m, "2026-11-30", 950m)
+            .Row("2026-11-03", -20m, "Migros")
+            .Row("2026-11-04", -30m, "Coop"));
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
@@ -34,16 +35,17 @@ public class MultiCurrencyImportTests : ApiTestBase
     }
 
     [Test]
-    public async Task A_currency_without_an_account_gets_one_opened_with_the_balance_before_its_first_row()
+    public async Task A_currency_without_an_account_gets_one_opened_with_the_statements_opening_balance()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var annaId = await MemberIdAsync(anna);
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
 
-        var res = await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00",
-            "Card Payment,Current,2026-11-06 12:00:00,2026-11-07 08:00:00,Gelateria,-4.50,0.00,EUR,COMPLETED,35.50"));
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 35.50m)
+            .Row("2026-11-03", -20m, "Migros")
+            .Row("2026-11-06", -10m, "Trattoria", currency: "EUR")
+            .Row("2026-11-07", -4.50m, "Gelateria", currency: "EUR"));
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
@@ -56,7 +58,7 @@ public class MultiCurrencyImportTests : ApiTestBase
         await Assert.That(euros.Owner.MemberId).IsEqualTo(annaId);
         await Assert.That(euros.MultiCurrencyAccountId).IsEqualTo(group.Id);
         await Assert.That(euros.OpeningBalance).IsEqualTo(50m);
-        await Assert.That(euros.OpeningDate).IsEqualTo(new DateOnly(2026, 11, 5));
+        await Assert.That(euros.OpeningDate).IsEqualTo(new DateOnly(2026, 10, 31));
         await Assert.That(euros.Balance).IsEqualTo(35.50m);
         await Assert.That(euros.BalanceWarning).IsNull();
         await Assert.That((await ListAsync(anna)).Where(t => t.Currency == "EUR").Select(t => t.AccountId).Distinct())
@@ -70,6 +72,180 @@ public class MultiCurrencyImportTests : ApiTestBase
     }
 
     [Test]
+    public async Task A_currency_without_an_account_and_without_balances_on_the_statement_fails_the_file()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Row("2026-11-06", -10m, "Trattoria", currency: "EUR"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"].Single()).Contains("doesn't say the EUR opening balance");
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
+    }
+
+    [Test]
+    public async Task A_currency_with_a_balance_but_no_rows_gets_an_account_with_that_balance()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("CHF", "2026-10-31", 1000m, "2026-11-30", 980m)
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 50m)
+            .Row("2026-11-03", -20m, "Migros"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(1);
+        await Assert.That(result.CreatedAccounts.Select(a => (a.Name, a.Currency))).IsEquivalentTo([("Revolut EUR", "EUR")]);
+        await Assert.That(result.Warnings).IsEmpty();
+        var euros = (await GetGroupAsync(anna, group.Id)).Accounts.Single(a => a.Currency == "EUR");
+        await Assert.That((euros.OpeningBalance, euros.OpeningDate, euros.Balance, euros.BalanceWarning))
+            .IsEqualTo((50m, new DateOnly(2026, 10, 31), 50m, (BalanceWarning?)null));
+    }
+
+    [Test]
+    public async Task A_currency_with_no_rows_and_no_money_gets_no_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("EUR", "2026-10-31", 0m, "2026-11-30", 0m)
+            .Row("2026-11-03", -20m, "Migros"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.CreatedAccounts).IsEmpty();
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
+    }
+
+    [Test]
+    public async Task The_closing_balance_of_a_currency_with_no_rows_is_checked_against_its_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        // The CHF Account opened with 1000, but the statement says CHF stayed at 900 over its period.
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("CHF", "2026-10-31", 900m, "2026-11-30", 900m));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(0);
+        await Assert.That(result.Warnings.Single()).Contains("900.00 CHF").And.Contains("1'000.00 CHF");
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Single().BalanceWarning)
+            .IsEqualTo(new BalanceWarning(new DateOnly(2026, 11, 30), 900m, 1000m));
+    }
+
+    [Test]
+    public async Task A_balance_without_rows_in_a_currency_without_exchange_rates_is_skipped_with_a_warning()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("RUB", "2026-10-31", 20m, "2026-11-30", 20m)
+            .Row("2026-11-03", -20m, "Migros"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(1);
+        await Assert.That(result.CreatedAccounts).IsEmpty();
+        await Assert.That(result.Warnings.Single()).Contains("a balance in RUB").And.Contains("exchange rates")
+            .And.Contains("RUB balance isn't tracked");
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
+    }
+
+    [Test]
+    public async Task A_note_about_what_the_integration_did_not_read_shows_as_a_warning()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Note("The statement has entries under \"Savings\", which Treasury doesn't read.")
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
+            .Row("2026-11-03", -20m, "Migros")
+            .Row("2026-11-06", -10m, "Trattoria", currency: "EUR"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(2);
+        await Assert.That(result.Warnings)
+            .IsEquivalentTo(["The statement has entries under \"Savings\", which Treasury doesn't read."]);
+    }
+
+    [Test]
+    public async Task A_statement_for_another_identifier_is_rejected_and_creates_nothing()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31",
+            integrationKey: "test-multi-id", identifier: "LT12 1000 0111 0100 1000");
+
+        var res = await UploadAsync(anna, group.Id, "someone-elses.txt", new TestStatement()
+            .Identifier("LT60 1010 0123 4567 8901")
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
+            .Row("2026-11-03", -20m, "Migros")
+            .Row("2026-11-06", -10m, "Trattoria", currency: "EUR"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"].Single()).Contains("LT60 1010 0123 4567 8901")
+            .And.Contains("the Multi-currency account \"Revolut\"").And.Contains("LT12 1000 0111 0100 1000");
+        await Assert.That(await ListAsync(anna)).IsEmpty();
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
+        await Assert.That(File.Exists(Path.Combine(App.IngestRoot, group.Slug, "failed", "someone-elses.txt"))).IsTrue();
+    }
+
+    [Test]
+    public async Task A_statement_for_another_identifier_is_rejected_even_when_it_shows_no_money()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31",
+            integrationKey: "test-multi-id", identifier: "LT12 1000 0111 0100 1000");
+
+        var res = await UploadAsync(anna, group.Id, "someone-elses.txt", new TestStatement()
+            .Identifier("LT60 1010 0123 4567 8901"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        await Assert.That(await SourceFilesAsync(anna, group.Id)).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_statement_whose_identifier_matches_after_normalising_is_imported()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31",
+            integrationKey: "test-multi-id", identifier: "LT12 1000 0111 0100 1000");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Identifier("lt121000011101001000")
+            .Row("2026-11-03", -20m, "Migros"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await Assert.That(await ListAsync(anna)).Count().IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task A_multi_currency_account_without_an_identifier_accepts_any_statement()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31",
+            integrationKey: "test-multi-id");
+
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Identifier("LT60 1010 0123 4567 8901")
+            .Row("2026-11-03", -20m, "Migros"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await Assert.That(await ListAsync(anna)).Count().IsEqualTo(1);
+    }
+
+    [Test]
     public async Task A_pound_row_opens_a_pound_account_whose_balance_counts_in_the_total()
     {
         // Today (2026-11-20) 1 EUR = 0.93 CHF = 0.75 GBP: 15 GBP = 20 EUR = 18.60 CHF.
@@ -78,9 +254,10 @@ public class MultiCurrencyImportTests : ApiTestBase
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
 
-        var res = await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Pret,-5.00,0.00,GBP,COMPLETED,15.00"));
+        var res = await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("GBP", "2026-10-31", 20m, "2026-11-30", 15m)
+            .Row("2026-11-03", -20m, "Migros")
+            .Row("2026-11-06", -5m, "Pret", currency: "GBP"));
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
@@ -96,14 +273,12 @@ public class MultiCurrencyImportTests : ApiTestBase
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
-        var import = (await (await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00")))
+        var import = (await (await UploadAsync(anna, group.Id, "november.txt", TwoCurrencies()))
             .Content.ReadFromJsonAsync<ImportResult>())!;
 
         var files = await SourceFilesAsync(anna, group.Id);
         await Assert.That(files.Select(f => (f.Id, f.FileName, f.TransactionCount, f.MultiCurrencyAccountId, f.AccountId)))
-            .IsEquivalentTo([(import.SourceFile.Id, "november.csv", 2, (Guid?)group.Id, (Guid?)null)]);
+            .IsEquivalentTo([(import.SourceFile.Id, "november.txt", 2, (Guid?)group.Id, (Guid?)null)]);
         await Assert.That((await ListAsync(anna)).Select(t => t.SourceFile!.Id).Distinct()).IsEquivalentTo([import.SourceFile.Id]);
         var content = await anna.GetAsync($"/api/source-files/{import.SourceFile.Id}/content");
         await Assert.That(content.StatusCode).IsEqualTo(HttpStatusCode.OK);
@@ -122,12 +297,9 @@ public class MultiCurrencyImportTests : ApiTestBase
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
-        var csv = Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00");
-        await UploadAsync(anna, group.Id, "november.csv", csv);
+        await UploadAsync(anna, group.Id, "november.txt", TwoCurrencies());
 
-        var again = (await (await UploadAsync(anna, group.Id, "november (copy).csv", csv)).Content
+        var again = (await (await UploadAsync(anna, group.Id, "november (copy).txt", TwoCurrencies())).Content
             .ReadFromJsonAsync<ImportResult>())!;
 
         await Assert.That(again.ImportedCount).IsEqualTo(0);
@@ -141,19 +313,21 @@ public class MultiCurrencyImportTests : ApiTestBase
     public async Task Closing_balances_are_kept_and_checked_per_currency()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
-        // The CHF Account opened with 1000, but the statement says CHF was at 900 before its first row.
+        // The CHF Account opened with 1000, but the statement says CHF was at 900 when its period started.
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
 
-        var result = (await (await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,880.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00")))
+        var result = (await (await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("CHF", "2026-10-31", 900m, "2026-11-30", 880m)
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
+            .Row("2026-11-03", -20m, "Migros")
+            .Row("2026-11-06", -10m, "Trattoria", currency: "EUR")))
             .Content.ReadFromJsonAsync<ImportResult>())!;
 
         await Assert.That(result.Warnings).Count().IsEqualTo(1);
         await Assert.That(result.Warnings.Single()).Contains("880.00 CHF").And.Contains("980.00 CHF");
         var accounts = (await GetGroupAsync(anna, group.Id)).Accounts;
         var francs = accounts.Single(a => a.Currency == "CHF");
-        await Assert.That(francs.BalanceWarning).IsEqualTo(new BalanceWarning(new DateOnly(2026, 11, 3), 880m, 980m));
+        await Assert.That(francs.BalanceWarning).IsEqualTo(new BalanceWarning(new DateOnly(2026, 11, 30), 880m, 980m));
         await Assert.That(accounts.Single(a => a.Currency == "EUR").BalanceWarning).IsNull();
 
         // Undoing the file takes its closing balances with it, and the warning clears.
@@ -172,12 +346,18 @@ public class MultiCurrencyImportTests : ApiTestBase
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-11-01");
         // An earlier statement in EUR, so that the exchange rates around the exchange are stored before it is imported.
-        await UploadAsync(anna, group.Id, "early-november.csv", Csv(
-            "Card Payment,Current,2026-11-09 12:00:00,2026-11-09 18:00:00,Kiosk,-8.00,0.00,EUR,COMPLETED,0.00"));
+        await UploadAsync(anna, group.Id, "early-november.txt", new TestStatement()
+            .Balances("EUR", "2026-11-08", 8m, "2026-11-09", 0m)
+            .Row("2026-11-09", -8m, "Kiosk", currency: "EUR"));
         await RatesSyncedAsync(anna);
 
-        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", "two-currencies.csv",
-            Sample("two-currencies.csv"));
+        var res = await UploadAsync(anna, group.Id, "two-currencies.txt", new TestStatement()
+            .Balances("CHF", "2026-11-09", 1000m, "2026-11-13", 890m)
+            .Balances("EUR", "2026-11-09", 0m, "2026-11-13", 67m)
+            .Row("2026-11-11", -25m, "Trattoria Roma, Milano", currency: "EUR")
+            .Row("2026-11-10", -100m, "Exchanged to EUR")
+            .Row("2026-11-10", 92m, "Exchanged to EUR", currency: "EUR")
+            .Row("2026-11-13", -10m, "Migros"));
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
         var list = await ListAsync(anna);
@@ -201,9 +381,10 @@ public class MultiCurrencyImportTests : ApiTestBase
         await PostOkAsync(anna, "/api/rules", new { field = "description", match = "contains", text = "Market", categoryId = groceries });
         await PostOkAsync(anna, "/api/tags", new { name = "holiday", dateFrom = "2026-11-01", dateTo = "2026-11-30" });
 
-        await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Market Zurich,-20.00,0.00,CHF,COMPLETED,980.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Market Milano,-10.00,0.00,EUR,COMPLETED,40.00"));
+        await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
+            .Row("2026-11-03", -20m, "Market Zurich")
+            .Row("2026-11-06", -10m, "Market Milano", currency: "EUR"));
 
         var list = await ListAsync(anna);
         await Assert.That(list.Select(t => (t.Currency, t.Category?.Id, string.Join(",", t.Tags.Select(x => x.Name)))))
@@ -222,8 +403,8 @@ public class MultiCurrencyImportTests : ApiTestBase
         });
         var incoming = await PostOkAsync<IdDto>(anna, "/api/transactions",
             new { accountId = checking.Id, date = "2026-11-03", amount = 100m, description = "From Revolut" });
-        var import = (await (await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Transfer,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,To Checking,-100.00,0.00,CHF,COMPLETED,900.00")))
+        var import = (await (await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Row("2026-11-03", -100m, "To Checking")))
             .Content.ReadFromJsonAsync<ImportResult>())!;
         await Assert.That((await ListAsync(anna)).Single(t => t.Id == incoming.Id).Type).IsEqualTo("transfer");
 
@@ -242,10 +423,9 @@ public class MultiCurrencyImportTests : ApiTestBase
             // Same names: both new EUR Accounts are called "Revolut <round> EUR".
             var first = await CreateGroupAsync(anna, $"Revolut {round}", openingBalance: 1000m, openingDate: "2026-10-31");
             var second = await CreateGroupAsync(anna, $"Revolut {round}", openingBalance: 1000m, openingDate: "2026-10-31");
-            var csv = Csv(
-                "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00");
 
-            var results = await Task.WhenAll(UploadAsync(anna, first.Id, "a.csv", csv), UploadAsync(anna, second.Id, "b.csv", csv));
+            var results = await Task.WhenAll(
+                UploadAsync(anna, first.Id, "a.txt", OneEuroRow()), UploadAsync(anna, second.Id, "b.txt", OneEuroRow()));
 
             var outcomes = await Task.WhenAll(results.Select(async r => $"{(int)r.StatusCode} {await r.Content.ReadAsStringAsync()}"));
             await Assert.That(outcomes.Where(o => !o.StartsWith("201"))).IsEmpty();
@@ -253,64 +433,11 @@ public class MultiCurrencyImportTests : ApiTestBase
     }
 
     [Test]
-    public async Task The_anonymised_revolut_samples_import_end_to_end_by_upload()
-    {
-        using var anna = await LoginAsNewMemberAsync("anna");
-        // October's first row leaves 2'503.33 after -31.40: the balance before was 2'534.73.
-        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2534.73m, openingDate: "2026-10-18");
-
-        var october = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", OctoberSample,
-            Sample(OctoberSample));
-        var november = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", NovemberSample,
-            Sample(NovemberSample));
-
-        var octoberResult = (await october.Content.ReadFromJsonAsync<ImportResult>())!;
-        var novemberResult = (await november.Content.ReadFromJsonAsync<ImportResult>())!;
-        await Assert.That((octoberResult.ImportedCount, novemberResult.ImportedCount)).IsEqualTo((2, 4));
-        await Assert.That(octoberResult.Warnings.Concat(novemberResult.Warnings)).IsEmpty();
-        await Assert.That(octoberResult.CreatedAccounts.Concat(novemberResult.CreatedAccounts)).IsEmpty();
-        var francs = (await GetGroupAsync(anna, group.Id)).Accounts.Single();
-        await Assert.That(francs.Balance).IsEqualTo(861.68m);
-        await Assert.That(francs.BalanceWarning).IsNull();
-        var payment = (await ListAsync(anna)).Single(t => t.Description == "To Jan Novak");
-        await Assert.That((payment.Date, payment.Amount, payment.Counterparty, payment.AccountId))
-            .IsEqualTo((new DateOnly(2026, 11, 9), -1500m, "Jan Novak", (Guid?)francs.Id));
-        await Assert.That((await SourceFilesAsync(anna, group.Id)).Select(f => f.FileName))
-            .IsEquivalentTo([OctoberSample, NovemberSample]);
-    }
-
-    [Test]
-    public async Task The_anonymised_revolut_samples_import_end_to_end_from_the_ingest_folder()
-    {
-        using var anna = await LoginAsNewMemberAsync("anna");
-        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2534.73m, openingDate: "2026-10-18");
-        var folder = Path.Combine(App.IngestRoot, group.Slug);
-        await File.WriteAllBytesAsync(Path.Combine(folder, OctoberSample), Sample(OctoberSample));
-        await File.WriteAllBytesAsync(Path.Combine(folder, NovemberSample), Sample(NovemberSample));
-
-        var scanned = await ScanAsync(anna);
-
-        await Assert.That(scanned.Select(f => (f.FileName, f.Succeeded, f.ImportedCount, f.MultiCurrencyAccountId, f.AccountId)))
-            .IsEquivalentTo([
-                (OctoberSample, true, 2, (Guid?)group.Id, (Guid?)null),
-                (NovemberSample, true, 4, (Guid?)group.Id, (Guid?)null),
-            ]);
-        await Assert.That(Directory.GetFiles(folder)).IsEmpty();
-        await Assert.That(Directory.GetFiles(Path.Combine(folder, "processed")).Select(f => Path.GetFileName(f)!))
-            .IsEquivalentTo([OctoberSample, NovemberSample]);
-        var francs = (await GetGroupAsync(anna, group.Id)).Accounts.Single();
-        await Assert.That(francs.Balance).IsEqualTo(861.68m);
-        await Assert.That(francs.BalanceWarning).IsNull();
-        await Assert.That(await SourceFilesAsync(anna, group.Id)).Count().IsEqualTo(2);
-    }
-
-    [Test]
     public async Task A_scan_reports_the_accounts_an_import_from_the_folder_created()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
-        await File.WriteAllTextAsync(Path.Combine(App.IngestRoot, group.Slug, "november.csv"), Csv(
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00"));
+        await File.WriteAllTextAsync(Path.Combine(App.IngestRoot, group.Slug, "november.txt"), OneEuroRow().ToString());
 
         var scanned = (await ScanAsync(anna)).Single();
 
@@ -324,16 +451,18 @@ public class MultiCurrencyImportTests : ApiTestBase
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
         var folder = Path.Combine(App.IngestRoot, group.Slug);
-        await File.WriteAllTextAsync(Path.Combine(folder, "roubles.csv"), Csv(
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Trattoria,-10.00,0.00,EUR,COMPLETED,40.00",
-            "Card Payment,Current,2026-11-05 12:00:00,2026-11-06 08:00:00,Pret,-5.00,0.00,RUB,COMPLETED,15.00"));
+        await File.WriteAllTextAsync(Path.Combine(folder, "roubles.txt"), new TestStatement()
+            .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
+            .Balances("RUB", "2026-10-31", 20m, "2026-11-30", 15m)
+            .Row("2026-11-06", -10m, "Trattoria", currency: "EUR")
+            .Row("2026-11-06", -5m, "Pret", currency: "RUB").ToString());
 
         var scanned = (await ScanAsync(anna)).Single();
 
         await Assert.That(scanned.Succeeded).IsFalse();
         await Assert.That(scanned.Error).Contains("RUB");
-        await Assert.That(File.Exists(Path.Combine(folder, "failed", "roubles.csv"))).IsTrue();
-        await Assert.That(await File.ReadAllTextAsync(Path.Combine(folder, "failed", "roubles.csv.error.txt")))
+        await Assert.That(File.Exists(Path.Combine(folder, "failed", "roubles.txt"))).IsTrue();
+        await Assert.That(await File.ReadAllTextAsync(Path.Combine(folder, "failed", "roubles.txt.error.txt")))
             .Contains("the Multi-currency account \"Revolut\"").And.Contains("RUB");
         await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
         await Assert.That(await ListAsync(anna)).IsEmpty();
@@ -346,9 +475,8 @@ public class MultiCurrencyImportTests : ApiTestBase
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
 
-        var res = await UploadAsync(anna, $"/api/accounts/{group.Accounts.Single().Id}/imports", "november.csv",
-            Encoding.UTF8.GetBytes(Csv(
-                "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00")));
+        var res = await UploadAsync(anna, $"/api/accounts/{group.Accounts.Single().Id}/imports", "november.txt",
+            Encoding.UTF8.GetBytes(new TestStatement().Row("2026-11-03", -20m, "Migros").ToString()));
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
         var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
@@ -362,11 +490,11 @@ public class MultiCurrencyImportTests : ApiTestBase
         using var anna = await LoginAsNewMemberAsync("anna");
         using var bob = await LoginAsNewMemberAsync("bob");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31");
-        var import = (await (await UploadAsync(anna, group.Id, "november.csv", Csv(
-            "Card Payment,Current,2026-11-02 12:00:00,2026-11-03 08:00:00,Migros,-20.00,0.00,CHF,COMPLETED,980.00")))
+        var import = (await (await UploadAsync(anna, group.Id, "november.txt", new TestStatement()
+            .Row("2026-11-03", -20m, "Migros")))
             .Content.ReadFromJsonAsync<ImportResult>())!;
 
-        await Assert.That((await UploadAsync(bob, group.Id, "x.csv", Csv())).StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+        await Assert.That((await UploadAsync(bob, group.Id, "x.txt", new TestStatement())).StatusCode).IsEqualTo(HttpStatusCode.NotFound);
         await Assert.That((await bob.GetAsync($"/api/multi-currency-accounts/{group.Id}/source-files")).StatusCode)
             .IsEqualTo(HttpStatusCode.NotFound);
         await Assert.That((await bob.GetAsync($"/api/source-files/{import.SourceFile.Id}")).StatusCode)
@@ -376,13 +504,232 @@ public class MultiCurrencyImportTests : ApiTestBase
         await Assert.That(await SourceFilesAsync(anna, group.Id)).Count().IsEqualTo(1);
     }
 
+    [Test]
+    public async Task Revolut_custom_statements_import_end_to_end_by_upload()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+
+        var october = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", OctoberStatement,
+            October().Build());
+        var november = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", NovemberStatement,
+            November().Build());
+
+        var octoberResult = (await october.Content.ReadFromJsonAsync<ImportResult>())!;
+        var novemberResult = (await november.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That((octoberResult.ImportedCount, novemberResult.ImportedCount)).IsEqualTo((2, 5));
+        await Assert.That(octoberResult.Warnings.Concat(novemberResult.Warnings)).IsEmpty();
+        await Assert.That(octoberResult.CreatedAccounts).IsEmpty();
+        await Assert.That(novemberResult.CreatedAccounts.Select(a => a.Name)).IsEquivalentTo(["Revolut EUR"]);
+        var accounts = (await GetGroupAsync(anna, group.Id)).Accounts;
+        await Assert.That(accounts.Select(a => (a.Currency, a.Balance, a.BalanceWarning)))
+            .IsEquivalentTo([("CHF", 890m, (BalanceWarning?)null), ("EUR", 40m, null)]);
+        // The EUR Account is opened where the statement's period starts.
+        var euros = accounts.Single(a => a.Currency == "EUR");
+        await Assert.That((euros.OpeningBalance, euros.OpeningDate)).IsEqualTo((0m, new DateOnly(2026, 10, 31)));
+        var payment = (await ListAsync(anna)).Single(t => t.Description == "To Jan Novak");
+        await Assert.That((payment.Date, payment.Amount, payment.Counterparty, payment.AccountId))
+            .IsEqualTo((new DateOnly(2026, 11, 10), -1500m, "Jan Novak", (Guid?)accounts.Single(a => a.Currency == "CHF").Id));
+        await Assert.That((await SourceFilesAsync(anna, group.Id)).Select(f => f.FileName))
+            .IsEquivalentTo([OctoberStatement, NovemberStatement]);
+    }
+
+    [Test]
+    public async Task Revolut_custom_statements_import_end_to_end_from_the_ingest_folder()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+        var folder = Path.Combine(App.IngestRoot, group.Slug);
+        await File.WriteAllBytesAsync(Path.Combine(folder, OctoberStatement), October().Build());
+        await File.WriteAllBytesAsync(Path.Combine(folder, NovemberStatement), November().Build());
+
+        var scanned = await ScanAsync(anna);
+
+        await Assert.That(scanned.Select(f => (f.FileName, f.Succeeded, f.ImportedCount, f.MultiCurrencyAccountId, f.AccountId)))
+            .IsEquivalentTo([
+                (OctoberStatement, true, 2, (Guid?)group.Id, (Guid?)null),
+                (NovemberStatement, true, 5, (Guid?)group.Id, (Guid?)null),
+            ]);
+        await Assert.That(Directory.GetFiles(folder)).IsEmpty();
+        await Assert.That(Directory.GetFiles(Path.Combine(folder, "processed")).Select(f => Path.GetFileName(f)!))
+            .IsEquivalentTo([OctoberStatement, NovemberStatement]);
+        var accounts = (await GetGroupAsync(anna, group.Id)).Accounts;
+        await Assert.That(accounts.Select(a => (a.Currency, a.Balance, a.BalanceWarning)))
+            .IsEquivalentTo([("CHF", 890m, (BalanceWarning?)null), ("EUR", 40m, null)]);
+        await Assert.That(await SourceFilesAsync(anna, group.Id)).Count().IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_opens_accounts_for_the_currencies_holding_money()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        // The identifier is the statement's IBAN, written the way a Member would type it.
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2450m, openingDate: "2026-10-31",
+            integrationKey: "revolut", identifier: "LT12 1000 0111 0100 1000");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", NovemberStatement,
+            November()
+                .Account("USD", "$120.00", "$120.00", zero: "$0.00")
+                .Account("GBP", "£0.00", "£0.00", zero: "£0.00")
+                .Section("Investment Services Summaries", "Stocks Account (USD)", "Opening balance $1,500.00")
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(5);
+        await Assert.That(result.CreatedAccounts.Select(a => a.Name)).IsEquivalentTo(["Revolut EUR", "Revolut USD"]);
+        await Assert.That(result.Warnings).IsEquivalentTo([
+            "The statement has entries under \"Investment Services Summaries\", which Treasury doesn't read.",
+        ]);
+        var accounts = (await GetGroupAsync(anna, group.Id)).Accounts;
+        await Assert.That(accounts.Select(a => (a.Currency, a.OpeningBalance, a.OpeningDate, a.Balance, a.BalanceWarning)))
+            .IsEquivalentTo([
+                ("CHF", 2450m, new DateOnly(2026, 10, 31), 890m, (BalanceWarning?)null),
+                ("EUR", 0m, new DateOnly(2026, 10, 31), 40m, null),
+                ("USD", 120m, new DateOnly(2026, 10, 31), 120m, null),
+            ]);
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_with_another_iban_is_rejected()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut", identifier: "LT60 1010 0123 4567 8901");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", OctoberStatement,
+            October().Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"].Single()).Contains(RevolutCustomStatement.Iban)
+            .And.Contains("LT60 1010 0123 4567 8901");
+        await Assert.That(await ListAsync(anna)).IsEmpty();
+        await Assert.That(await SourceFilesAsync(anna, group.Id)).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_imported_again_or_overlapping_an_earlier_one_skips_what_is_imported()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+        var url = $"/api/multi-currency-accounts/{group.Id}/imports";
+        await UploadAsync(anna, url, OctoberStatement, October().Build());
+
+        var again = (await (await UploadAsync(anna, url, "october (copy).pdf", October().Build()))
+            .Content.ReadFromJsonAsync<ImportResult>())!;
+        // From the middle of October: its first row is October's second.
+        var overlapping = (await (await UploadAsync(anna, url, "custom-statement_2026-10-15_2026-11-20.pdf",
+            new RevolutCustomStatement("Oct 15, 2026 - Nov 20, 2026")
+                .Account("CHF", "2,470.00 CHF", "890.00 CHF", t => t
+                    .Row("Oct 20, 2026", "Padel Club", "Merchant", "-20.00 CHF", "2,450.00 CHF")
+                    .Row("Nov 3, 2026", "Top-up by card", "Others", "40.00 CHF", "2,490.00 CHF")
+                    .Row("Nov 5, 2026", "Bakery", "Merchant", "-100.00 CHF", "2,390.00 CHF")
+                    .Row("Nov 10, 2026", "To Jan Novak", "Others", "-1,500.00 CHF", "890.00 CHF")
+                    .Total("-1,580.00 CHF"))
+                .Build())).Content.ReadFromJsonAsync<ImportResult>())!;
+
+        await Assert.That((again.ImportedCount, again.SkippedCount)).IsEqualTo((0, 2));
+        await Assert.That((overlapping.ImportedCount, overlapping.SkippedCount)).IsEqualTo((3, 1));
+        await Assert.That(again.Warnings.Concat(overlapping.Warnings)).IsEmpty();
+        await Assert.That(await ListAsync(anna)).Count().IsEqualTo(5);
+        var francs = (await GetGroupAsync(anna, group.Id)).Accounts.Single();
+        await Assert.That((francs.Balance, francs.BalanceWarning)).IsEqualTo((890m, (BalanceWarning?)null));
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_without_any_transaction_imports_cleanly()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", OctoberStatement,
+            new RevolutCustomStatement("Oct 1, 2026 - Oct 31, 2026")
+                .Account("CHF", "2,500.00 CHF", "2,500.00 CHF")
+                .Account("EUR", "€0.00", "€0.00", zero: "€0.00")
+                .Account("USD", "$120.00", "$120.00", zero: "$0.00")
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(0);
+        await Assert.That(result.CreatedAccounts.Select(a => a.Name)).IsEquivalentTo(["Revolut USD"]);
+        await Assert.That(result.Warnings).IsEmpty();
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => (a.Currency, a.Balance, a.BalanceWarning)))
+            .IsEquivalentTo([("CHF", 2500m, (BalanceWarning?)null), ("USD", 120m, null)]);
+        await Assert.That((await SourceFilesAsync(anna, group.Id)).Select(f => (f.FileName, f.TransactionCount)))
+            .IsEquivalentTo([(OctoberStatement, 0)]);
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_checks_an_empty_currency_without_rows_that_already_has_an_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+        var url = $"/api/multi-currency-accounts/{group.Id}/imports";
+        await UploadAsync(anna, url, OctoberStatement, October().Build());
+        // Opens the EUR Account and leaves 40 EUR in it.
+        await UploadAsync(anna, url, NovemberStatement, November().Build());
+
+        // December says EUR was empty all month: whatever emptied it was never imported.
+        var res = await UploadAsync(anna, url, "custom-statement_2026-12-01_2026-12-31.pdf",
+            new RevolutCustomStatement("Dec 1, 2026 - Dec 31, 2026")
+                .Account("CHF", "890.00 CHF", "890.00 CHF")
+                .Account("EUR", "€0.00", "€0.00", zero: "€0.00")
+                .Account("USD", "$0.00", "$0.00", zero: "$0.00")
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.CreatedAccounts).IsEmpty();
+        await Assert.That(result.Warnings.Single()).Contains("31.12.2026").And.Contains("0.00 EUR").And.Contains("40.00 EUR");
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => (a.Currency, a.BalanceWarning)))
+            .IsEquivalentTo([
+                ("CHF", (BalanceWarning?)null),
+                ("EUR", new BalanceWarning(new DateOnly(2026, 12, 31), 0m, 40m)),
+            ]);
+    }
+
     // ---- helpers ----
 
-    private const string OctoberSample = "account-statement_2026-10-01_2026-10-31_en-us_6a51a3.csv";
-    private const string NovemberSample = "account-statement_2026-11-01_2026-11-19_en-us_affca4.csv";
+    /// One CHF row and one row in EUR, a currency the Multi-currency account has no Account for yet.
+    private static TestStatement TwoCurrencies() => new TestStatement()
+        .Balances("CHF", "2026-10-31", 1000m, "2026-11-30", 980m)
+        .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
+        .Row("2026-11-03", -20m, "Migros")
+        .Row("2026-11-06", -10m, "Trattoria", currency: "EUR");
 
-    private static byte[] Sample(string name) =>
-        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Integrations", "Revolut", name));
+    private static TestStatement OneEuroRow() => new TestStatement()
+        .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
+        .Row("2026-11-06", -10m, "Trattoria", currency: "EUR");
+
+    private const string OctoberStatement = "custom-statement_2026-10-01_2026-10-31.pdf";
+    private const string NovemberStatement = "custom-statement_2026-11-01_2026-11-20.pdf";
+
+    /// CHF goes from 2'500 to 2'450; the EUR account is empty.
+    private static RevolutCustomStatement October() => new RevolutCustomStatement("Oct 1, 2026 - Oct 31, 2026")
+        .Account("CHF", "2,500.00 CHF", "2,450.00 CHF", t => t
+            .Row("Oct 12, 2026", "Padel Club", "Merchant", "-30.00 CHF", "2,470.00 CHF")
+            .Row("Oct 20, 2026", "Padel Club", "Merchant", "-20.00 CHF", "2,450.00 CHF")
+            .Total("-50.00 CHF"))
+        .Account("EUR", "€0.00", "€0.00", zero: "€0.00");
+
+    /// Continues October: CHF goes from 2'450 to 890, and EUR gets its first rows.
+    private static RevolutCustomStatement November() => new RevolutCustomStatement("Nov 1, 2026 - Nov 20, 2026")
+        .Account("CHF", "2,450.00 CHF", "890.00 CHF", t => t
+            .Row("Nov 3, 2026", "Top-up by card", "Others", "40.00 CHF", "2,490.00 CHF")
+            .Row("Nov 5, 2026", "Bakery", "Merchant", "-100.00 CHF", "2,390.00 CHF")
+            .Row("Nov 10, 2026", "To Jan Novak", "Others", "-1,500.00 CHF", "890.00 CHF")
+            .Total("-1,560.00 CHF"))
+        .Account("EUR", "€0.00", "€40.00", t => t
+            .Row("Nov 6, 2026", "Payment from Acme, Inc.", "Top up", "€50.00", "€50.00")
+            .Row("Nov 8, 2026", "Trattoria", "Merchant", "-€10.00", "€40.00")
+            .Total("€40.00"), zero: "€0.00");
 
     private static async Task<List<SourceFileDto>> SourceFilesAsync(HttpClient client, Guid groupId) =>
         (await client.GetFromJsonAsync<List<SourceFileDto>>($"/api/multi-currency-accounts/{groupId}/source-files"))!;
@@ -413,27 +760,26 @@ public class MultiCurrencyImportTests : ApiTestBase
     private record ScannedFile(Guid? AccountId, Guid? MultiCurrencyAccountId, string FileName, bool Succeeded,
         int ImportedCount, string? Error, List<CreatedAccount> CreatedAccounts);
 
-    private static string Csv(params string[] rows) => string.Join('\n', [Header, .. rows]) + "\n";
-
-    private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, Guid groupId, string fileName, string content) =>
-        await UploadAsync(client, $"/api/multi-currency-accounts/{groupId}/imports", fileName, Encoding.UTF8.GetBytes(content));
+    private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, Guid groupId, string fileName, TestStatement statement) =>
+        await UploadAsync(client, $"/api/multi-currency-accounts/{groupId}/imports", fileName,
+            Encoding.UTF8.GetBytes(statement.ToString()));
 
     private static async Task<HttpResponseMessage> UploadAsync(HttpClient client, string url, string fileName, byte[] content)
     {
         using var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(content);
-        file.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+        file.Headers.ContentType = new MediaTypeHeaderValue(fileName.EndsWith(".pdf") ? "application/pdf" : "text/plain");
         form.Add(file, "file", fileName);
         return await client.PostAsync(url, form);
     }
 
     private static async Task<Group> CreateGroupAsync(HttpClient client, string name, decimal openingBalance,
-        string openingDate, object? owner = null)
+        string openingDate, object? owner = null, string integrationKey = "test-multi", string? identifier = null)
     {
         owner ??= new { kind = "member", memberId = await MemberIdAsync(client) };
         var res = await client.PostAsJsonAsync("/api/multi-currency-accounts", new
         {
-            name, owner, integrationKey = "revolut", mainCurrency = "CHF", openingBalance, openingDate,
+            name, owner, integrationKey, mainCurrency = "CHF", openingBalance, openingDate, identifier,
         });
         if (res.StatusCode != HttpStatusCode.Created)
             throw new InvalidOperationException($"Create failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");

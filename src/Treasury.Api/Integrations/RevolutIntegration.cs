@@ -2,119 +2,136 @@ using System.Globalization;
 
 namespace Treasury.Api.Integrations;
 
-/// "Revolut" (key revolut): Revolut's account statement CSV, exported in English (documented in README "Revolut").
-/// - header Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
-/// - only rows of Product Current with State COMPLETED are read; a file may hold several currencies
-/// - no Account identifier; a closing balance and a balance before the first row per currency
+/// "Revolut" (key revolut): Revolut's Custom statement PDF, exported in English (ADR-0010). One PDF covers every
+/// currency account of a Revolut login for a period.
+/// - read: the period, and per "Personal Account (CUR)" its IBAN, opening and closing balance and its table of rows
+/// - a row's currency is its account's; every row is imported; a non-zero fee becomes a second row
+/// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
+///   gives: each row's running balance, each currency's closing balance and its Total row (Money in/out and Fees)
+/// - the IBAN is the Account identifier; the balances of every Personal Account, also of one holding nothing
+/// - a current account that isn't a Personal Account (e.g. a joint account) is not read; a note names it
+/// - other sections (investments, savings, crypto) are not read; when one has entries, a note says so
 public sealed class RevolutIntegration : IIntegration
 {
     public string Key => "revolut";
 
     public string Name => "Revolut";
 
-    public bool CanProvideIdentifier => false;
+    /// The Custom statement shows the IBAN of the Revolut login.
+    public bool CanProvideIdentifier => true;
 
-    /// One Revolut account holds several currencies (GLOSSARY: Multi-currency account).
+    /// One Revolut login holds several currencies (GLOSSARY: Multi-currency account).
     public bool HoldsSeveralCurrencies => true;
-
-    private const int Type = 0, Product = 1, CompletedDate = 3, Description = 4, Amount = 5, Fee = 6, Currency = 7,
-        State = 8, Balance = 9;
-
-    private static readonly string[] Columns =
-        ["Type", "Product", "Started Date", "Completed Date", "Description", "Amount", "Fee", "Currency", "State", "Balance"];
-
-    private const string EnglishHint =
-        "In the Revolut app, export the statement in English as CSV (Excel), then import that file.";
 
     public ParsedStatement Read(SourceFileContent file)
     {
-        var lines = file.ReadText().Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
-        var headerIndex = Array.FindIndex(lines, l => l.Trim().Length > 0);
-        if (headerIndex < 0)
-            throw new StatementFormatException($"The file is empty. {EnglishHint}");
-        var header = CsvLine.Split(lines[headerIndex], ',', headerIndex + 1).Select(c => c.Trim()).ToList();
-        if (!header.SequenceEqual(Columns, StringComparer.OrdinalIgnoreCase))
-            throw new StatementFormatException(
-                $"This isn't a Revolut account statement in English (expected the header {string.Join(',', Columns)}). " +
-                "If it is a Revolut statement in another language, export the statement in English from the " +
-                "Revolut app and import that file.");
+        var pdf = RevolutCustomStatementPdf.Read(file.Bytes);
 
-        var read = new List<ReadRow>();
-        for (var i = headerIndex + 1; i < lines.Length; i++)
+        var listedTwice = pdf.Summaries.Select(s => s.Currency).GroupBy(c => c)
+            .Concat(pdf.Tables.Select(t => t.Currency).GroupBy(c => c))
+            .FirstOrDefault(g => g.Count() > 1);
+        if (listedTwice is not null) throw Rejected($"The statement lists the {listedTwice.Key} account twice.");
+        foreach (var summary in pdf.Summaries.Where(s => pdf.Tables.All(t => t.Currency != s.Currency)))
+            throw Rejected($"The {summary.Currency} account is in the statement's summaries, but it has no transaction statement.");
+        foreach (var table in pdf.Tables.Where(t => pdf.Summaries.All(s => s.Currency != t.Currency)))
+            throw Rejected($"The {table.Currency} account has a transaction statement, but it is not in the statement's summaries.");
+
+        var ibans = pdf.Summaries.Select(s => s.Iban).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (ibans.Count > 1)
+            throw Rejected(
+                $"The statement's accounts show more than one IBAN ({string.Join(", ", ibans)}), so Treasury can't " +
+                "tell which Revolut login it belongs to.");
+
+        var rows = new List<StatementRow>();
+        var balances = new List<CurrencyBalances>();
+        foreach (var summary in pdf.Summaries)
         {
-            if (lines[i].Trim().Length == 0) continue;
-            var at = $"line {i + 1}";
-            var fields = CsvLine.Split(lines[i], ',', i + 1).Select(f => f.Trim()).ToList();
-            if (fields.Count != Columns.Length)
-                throw new StatementFormatException(
-                    $"{at}: expected {Columns.Length} fields like the header, found {fields.Count}. Was the file edited?");
-            if (!Is(fields[Product], "Current") || !Is(fields[State], "Completed")) continue;
-            read.Add(new ReadRow(
-                ParseCompleted(fields[CompletedDate], at),
-                fields[Type], fields[Description],
-                ParseAmount(fields[Amount], at, "an Amount"),
-                ParseAmount(fields[Fee], at, "a Fee"),
-                fields[Currency].Length > 0
-                    ? fields[Currency].ToUpperInvariant()
-                    : throw new StatementFormatException($"{at}: the Currency is empty."),
-                ParseAmount(fields[Balance], at, "a Balance")));
+            var table = pdf.Tables.Single(t => t.Currency == summary.Currency);
+            Reconcile(summary, table);
+            rows.AddRange(table.Rows.SelectMany(row => Rows(summary.Currency, row)));
+            // Also of a currency holding nothing: its Account, when it has one, is checked against the zero.
+            balances.Add(new CurrencyBalances(summary.Currency, pdf.PeriodStart.AddDays(-1), summary.Opening,
+                new ClosingBalance(pdf.PeriodEnd, summary.Closing)));
         }
 
-        var rows = read.SelectMany(Rows).ToList();
-        var balances = read
-            .Select((row, index) => (row, index))
-            .GroupBy(r => r.row.Currency)
-            .OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g =>
-            {
-                // Completed Date order; rows completed at the same second keep their file order.
-                var ordered = g.OrderBy(r => r.row.Completed).ThenBy(r => r.index).Select(r => r.row).ToList();
-                var (first, last) = (ordered[0], ordered[^1]);
-                return new CurrencyBalances(g.Key, DateOnly.FromDateTime(first.Completed),
-                    first.Balance - first.Amount + first.Fee,
-                    new ClosingBalance(DateOnly.FromDateTime(last.Completed), last.Balance));
-            })
-            .ToList();
-        return new ParsedStatement(rows, BalancesByCurrency: balances);
+        return new ParsedStatement(rows, ibans.SingleOrDefault(),
+            BalancesByCurrency: balances.OrderBy(b => b.Currency, StringComparer.Ordinal).ToList(),
+            Notes: pdf.SkippedAccounts
+                .Select(account => $"The statement also has \"{account}\", which Treasury doesn't import.")
+                .Concat(pdf.SkippedSectionsWithEntries
+                    .Select(section => $"The statement has entries under \"{section}\", which Treasury doesn't read."))
+                .ToList());
     }
 
-    /// The movement itself and, for a non-zero Fee, a second row charged by Revolut (Revolut's balance is the
-    /// previous balance + Amount − Fee).
-    private static IEnumerable<StatementRow> Rows(ReadRow row)
+    /// Rejects the file unless the rows that were read agree with the figures the statement gives for the currency.
+    private static void Reconcile(RevolutAccountSummary summary, RevolutAccountTable table)
     {
-        var date = DateOnly.FromDateTime(row.Completed);
-        yield return new StatementRow(date, row.Amount, row.Currency, row.Description,
-            Counterparty(row.Type, row.Description));
-        if (row.Fee != 0)
-            yield return new StatementRow(date, -row.Fee, row.Currency, $"Fee: {row.Description}", "Revolut");
+        var currency = summary.Currency;
+        string WithCurrency(decimal amount) => $"{Amounts.Format(amount)} {currency}";
+
+        foreach (var (column, amount, where) in table.Rows
+                     .SelectMany(r => new[]
+                     {
+                         ("Tax withheld", r.Tax, $"the row of {Day(r.Date)}"),
+                         ("Other taxes", r.OtherTaxes, $"the row of {Day(r.Date)}"),
+                     })
+                     .Append(("Tax withheld", table.Total.Tax, "the Total row"))
+                     .Append(("Other taxes", table.Total.OtherTaxes, "the Total row")))
+            if (amount != 0)
+                throw Rejected(
+                    $"The {currency} account has {WithCurrency(amount)} under \"{column}\" in {where}, which Treasury " +
+                    "doesn't support yet.");
+
+        var balance = summary.Opening;
+        foreach (var row in table.Rows)
+        {
+            // Revolut's balance is the previous balance + Money in/out − Fees.
+            var expected = balance + row.Money - row.Fees;
+            if (row.Balance != expected)
+                throw Rejected(
+                    $"The {currency} row \"{row.Description}\" of {Day(row.Date)} " +
+                    $"doesn't follow from the balance before it: {WithCurrency(balance)} with {WithCurrency(row.Money)} in/out and " +
+                    $"{WithCurrency(row.Fees)} fees gives {WithCurrency(expected)}, but the statement says {WithCurrency(row.Balance)}.");
+            balance = row.Balance;
+        }
+
+        if (balance != summary.Closing)
+            throw Rejected(table.Rows.Count == 0
+                ? $"The {currency} account has no rows, but its opening balance is {WithCurrency(summary.Opening)} and its " +
+                  $"closing balance is {WithCurrency(summary.Closing)}."
+                : $"The {currency} rows end at a balance of {WithCurrency(balance)}, but the statement's closing balance is " +
+                  $"{WithCurrency(summary.Closing)}.");
+
+        var sum = table.Rows.Sum(r => r.Money);
+        if (sum != table.Total.Money)
+            throw Rejected(
+                $"The {currency} rows add up to {WithCurrency(sum)}, but the statement's Total row says {WithCurrency(table.Total.Money)}.");
+
+        var fees = table.Rows.Sum(r => r.Fees);
+        if (fees != table.Total.Fees)
+            throw Rejected(
+                $"The {currency} rows' fees add up to {WithCurrency(fees)}, but the statement's Total row says " +
+                $"{WithCurrency(table.Total.Fees)}.");
     }
 
-    private static DateTime ParseCompleted(string value, string at) =>
-        DateTime.TryParseExact(value, ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm"], CultureInfo.InvariantCulture,
-            DateTimeStyles.None, out var completed)
-            ? completed
-            : throw new StatementFormatException(
-                $"{at}: '{value}' is not a Completed Date (expected e.g. 2026-11-04 21:14:56).");
+    /// The statement and what Treasury read from it disagree: importing could store wrong numbers.
+    private static StatementFormatException Rejected(string what) => new(
+        $"{what} Treasury may have misread the PDF, or the statement is not one it can import. Nothing was imported.");
 
-    private static decimal ParseAmount(string value, string at, string what) =>
-        decimal.TryParse(value, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
-            CultureInfo.InvariantCulture, out var amount)
-            ? amount
-            : throw new StatementFormatException($"{at}: '{value}' is not {what} (expected e.g. -26.25).");
+    /// The movement itself and, for a non-zero fee, a second row charged by Revolut.
+    private static IEnumerable<StatementRow> Rows(string currency, RevolutTableRow row)
+    {
+        yield return new StatementRow(row.Date, row.Money, currency, row.Description, Counterparty(row));
+        if (row.Fees != 0)
+            yield return new StatementRow(row.Date, -row.Fees, currency, $"Fee: {row.Description}", "Revolut");
+    }
 
-    private static string? Counterparty(string type, string description) =>
-        Is(type, "Card Payment") || Is(type, "Card Refund") ? description
-        : Is(type, "Transfer") ? StripPrefix(StripPrefix(description, "To "), "From ")
+    /// A card payment's merchant, or the person behind "To X" / "From X".
+    private static string? Counterparty(RevolutTableRow row) =>
+        row.Category == "Merchant" ? row.Description
+        : row.Description.StartsWith("To ", StringComparison.Ordinal) ? row.Description["To ".Length..]
+        : row.Description.StartsWith("From ", StringComparison.Ordinal) ? row.Description["From ".Length..]
         : null;
 
-    private static string StripPrefix(string value, string prefix) =>
-        value.StartsWith(prefix, StringComparison.Ordinal) ? value[prefix.Length..] : value;
-
-    /// Revolut writes Type and State in title case ("Card Payment") or, in older exports, upper case with
-    /// underscores ("CARD_PAYMENT").
-    private static bool Is(string value, string expected) =>
-        string.Equals(value.Replace('_', ' '), expected, StringComparison.OrdinalIgnoreCase);
-
-    private sealed record ReadRow(DateTime Completed, string Type, string Description, decimal Amount, decimal Fee,
-        string Currency, decimal Balance);
+    private static string Day(DateOnly date) => date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
 }

@@ -74,6 +74,9 @@ public interface IImportTarget
     /// Key of the Integration that reads its statements.
     string IntegrationKey { get; }
 
+    /// The identifier its statements must carry (e.g. an IBAN), if it has one.
+    string? Identifier { get; }
+
     /// What it is, for messages to Members: the Account "…" or the Multi-currency account "…".
     string Description { get; }
 }

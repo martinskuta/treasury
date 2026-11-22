@@ -14,8 +14,8 @@ import {
   listMultiCurrencyAccounts,
   listSourceFiles,
   renameAccount,
-  renameMultiCurrencyAccount,
   sourceFileContentUrl,
+  updateMultiCurrencyAccount,
   type Account,
   type Currency,
   type ImportResult,
@@ -83,6 +83,7 @@ export function AccountsPage() {
       .catch(() => setLoadError(true))
 
   const integrationName = (key: string) => integrations.find(i => i.key === key)?.name ?? key
+  const canProvideIdentifier = (key: string) => integrations.find(i => i.key === key)?.canProvideIdentifier ?? false
   const plainAccounts = accounts?.filter(a => a.multiCurrencyAccountId === null) ?? []
   // Accounts and Multi-currency accounts in one list, by name.
   const rows = [
@@ -125,6 +126,7 @@ export function AccountsPage() {
                     key={multiCurrencyAccount.id}
                     multiCurrencyAccount={multiCurrencyAccount}
                     integrationName={integrationName(multiCurrencyAccount.integrationKey)}
+                    canHaveIdentifier={canProvideIdentifier(multiCurrencyAccount.integrationKey)}
                     onChanged={() => void reloadAccounts()}
                   />
                 ) : (
@@ -147,17 +149,29 @@ export function AccountsPage() {
   )
 }
 
-/** Inline rename form; calls onSave with the new name and closes when it resolves. */
-function RenameForm({
+/** The identifier field's label, the same wherever an identifier is entered. */
+const identifierLabel = 'Identifier (optional: IBAN or last card digits)'
+
+/**
+ * Inline form editing a name and, with `hasIdentifierField`, an identifier; calls onSave with the new name and the
+ * identifier, trimmed ('' = none), and closes when it resolves.
+ */
+function NameAndIdentifierForm({
   initialName,
+  hasIdentifierField = false,
+  initialIdentifier = null,
   onSave,
   onClose,
 }: {
   initialName: string
-  onSave: (name: string) => Promise<void>
+  hasIdentifierField?: boolean
+  /** null = none yet. */
+  initialIdentifier?: string | null
+  onSave: (name: string, identifier: string) => Promise<void>
   onClose: () => void
 }) {
   const [name, setName] = useState(initialName)
+  const [identifier, setIdentifier] = useState(initialIdentifier ?? '')
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
@@ -166,7 +180,7 @@ function RenameForm({
     setBusy(true)
     setErrors({})
     try {
-      await onSave(name)
+      await onSave(name, identifier.trim())
       onClose()
     } catch (err) {
       setErrors(toErrors(err))
@@ -186,6 +200,15 @@ function RenameForm({
         errors={errors.name ?? errors.form}
         onChange={e => setName(e.target.value)}
       />
+      {hasIdentifierField && (
+        <FormField
+          label={identifierLabel}
+          name="identifier"
+          value={identifier}
+          errors={errors.identifier}
+          onChange={e => setIdentifier(e.target.value)}
+        />
+      )}
       <div className="form-actions">
         <button type="submit" className="button-primary button-small" disabled={busy}>
           Save
@@ -198,14 +221,19 @@ function RenameForm({
   )
 }
 
-/** A Multi-currency account: its Ingest folder and total, with its Accounts nested (renamable, never moved). */
+/**
+ * A Multi-currency account: its Ingest folder, identifier and total, with its Accounts nested (renamable, never
+ * moved). Its identifier can be edited when its Integration can provide one.
+ */
 function MultiCurrencyAccountRow({
   multiCurrencyAccount,
   integrationName,
+  canHaveIdentifier,
   onChanged,
 }: {
   multiCurrencyAccount: MultiCurrencyAccount
   integrationName: string
+  canHaveIdentifier: boolean
   onChanged: () => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -217,10 +245,15 @@ function MultiCurrencyAccountRow({
         <AccountIcon label={initial(multiCurrencyAccount.name)} tone="multi" />
         <div className="acct-name">
           {editing ? (
-            <RenameForm
+            <NameAndIdentifierForm
               initialName={multiCurrencyAccount.name}
-              onSave={async name => {
-                await renameMultiCurrencyAccount(multiCurrencyAccount.id, name)
+              hasIdentifierField={canHaveIdentifier}
+              initialIdentifier={multiCurrencyAccount.identifier}
+              onSave={async (name, identifier) => {
+                await updateMultiCurrencyAccount(
+                  multiCurrencyAccount.id,
+                  canHaveIdentifier ? { name, identifier } : { name },
+                )
                 onChanged()
               }}
               onClose={() => setEditing(false)}
@@ -230,6 +263,7 @@ function MultiCurrencyAccountRow({
           )}
           <small>
             {multiCurrencyAccount.owner.name} · {integrationName} · Multi-currency account
+            {multiCurrencyAccount.identifier && <> · {multiCurrencyAccount.identifier}</>}
           </small>
         </div>
         <div className="acct-bal">
@@ -247,7 +281,7 @@ function MultiCurrencyAccountRow({
         {!editing && (
           <>
             <button type="button" className="button-link" onClick={() => setEditing(true)}>
-              Rename
+              {canHaveIdentifier ? 'Edit' : 'Rename'}
             </button>
             <button type="button" className="button-link" aria-expanded={importing} onClick={() => setImporting(v => !v)}>
               {importing ? 'Close imports' : 'Imports'}
@@ -306,7 +340,7 @@ function AccountRow({
         )}
         <div className="acct-name">
           {editing ? (
-            <RenameForm
+            <NameAndIdentifierForm
               initialName={account.name}
               onSave={async name => onRenamed(await renameAccount(account.id, name))}
               onClose={() => setEditing(false)}
@@ -562,7 +596,8 @@ function NewAccountForm({
   const integration = integrations.find(i => i.key === integrationKey)
   // An Integration holding several currencies is used only through a Multi-currency account (ADR-0009).
   const multiCurrency = integration?.holdsSeveralCurrencies ?? false
-  const offerIdentifier = !multiCurrency && (integration?.canProvideIdentifier ?? false)
+  const offerIdentifier = integration?.canProvideIdentifier ?? false
+  const enteredIdentifier = offerIdentifier && identifier.trim() ? identifier.trim() : null
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -583,6 +618,7 @@ function NewAccountForm({
           mainCurrency: currency,
           openingBalance: balance,
           openingDate: openingDate || null,
+          identifier: enteredIdentifier,
         })
       } else {
         await createAccount({
@@ -592,7 +628,7 @@ function NewAccountForm({
           currency,
           openingBalance: balance,
           openingDate: openingDate || null,
-          identifier: offerIdentifier && identifier.trim() ? identifier.trim() : null,
+          identifier: enteredIdentifier,
         })
       }
       onCreated()
@@ -674,7 +710,7 @@ function NewAccountForm({
       />
       {offerIdentifier && (
         <FormField
-          label="Identifier (optional: IBAN or last card digits)"
+          label={identifierLabel}
           name="identifier"
           value={identifier}
           errors={errors.identifier}

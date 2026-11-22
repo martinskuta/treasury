@@ -1,5 +1,0 @@
-Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
-Card Payment,Current,2026-11-10 12:00:00,2026-11-11 08:00:00,"Trattoria Roma, Milano",-25.00,0.00,EUR,COMPLETED,67.00
-Exchange,Current,2026-11-10 09:00:00,2026-11-10 09:00:01,Exchanged to EUR,-100.00,0.00,CHF,COMPLETED,900.00
-Exchange,Current,2026-11-10 09:00:00,2026-11-10 09:00:01,Exchanged to EUR,92.00,0.00,EUR,COMPLETED,92.00
-Card Payment,Current,2026-11-12 17:00:00,2026-11-13 07:00:00,Migros,-10.00,0.00,CHF,COMPLETED,890.00
