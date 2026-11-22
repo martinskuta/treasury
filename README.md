@@ -104,11 +104,11 @@ Display name, note and Owner can be edited.
 
 Two safety checks run on every import:
 
-- **Identifier**: when the Account has an identifier (IBAN or card number) and the statement carries one, they must
-  match, otherwise the file goes to `failed/` and nothing is imported. Spaces, `-` and letter case are ignored
-  (`CH93 0076 2011 6238 5295 7` = `ch9300762011623852957`). Card numbers (digits, optionally masked with `*`, `X`,
-  `•` or `.`) match on their last 4 digits, so an Account identifier `1234` matches `5413 **** **** 1234`.
-  The check is skipped when either side has no identifier.
+- **Identifier**: when the Account (or the Multi-currency account) has an identifier (IBAN or card number) and the
+  statement carries one, they must match, otherwise the file goes to `failed/` and nothing is imported. Spaces, `-`
+  and letter case are ignored (`CH93 0076 2011 6238 5295 7` = `ch9300762011623852957`). Card numbers (digits,
+  optionally masked with `*`, `X`, `•` or `.`) match on their last 4 digits, so an Account identifier `1234`
+  matches `5413 **** **** 1234`. The check is skipped when either side has no identifier.
 - **Closing balance**: when a statement includes a closing balance, it is compared with the Account's calculated
   balance on that date. The Accounts screen shows a warning while the most recent statement's closing balance
   doesn't match (a missing or doubled import); it disappears once the balances match again.
@@ -173,39 +173,47 @@ are not supported.
 
 ### Revolut (`revolut`)
 
-For Revolut, export the account statement from the Revolut app as **CSV (Excel)** in **English** and import the
-file as it is. Its header is
-`Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance` (a UTF-8 byte order mark
-is fine). One Revolut account holds several currencies, and a file can contain all of them, so Revolut is used
-through a **Multi-currency account**: create one with the Revolut Integration and a main currency, then drop the
-file into its Ingest folder (`ingest/<slug>/`) or upload it from its **Imports** on the Accounts screen.
+For Revolut, export the **Custom statement** from the Revolut app (Profile → Documents & statements → Custom
+statement) as **PDF** in **English**, for full past months, and import the file as it is. One PDF covers every
+currency of a Revolut login for the chosen period, so Revolut is used through a **Multi-currency account**: create
+one with the Revolut Integration and a main currency, then drop the PDF into its Ingest folder (`ingest/<slug>/`)
+or upload it from its **Imports** on the Accounts screen. A Member with their own Revolut login creates their own
+Multi-currency account. Revolut's CSV account statement is not supported.
 
-- Each row goes to the Multi-currency account's Account in the row's currency. A currency without an Account yet
-  gets one during the import, named `<Multi-currency account name> <CUR>` (renamable), with the group's Owner,
-  opened on the day before that currency's first row with the balance before that row (see below). The import
-  result says "Created Account ...". Only currencies Treasury has exchange rates for can have Accounts (see
-  [Currencies](#currencies)): a file with rows in another currency is rejected.
-- The file is one Source file. Duplicates, Rules, date-range Tags and the balance check work per Account as
-  usual; an exchange between two of its currencies is paired as a Transfer when both legs' CHF values are
-  within 2% and at most a day apart (exchange rates for that day must be known).
-  Undoing the import removes its Transactions in every currency; Accounts it created stay.
+- Enter your Revolut IBAN as the Multi-currency account's identifier to have another login's statement rejected.
+  The Accounts in it have no identifier of their own.
+- Read from the PDF: the period, and for each "Personal Account (CUR)" its IBAN, opening balance, closing balance
+  and transaction table. Everything else (investments, savings, crypto, the "Information about ..." pages) is not
+  read; when such a section has entries, the import result says so in a warning.
+- Each row goes to the Multi-currency account's Account in the currency of the row's "Personal Account (CUR)". A
+  currency without an Account yet gets one during the import when the statement shows money in it (a row, or an
+  opening or closing balance other than zero), named `<Multi-currency account name> <CUR>` (renamable), with the
+  Multi-currency account's Owner, opened on the day before the statement's period starts with the statement's
+  opening balance. A currency with no rows and a zero balance gets no Account. The import result says "Created
+  Account ...". Only currencies Treasury has exchange rates for can have Accounts (see [Currencies](#currencies)):
+  a statement with rows or a balance in another currency is rejected.
+- A Transaction gets the row's Date, its Money in/out (money in positive, money out negative) in the account's
+  currency (the converted amount printed beneath it is ignored) and its Description as it is; a description that
+  wraps over several lines is joined with spaces. The counterparty is the description when Revolut's Category is
+  `Merchant`, the description without a leading `To ` / `From ` when it has one, and empty otherwise. Revolut's
+  Category is otherwise ignored. Every row in the table is imported.
+- A non-zero Fees value becomes a second Transaction on the same date and in the same currency: minus the fee,
+  described as `Fee: <description>`, with counterparty `Revolut` (Revolut's balance is the previous balance + Money
+  in/out − Fees).
+- The file is one Source file. Rules, date-range Tags and the balance check work per Account as usual: each
+  currency's closing balance, on the last day of the period, is compared with its Account's calculated balance,
+  also for a currency with no rows in the period. An exchange between two of its currencies is paired as a
+  Transfer when both legs' CHF values are within 2% and at most a day apart (exchange rates for that day must be
+  known). Undoing the import removes its Transactions in every currency; Accounts it created stay.
+- Revolut has no reference, so the description is part of what makes a Transaction a duplicate. Importing the same
+  PDF again, or one whose period overlaps an earlier one, skips the rows already imported.
 - Files go to the Multi-currency account's `processed/` or `failed/`. Its Accounts have no Ingest folder of their
   own, and uploads straight into one of them are rejected.
-- Revolut statements have no account identifier, so Accounts using it can't have an identifier.
-- Only rows with Product `Current` and State `COMPLETED` are imported; everything else (savings and other
-  `Deposit` rows, `PENDING`, `REVERTED`, `DECLINED`, ...) is skipped. Type and State may be written in title case
-  (`Card Payment`) or, in older exports, in upper case with underscores (`CARD_PAYMENT`, `TOPUP`).
-- A Transaction gets the Completed Date, the `Amount` (money in positive, money out negative) in its `Currency`,
-  and Revolut's `Description` as it is. Revolut has no reference, so the description is part of what makes a
-  Transaction a duplicate. The counterparty is the description for `Card Payment` and `Card Refund`, the
-  description without a leading `To ` / `From ` for `Transfer`, and empty for anything else (top-ups, exchanges,
-  ...).
-- A non-zero `Fee` becomes a second Transaction on the same date and in the same currency: minus the fee, described
-  as `Fee: <description>`, with counterparty `Revolut` (Revolut's balance is the previous balance + `Amount` −
-  `Fee`).
-- For each currency, the `Balance` of its last imported row (in Completed Date order) is that currency's closing
-  balance on that row's Completed Date, and the balance before its first row (first `Balance` − `Amount` + `Fee`)
-  is where that currency stood before the file.
-- Rejected (nothing imported): a header in another language (export the statement in English), a line with more
-  or fewer fields than the header, and an imported row whose Completed Date, Amount, Fee or Balance can't be read
-  or whose Currency is empty. The error says which line.
+- Rejected (nothing imported), with an error that names the currency and the figures that disagree: a row whose
+  Balance isn't the previous balance (the opening balance for the first row) + Money in/out − Fees, a currency
+  whose last Balance isn't its closing balance (or whose opening and closing balance differ when it has no rows),
+  a currency whose rows don't add up to its Total row, a non-zero "Tax withheld" or "Other taxes" (not supported
+  yet), an account that is in the summaries but not in the transaction statements or the other way round, the same
+  currency twice, more than one IBAN in one statement (accounts without one are fine), an IBAN other than the
+  Multi-currency account's identifier, and anything that isn't a Revolut Custom statement PDF in English (a CSV,
+  another PDF, a statement in another language).

@@ -14,10 +14,12 @@ namespace Treasury.Api.Imports;
 /// scan (#8). One call imports one file into one Account, or into a Multi-currency account (#25, ADR-0009):
 ///
 ///  1. read      — the Integration parses the file; rows are validated. Into a Multi-currency account, the rows are
-///                 split by currency, one "leg" per currency, each for its Account in that currency; a
-///                 currency without an Account gets one (saved with the import), opened with the statement's
-///                 opening balance for that currency, on the day before the statement's period starts (ADR-0010)
-///  2. Check     — IImportStep stage: reject the file (identifier mismatch, #11)
+///                 split by currency, one "leg" per currency the statement has rows or balances in, each for its
+///                 Account in that currency; a currency without an Account gets one (saved with the import),
+///                 opened with the statement's opening balance for that currency, on the day before the
+///                 statement's period starts (ADR-0010)
+///  2. Check     — IImportStep stage: reject the file (identifier mismatch, #11; a Multi-currency account's
+///                 identifier is checked in step 1, before the split)
 ///  3. Deduplicate — IImportStep stage: drop rows already imported (#9) from <see cref="ImportContext.Rows"/>
 ///  4. store     — keep ONE Source file and create its Transactions (saved inside a DB transaction)
 ///  5. Match     — IImportStep stage: Transfers and Contributions (#16)
@@ -63,7 +65,8 @@ public sealed class ImportPipeline(
             var legs = target switch
             {
                 Account account => [new Leg(account, IsNew: false, ValidateRows(statement, account))],
-                MultiCurrencyAccount multiCurrencyAccount => LegsByCurrency(multiCurrencyAccount, ValidateRows(statement)),
+                MultiCurrencyAccount multiCurrencyAccount =>
+                    LegsByCurrency(multiCurrencyAccount, ValidateRows(VerifyIdentifier(multiCurrencyAccount, statement))),
                 _ => throw new InvalidOperationException($"Unknown import target {target.GetType()}"),
             };
             var now = clock.GetUtcNow();
@@ -98,7 +101,7 @@ public sealed class ImportPipeline(
 
             // Committed: from here on the import stands, whatever happens to the file move or the rate request.
             var created = legs.Where(l => l.IsNew).Select(l => l.Account).ToList();
-            return await AfterCommitAsync(target, content, file, contexts, stored, created);
+            return await AfterCommitAsync(target, content, file, statement, contexts, stored, created);
         }
         catch (Exception e) when (e is ImportFailedException or StatementFormatException)
         {
@@ -178,9 +181,11 @@ public sealed class ImportPipeline(
                 await tx.CommitAsync(ct);
             });
 
-    /// One leg per currency of the statement's rows, for the Multi-currency account's Account in that currency. A
-    /// currency without one gets a new (not yet saved) Account: "&lt;its name&gt; &lt;CUR&gt;", its Owner, opened on
-    /// the statement's opening date (the day before its period starts) with its opening balance for the currency.
+    /// One leg per currency the statement has rows or balances in, for the Multi-currency account's Account in that
+    /// currency; a currency with balances and no rows gets a leg without rows, so that its closing balance is kept
+    /// and checked too (ADR-0010). A currency without an Account gets a new (not yet saved) one: "&lt;its name&gt;
+    /// &lt;CUR&gt;", its Owner, opened on the statement's opening date (the day before its period starts) with its
+    /// opening balance for the currency.
     private static List<Leg> LegsByCurrency(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement)
     {
         for (var i = 0; i < statement.Rows.Count; i++)
@@ -188,24 +193,28 @@ public sealed class ImportPipeline(
                 throw new ImportFailedException(
                     $"{At(i, statement.Rows[i])} has no currency, so Treasury can't tell which Account it belongs to.");
 
+        var rowsByCurrency = statement.Rows.ToLookup(r => Code(r.Currency!));
         var legs = new List<Leg>();
-        foreach (var rows in statement.Rows.GroupBy(r => r.Currency!.Trim().ToUpperInvariant())
-                     .OrderBy(g => g.Key, StringComparer.Ordinal))
+        foreach (var currency in rowsByCurrency.Select(g => g.Key)
+                     .Union(statement.BalancesByCurrency.Select(b => Code(b.Currency)))
+                     .OrderBy(c => c, StringComparer.Ordinal))
         {
-            var currency = rows.Key;
-            var balances = statement.BalancesByCurrency
-                .FirstOrDefault(b => string.Equals(b.Currency, currency, StringComparison.OrdinalIgnoreCase));
-            var legStatement = new ParsedStatement([.. rows], ClosingBalance: balances?.Closing);
+            var rows = rowsByCurrency[currency].ToList();
+            var balances = statement.BalancesByCurrency.FirstOrDefault(b => Code(b.Currency) == currency);
+            var legStatement = new ParsedStatement(rows, ClosingBalance: balances?.Closing);
             if (multiCurrencyAccount.Accounts.FirstOrDefault(a => a.Currency == currency) is { } existing)
             {
                 legs.Add(new Leg(existing, IsNew: false, legStatement));
                 continue;
             }
 
+            // The statement shows no money in the currency (no row, no balance other than zero): no Account for it.
+            if (rows.Count == 0 && balances is { OpeningBalance: 0, Closing.Amount: 0 }) continue;
             if (!Currencies.IsSupported(currency))
                 throw new ImportFailedException(
-                    $"The statement has rows in {currency}, but Treasury keeps Accounts only in currencies it has " +
-                    "exchange rates for (the ECB reference rates). Nothing was imported.");
+                    $"The statement has {(rows.Count > 0 ? "rows" : "a balance")} in {currency}, but Treasury keeps " +
+                    "Accounts only in currencies it has exchange rates for (the ECB reference rates). Nothing was " +
+                    "imported.");
             if (balances is null)
                 throw new ImportFailedException(
                     $"The statement doesn't say the {currency} opening balance, so Treasury can't open an Account " +
@@ -228,8 +237,19 @@ public sealed class ImportPipeline(
         return legs;
     }
 
+    private static string Code(string currency) => currency.Trim().ToUpperInvariant();
+
+    /// The identifier check for a Multi-currency account (the same rules as <see cref="IdentifierCheck"/> applies to
+    /// an Account): its Accounts have no identifier of their own, so the whole statement is checked once, before
+    /// it is split into legs. Returns the statement.
+    private static ParsedStatement VerifyIdentifier(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement)
+    {
+        IdentifierCheck.Verify(multiCurrencyAccount, statement);
+        return statement;
+    }
+
     private async Task<ImportResult> AfterCommitAsync(IImportTarget target, SourceFileContent content, IncomingFile file,
-        List<ImportContext> contexts, SourceFile stored, List<Account> created)
+        ParsedStatement statement, List<ImportContext> contexts, SourceFile stored, List<Account> created)
     {
         var transactions = contexts.SelectMany(c => c.Transactions).ToList();
         var placedAt = "";
@@ -246,8 +266,9 @@ public sealed class ImportPipeline(
         }
         logger.LogInformation("Imported {Count} Transactions from {File} into {Target}",
             transactions.Count, content.FileName, target.Slug);
+        // What the Integration saw but didn't read (e.g. a section Treasury doesn't track) is a warning too.
         return ImportResult.Success(stored, transactions.Count, contexts.Sum(c => c.SkippedCount),
-            contexts.SelectMany(c => c.Warnings), placedAt, created);
+            statement.Notes.Concat(contexts.SelectMany(c => c.Warnings)), placedAt, created);
     }
 
     private ImportResult Fail(IImportTarget target, SourceFileContent content, IncomingFile file, string? keptCopy,
@@ -322,7 +343,8 @@ public sealed class ImportPipeline(
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    /// The rows (and that currency's closing balance) for one Account; IsNew = created by this import.
+    /// The rows (none for a currency with balances only) and that currency's closing balance for one Account;
+    /// IsNew = created by this import.
     private sealed record Leg(Account Account, bool IsNew, ParsedStatement Statement);
 }
 

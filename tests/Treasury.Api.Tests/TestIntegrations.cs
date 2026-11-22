@@ -9,6 +9,7 @@ namespace Treasury.Api.Tests;
 /// # closing: 2026-11-30 1234.50     (optional: date and closing balance)
 /// # balances: EUR 2026-10-31 50 2026-11-30 35.50   (optional, one per currency of a multi-currency statement:
 ///                                    currency, opening date and balance, closing date and balance)
+/// # note: The statement has entries under "Savings".   (optional, any number: something the file held that wasn't read)
 /// 2026-11-18;-12.50;CHF;Coffee shop                         date;amount;currency;description
 /// 2026-11-19;-46.20;CHF;Trattoria;Trattoria Roma;R-1;-48.00;EUR   ...;counterparty;reference;original amount;original currency
 /// </code>
@@ -28,6 +29,7 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
         string? identifier = null;
         ClosingBalance? closing = null;
         var balances = new List<CurrencyBalances>();
+        var notes = new List<string>();
         var lines = file.ReadText().Split('\n');
         for (var i = 0; i < lines.Length; i++)
         {
@@ -37,6 +39,11 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
             if (line.StartsWith("# identifier:", StringComparison.Ordinal))
             {
                 if (CanProvideIdentifier) identifier = line["# identifier:".Length..].Trim();
+                continue;
+            }
+            if (line.StartsWith("# note:", StringComparison.Ordinal))
+            {
+                notes.Add(line["# note:".Length..].Trim());
                 continue;
             }
             if (line.StartsWith("# closing:", StringComparison.Ordinal))
@@ -70,7 +77,7 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
                 Opt(6) is { } original ? ParseAmount(original, at) : null,
                 Opt(7)));
         }
-        return new ParsedStatement(rows, identifier, closing, balances);
+        return new ParsedStatement(rows, identifier, closing, balances, notes);
     }
 
     private static DateOnly ParseDate(string value, string at) =>
@@ -120,6 +127,9 @@ public sealed class TestStatement
     public TestStatement Balances(string currency, string openingDate, decimal opening, string closingDate, decimal closing) =>
         Line($"# balances: {currency} {openingDate} {opening.ToString(CultureInfo.InvariantCulture)} " +
              $"{closingDate} {closing.ToString(CultureInfo.InvariantCulture)}");
+
+    /// Something the file held that the Integration didn't read.
+    public TestStatement Note(string note) => Line($"# note: {note}");
 
     public TestStatement Row(string date, decimal amount, string description, string? currency = "CHF",
         string? counterparty = null, string? reference = null, decimal? originalAmount = null,
