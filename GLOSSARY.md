@@ -63,7 +63,7 @@ A node in the Family's tree of spending and income kinds (for example Food › E
 _Avoid_: Type, group, bucket, label
 
 **Tag**:
-A free-form marker that cuts across Categories (for example `holiday-italy-2026`); a Transaction can carry any number of Tags. A Tag may have a date range so that it is applied automatically.
+A free-form marker that cuts across Categories (for example `holiday-italy-2026`); a Transaction can carry any number of Tags. A Tag may have a date range so that it is applied automatically. An Integration can also put a Tag on Transactions it recognises in a statement (for example `fee` on the fees a bank charges).
 _Avoid_: Label, keyword, event
 
 **Rule**:
