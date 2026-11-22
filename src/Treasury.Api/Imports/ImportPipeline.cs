@@ -15,9 +15,9 @@ namespace Treasury.Api.Imports;
 ///
 ///  1. read      — the Integration parses the file; rows are validated. Into a Multi-currency account, the rows are
 ///                 split by currency, one "leg" per currency the statement has rows or balances in, each for its
-///                 Account in that currency; a currency without an Account gets one (saved with the import),
-///                 opened with the statement's opening balance for that currency, on the day before the
-///                 statement's period starts (ADR-0010)
+///                 Account in that currency; a currency without an Account that the statement shows money in
+///                 gets one (saved with the import), opened with the statement's opening balance for that
+///                 currency, on the day before the statement's period starts (ADR-0010)
 ///  2. Check     — IImportStep stage: reject the file (identifier mismatch, #11; a Multi-currency account's
 ///                 identifier is checked in step 1, before the split)
 ///  3. Deduplicate — IImportStep stage: drop rows already imported (#9) from <see cref="ImportContext.Rows"/>
@@ -65,11 +65,14 @@ public sealed class ImportPipeline(
             // What the file held that isn't imported (e.g. a section Treasury doesn't track): warnings, like the
             // steps' own.
             var notes = statement.Notes.ToList();
+            // A Multi-currency account's Accounts have no identifier of their own, so the whole statement is
+            // checked once, before it is split into legs (an Account's is checked by the IdentifierCheck step).
+            if (target is MultiCurrencyAccount) IdentifierCheck.Verify(target, statement);
             var legs = target switch
             {
                 Account account => [new Leg(account, IsNew: false, ValidateRows(statement, account))],
-                MultiCurrencyAccount multiCurrencyAccount => LegsByCurrency(multiCurrencyAccount,
-                    ValidateRows(VerifyIdentifier(multiCurrencyAccount, statement)), notes),
+                MultiCurrencyAccount multiCurrencyAccount =>
+                    LegsByCurrency(multiCurrencyAccount, ValidateRows(statement), notes),
                 _ => throw new InvalidOperationException($"Unknown import target {target.GetType()}"),
             };
             var now = clock.GetUtcNow();
@@ -200,14 +203,14 @@ public sealed class ImportPipeline(
                 throw new ImportFailedException(
                     $"{At(i, statement.Rows[i])} has no currency, so Treasury can't tell which Account it belongs to.");
 
-        var rowsByCurrency = statement.Rows.ToLookup(r => Code(r.Currency!));
+        var rowsByCurrency = statement.Rows.ToLookup(r => CurrencyCode(r.Currency!));
         var legs = new List<Leg>();
         foreach (var currency in rowsByCurrency.Select(g => g.Key)
-                     .Union(statement.BalancesByCurrency.Select(b => Code(b.Currency)))
+                     .Union(statement.BalancesByCurrency.Select(b => CurrencyCode(b.Currency)))
                      .OrderBy(c => c, StringComparer.Ordinal))
         {
             var rows = rowsByCurrency[currency].ToList();
-            var balances = statement.BalancesByCurrency.FirstOrDefault(b => Code(b.Currency) == currency);
+            var balances = statement.BalancesByCurrency.FirstOrDefault(b => CurrencyCode(b.Currency) == currency);
             var legStatement = new ParsedStatement(rows, ClosingBalance: balances?.Closing);
             if (multiCurrencyAccount.Accounts.FirstOrDefault(a => a.Currency == currency) is { } existing)
             {
@@ -250,16 +253,8 @@ public sealed class ImportPipeline(
         return legs;
     }
 
-    private static string Code(string currency) => currency.Trim().ToUpperInvariant();
-
-    /// The identifier check for a Multi-currency account (the same rules as <see cref="IdentifierCheck"/> applies to
-    /// an Account): its Accounts have no identifier of their own, so the whole statement is checked once, before
-    /// it is split into legs. Returns the statement.
-    private static ParsedStatement VerifyIdentifier(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement)
-    {
-        IdentifierCheck.Verify(multiCurrencyAccount, statement);
-        return statement;
-    }
+    /// The currency's ISO code the way Accounts store it.
+    private static string CurrencyCode(string currency) => currency.Trim().ToUpperInvariant();
 
     private async Task<ImportResult> AfterCommitAsync(IImportTarget target, SourceFileContent content, IncomingFile file,
         List<string> notes, List<ImportContext> contexts, SourceFile stored, List<Account> created)

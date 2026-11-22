@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Treasury.Api.Integrations;
@@ -114,4 +115,12 @@ public sealed class IntegrationRegistry(IEnumerable<IIntegration> integrations)
     public IReadOnlyCollection<IIntegration> All => _byKey.Values;
 
     public IIntegration? Find(string? key) => key is not null && _byKey.TryGetValue(key, out var i) ? i : null;
+}
+
+/// How amounts are written in the messages of an import (errors and warnings).
+public static class Amounts
+{
+    /// Swiss style like the frontend's formatAmount: 1'234.50.
+    public static string Format(decimal amount) =>
+        amount.ToString("#,##0.00", new NumberFormatInfo { NumberGroupSeparator = "'", NumberDecimalSeparator = "." });
 }

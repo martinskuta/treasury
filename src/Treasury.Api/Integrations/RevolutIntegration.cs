@@ -27,10 +27,10 @@ public sealed class RevolutIntegration : IIntegration
     {
         var pdf = RevolutCustomStatementPdf.Read(file.Bytes);
 
-        var twice = pdf.Summaries.Select(s => s.Currency).GroupBy(c => c)
+        var listedTwice = pdf.Summaries.Select(s => s.Currency).GroupBy(c => c)
             .Concat(pdf.Tables.Select(t => t.Currency).GroupBy(c => c))
             .FirstOrDefault(g => g.Count() > 1);
-        if (twice is not null) throw Rejected($"The statement lists the {twice.Key} account twice.");
+        if (listedTwice is not null) throw Rejected($"The statement lists the {listedTwice.Key} account twice.");
         foreach (var summary in pdf.Summaries.Where(s => pdf.Tables.All(t => t.Currency != s.Currency)))
             throw Rejected($"The {summary.Currency} account is in the statement's summaries, but it has no transaction statement.");
         foreach (var table in pdf.Tables.Where(t => pdf.Summaries.All(s => s.Currency != t.Currency)))
@@ -67,7 +67,7 @@ public sealed class RevolutIntegration : IIntegration
     private static void Reconcile(RevolutAccountSummary summary, RevolutAccountTable table)
     {
         var currency = summary.Currency;
-        string Money(decimal amount) => $"{Format(amount)} {currency}";
+        string WithCurrency(decimal amount) => $"{Amounts.Format(amount)} {currency}";
 
         foreach (var (column, amount, where) in table.Rows
                      .SelectMany(r => new[]
@@ -79,7 +79,7 @@ public sealed class RevolutIntegration : IIntegration
                      .Append(("Other taxes", table.Total.OtherTaxes, "the Total row")))
             if (amount != 0)
                 throw Rejected(
-                    $"The {currency} account has {Money(amount)} under \"{column}\" in {where}, which Treasury " +
+                    $"The {currency} account has {WithCurrency(amount)} under \"{column}\" in {where}, which Treasury " +
                     "doesn't support yet.");
 
         var balance = summary.Opening;
@@ -90,28 +90,28 @@ public sealed class RevolutIntegration : IIntegration
             if (row.Balance != expected)
                 throw Rejected(
                     $"The {currency} row \"{row.Description}\" of {Day(row.Date)} " +
-                    $"doesn't follow from the balance before it: {Money(balance)} with {Money(row.Money)} in/out and " +
-                    $"{Money(row.Fees)} fees gives {Money(expected)}, but the statement says {Money(row.Balance)}.");
+                    $"doesn't follow from the balance before it: {WithCurrency(balance)} with {WithCurrency(row.Money)} in/out and " +
+                    $"{WithCurrency(row.Fees)} fees gives {WithCurrency(expected)}, but the statement says {WithCurrency(row.Balance)}.");
             balance = row.Balance;
         }
 
         if (balance != summary.Closing)
             throw Rejected(table.Rows.Count == 0
-                ? $"The {currency} account has no rows, but its opening balance is {Money(summary.Opening)} and its " +
-                  $"closing balance is {Money(summary.Closing)}."
-                : $"The {currency} rows end at a balance of {Money(balance)}, but the statement's closing balance is " +
-                  $"{Money(summary.Closing)}.");
+                ? $"The {currency} account has no rows, but its opening balance is {WithCurrency(summary.Opening)} and its " +
+                  $"closing balance is {WithCurrency(summary.Closing)}."
+                : $"The {currency} rows end at a balance of {WithCurrency(balance)}, but the statement's closing balance is " +
+                  $"{WithCurrency(summary.Closing)}.");
 
         var sum = table.Rows.Sum(r => r.Money);
         if (sum != table.Total.Money)
             throw Rejected(
-                $"The {currency} rows add up to {Money(sum)}, but the statement's Total row says {Money(table.Total.Money)}.");
+                $"The {currency} rows add up to {WithCurrency(sum)}, but the statement's Total row says {WithCurrency(table.Total.Money)}.");
 
         var fees = table.Rows.Sum(r => r.Fees);
         if (fees != table.Total.Fees)
             throw Rejected(
-                $"The {currency} rows' fees add up to {Money(fees)}, but the statement's Total row says " +
-                $"{Money(table.Total.Fees)}.");
+                $"The {currency} rows' fees add up to {WithCurrency(fees)}, but the statement's Total row says " +
+                $"{WithCurrency(table.Total.Fees)}.");
     }
 
     /// The statement and what Treasury read from it disagree: importing could store wrong numbers.
@@ -134,8 +134,4 @@ public sealed class RevolutIntegration : IIntegration
         : null;
 
     private static string Day(DateOnly date) => date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
-
-    /// Swiss style like the import warnings: 1'234.50.
-    private static string Format(decimal amount) =>
-        amount.ToString("#,##0.00", new NumberFormatInfo { NumberGroupSeparator = "'", NumberDecimalSeparator = "." });
 }

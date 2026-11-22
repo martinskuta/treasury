@@ -26,6 +26,7 @@ internal sealed record RevolutCustomStatementPdf(
         "In the Revolut app, open Profile → Documents & statements → Custom statement, export it as PDF in " +
         "English, and import that file.";
 
+    private const string Title = "Custom Statement";
     private const string SummariesHeading = "Current Accounts Summaries";
     private const string TransactionsHeading = "Current Accounts Transaction Statements";
 
@@ -50,14 +51,14 @@ internal sealed record RevolutCustomStatementPdf(
 
         var periodLine = pages.FirstOrDefault()?.Select(l => Period.Match(l.Text)).FirstOrDefault(m => m.Success);
         if (periodLine is null
-            || !pages[0].Any(l => l.Text == "Custom Statement")
+            || !pages[0].Any(l => l.Text == Title)
             || !pages.SelectMany(p => p).Any(l => l.Text == SummariesHeading)
             || !TryDate(periodLine.Groups["from"].Value, out var periodStart)
             || !TryDate(periodLine.Groups["to"].Value, out var periodEnd))
             throw new StatementFormatException($"This PDF isn't a Revolut Custom statement in English. {ExportHint}");
 
         var reading = new Reading(periodLine.Value);
-        foreach (var page in pages) reading.Page(page);
+        foreach (var page in pages) reading.ReadPage(page);
         return new RevolutCustomStatementPdf(periodStart, periodEnd, reading.Summaries(), reading.Tables(),
             reading.SkippedAccounts, reading.SkippedSectionsWithEntries());
     }
@@ -143,13 +144,13 @@ internal sealed record RevolutCustomStatementPdf(
         private SummaryInProgress? _summary;
         private TableInProgress? _table;
 
-        public void Page(List<Line> lines)
+        public void ReadPage(List<Line> lines)
         {
             // The table header is three lines ("Money in" above and "/out" below "Date ... Fees").
             var headers = lines.Where(IsTableHeader).ToList();
             foreach (var line in lines)
             {
-                if (line.Text == "Custom Statement" || line.Text == periodText
+                if (line.Text == Title || line.Text == periodText
                     || line.Text.StartsWith("Generated on the ", StringComparison.Ordinal))
                     continue;
                 if (_section == Section.BeforeFirst)
@@ -215,18 +216,20 @@ internal sealed record RevolutCustomStatementPdf(
             }
             if (_summary is null) return;
             var where = $"the {_summary.Currency} account's summary";
-            if (IbanLine.Match(line.Text) is { Success: true } iban)
-                _summary.Iban = _summary.Iban is null
-                    ? iban.Groups["iban"].Value.Replace(" ", "")
-                    : throw Unreadable($"{where} has two IBANs");
-            if (OpeningBalance.Match(line.Text) is { Success: true } opening)
-                _summary.Opening = _summary.Opening is null
-                    ? ParseAmount(opening.Groups["amount"].Value, $"{where}, opening balance")
-                    : throw Unreadable($"{where} has two opening balances");
-            if (ClosingBalance.Match(line.Text) is { Success: true } closing)
-                _summary.Closing = _summary.Closing is null
-                    ? ParseAmount(closing.Groups["amount"].Value, $"{where}, closing balance")
-                    : throw Unreadable($"{where} has two closing balances");
+            // What the line gives for one of the summary's figures, which the summary must not have yet.
+            string? Found(Regex figure, string group, bool alreadyRead, string twice)
+            {
+                var match = figure.Match(line.Text);
+                if (!match.Success) return null;
+                return alreadyRead ? throw Unreadable($"{where} has two {twice}") : match.Groups[group].Value;
+            }
+
+            if (Found(IbanLine, "iban", _summary.Iban is not null, "IBANs") is { } iban)
+                _summary.Iban = iban.Replace(" ", "");
+            if (Found(OpeningBalance, "amount", _summary.Opening is not null, "opening balances") is { } opening)
+                _summary.Opening = ParseAmount(opening, $"{where}, opening balance");
+            if (Found(ClosingBalance, "amount", _summary.Closing is not null, "closing balances") is { } closing)
+                _summary.Closing = ParseAmount(closing, $"{where}, closing balance");
         }
 
         private void TableLine(Line line)
@@ -244,7 +247,7 @@ internal sealed record RevolutCustomStatementPdf(
             // Between the account's heading and its table there is only the sub-heading "Transaction statement".
             if (_table?.Columns is null || line.Text == "Transaction statement") return;
 
-            var where = $"the {_table.Currency} transaction statement";
+            var where = _table.Where;
             var cells = _table.Columns.Split(line);
             if (cells[Columns.Date].Length > 0)
             {
@@ -268,7 +271,7 @@ internal sealed record RevolutCustomStatementPdf(
 
         public IReadOnlyList<RevolutAccountTable> Tables() => _tables.Select(t =>
         {
-            var where = $"the {t.Currency} transaction statement";
+            var where = t.Where;
             decimal Cell(string?[] row, int column, string name) => ParseAmount(row[column] ?? "", $"{where}, {name}");
             var total = t.Total ?? throw Unreadable($"{where} has no Total row");
             return new RevolutAccountTable(t.Currency,
@@ -302,6 +305,9 @@ internal sealed record RevolutCustomStatementPdf(
     private sealed class TableInProgress(string currency)
     {
         public string Currency => currency;
+
+        /// How messages name the table.
+        public string Where => $"the {currency} transaction statement";
         public Columns? Columns { get; set; }
 
         /// The text of each row's cells so far, by column.
