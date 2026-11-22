@@ -198,11 +198,13 @@ Multi-currency account. Revolut's CSV account statement is not supported.
 - A Transaction gets the row's Date, its Money in/out (money in positive, money out negative) in the account's
   currency (the converted amount printed beneath it is ignored) and its Description as it is; a description that
   wraps over several lines is joined with spaces. The counterparty is the description when Revolut's Category is
-  `Merchant`, the description without a leading `To ` / `From ` when it has one, and empty otherwise. Revolut's
-  Category is otherwise ignored. Every row in the table is imported.
-- A non-zero Fees value becomes a second Transaction on the same date and in the same currency: minus the fee,
-  described as `Fee: <description>`, with counterparty `Revolut` (Revolut's balance is the previous balance + Money
-  in/out − Fees).
+  `Merchant`, `Revolut` when it is `Fees` (a charge by Revolut itself, such as a card delivery fee), the
+  description without a leading `To ` / `From ` when it has one, and empty otherwise. Revolut's Category is
+  otherwise ignored. Every row in the table is imported.
+- Revolut's Money in/out includes the row's fee; the Fees column says how much of it is the fee. A non-zero Fees
+  value is taken out into a second Transaction on the same date and in the same currency: minus the fee, described
+  as `Fee: <description>`, with counterparty `Revolut`. The first Transaction is Money in/out without the fee, so
+  the two add up to Money in/out (a withdrawal of -107.14 with a fee of 1.41 becomes -105.73 and -1.41).
 - The file is one Source file. Rules, date-range Tags and the balance check work per Account as usual: each
   currency's closing balance, on the last day of the period, is compared with its Account's calculated balance,
   also for a currency with no rows in the period, and also when that balance is zero. An exchange between two of
@@ -214,7 +216,7 @@ Multi-currency account. Revolut's CSV account statement is not supported.
 - Files go to the Multi-currency account's `processed/` or `failed/`. Its Accounts have no Ingest folder of their
   own, and uploads straight into one of them are rejected.
 - Rejected (nothing imported), with an error that names the currency and the figures that disagree: a row whose
-  Balance isn't the previous balance (the opening balance for the first row) + Money in/out − Fees, a currency
+  Balance isn't the previous balance (the opening balance for the first row) + Money in/out, a currency
   whose last Balance isn't its closing balance (or whose opening and closing balance differ when it has no rows),
   a currency whose rows' Money in/out or Fees don't add up to its Total row, a non-zero "Tax withheld" or "Other
   taxes" (not supported yet; the error names the amount and its row's date, or the Total row), an account that is

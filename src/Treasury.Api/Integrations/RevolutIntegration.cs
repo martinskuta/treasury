@@ -5,7 +5,8 @@ namespace Treasury.Api.Integrations;
 /// "Revolut" (key revolut): Revolut's Custom statement PDF, exported in English (ADR-0010). One PDF covers every
 /// currency account of a Revolut login for a period.
 /// - read: the period, and per "Personal Account (CUR)" its IBAN, opening and closing balance and its table of rows
-/// - a row's currency is its account's; every row is imported; a non-zero fee becomes a second row
+/// - a row's currency is its account's; every row is imported; Money in/out includes the row's fee, and a
+///   non-zero fee is taken out of it into a second row
 /// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
 ///   gives: each row's running balance, each currency's closing balance and its Total row (Money in/out and Fees)
 /// - the IBAN is the Account identifier; the balances of every Personal Account, also of one holding nothing
@@ -85,13 +86,14 @@ public sealed class RevolutIntegration : IIntegration
         var balance = summary.Opening;
         foreach (var row in table.Rows)
         {
-            // Revolut's balance is the previous balance + Money in/out − Fees.
-            var expected = balance + row.Money - row.Fees;
+            // Revolut's balance is the previous balance + Money in/out; the Fees column is the part of Money in/out
+            // that is the fee, not a charge on top of it.
+            var expected = balance + row.Money;
             if (row.Balance != expected)
                 throw Rejected(
                     $"The {currency} row \"{row.Description}\" of {Day(row.Date)} " +
-                    $"doesn't follow from the balance before it: {WithCurrency(balance)} with {WithCurrency(row.Money)} in/out and " +
-                    $"{WithCurrency(row.Fees)} fees gives {WithCurrency(expected)}, but the statement says {WithCurrency(row.Balance)}.");
+                    $"doesn't follow from the balance before it: {WithCurrency(balance)} with {WithCurrency(row.Money)} in/out " +
+                    $"gives {WithCurrency(expected)}, but the statement says {WithCurrency(row.Balance)}.");
             balance = row.Balance;
         }
 
@@ -118,17 +120,19 @@ public sealed class RevolutIntegration : IIntegration
     private static StatementFormatException Rejected(string what) => new(
         $"{what} Treasury may have misread the PDF, or the statement is not one it can import. Nothing was imported.");
 
-    /// The movement itself and, for a non-zero fee, a second row charged by Revolut.
+    /// The movement itself without its fee and, for a non-zero fee, a second row charged by Revolut. Together they
+    /// are the row's Money in/out, which includes the fee.
     private static IEnumerable<StatementRow> Rows(string currency, RevolutTableRow row)
     {
-        yield return new StatementRow(row.Date, row.Money, currency, row.Description, Counterparty(row));
+        yield return new StatementRow(row.Date, row.Money + row.Fees, currency, row.Description, Counterparty(row));
         if (row.Fees != 0)
             yield return new StatementRow(row.Date, -row.Fees, currency, $"Fee: {row.Description}", "Revolut");
     }
 
-    /// A card payment's merchant, or the person behind "To X" / "From X".
+    /// A card payment's merchant, Revolut for its own charges, or the person behind "To X" / "From X".
     private static string? Counterparty(RevolutTableRow row) =>
         row.Category == "Merchant" ? row.Description
+        : row.Category == "Fees" ? "Revolut"
         : row.Description.StartsWith("To ", StringComparison.Ordinal) ? row.Description["To ".Length..]
         : row.Description.StartsWith("From ", StringComparison.Ordinal) ? row.Description["From ".Length..]
         : null;
