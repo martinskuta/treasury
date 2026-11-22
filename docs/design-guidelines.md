@@ -48,14 +48,14 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 - **Inter** (400, 500, 600, 700) for everything, `letter-spacing: -0.006em`, base 15px, line-height 1.45, antialiased.
 - Headings are 600, slightly tight (`-0.02em`): page title 1.45rem; UI component title 0.95rem.
 - Labels and legends: 0.78–0.85rem, `--muted`, weight 500.
-- **Amounts**: tabular figures (`font-variant-numeric: tabular-nums`), Swiss format (`1'234.50`, dates `20.11.2026`). Key amounts are large and quiet: 600 weight, `-0.03em`, with the currency code small and muted before the number (`.cur`: 0.42em) and the cents de-emphasised (`.dec`: 0.62em, 45% opacity). Sign colour: `--inc-ink` positive, `--exp-ink` negative, `--tr-ink` Transfers. Net amounts, balances and Transaction amounts always carry their sign (`+` / `−`); totals already labelled Income or Expense (This month's bars, Last 6 months' stats, Spending by Category) may be shown unsigned, since the label says which way the money went.
+- **Amounts**: tabular figures (`font-variant-numeric: tabular-nums`), Swiss format (`1'234.50`, dates `20.11.2026`). Key amounts are large and quiet: 600 weight, `-0.03em`, with the currency code small and muted before the number (`.cur`: 0.42em) and the cents de-emphasised (`.dec`: 0.62em, 45% opacity). Sign colour: `--inc-ink` positive, `--exp-ink` negative, `--tr-ink` Transfers. Net amounts, balances and Transaction amounts always carry their sign (`+` / `−`); totals already labelled Income or Expense (Last 6 months' stats, the Monthly overview's bars and Spending by Category) may be shown unsigned, since the label says which way the money went.
 
 ## Layout and spacing
 
 - **App shell**: fixed left sidebar (216px) with the brand (brown rounded square + "Treasury"), nav links (rounded 12px, active = `--panel` background) and the signed-in Member at the bottom. Below 900px the sidebar becomes a top bar with a horizontally scrolling nav.
 - **Content**: max-width 1300px. Pages are made of UI components on a grid with a small, consistent gap: `--gap: 14px`.
 - **UI component**: `--panel` background, radius `--r: 22px`, padding `--pad: 22px 24px` (20px on phones), **no border, no heavy shadow**. Separate content inside with spacing, not divider lines.
-- **Dashboard** is a bento grid: 3 columns → 2 below 1150px → 1 below 700px. Order on desktop: welcome strip (full width) · This month · Spending by Category · Accounts · Last 6 months (full width) · Latest Tag (two columns) · Uncategorised. With 2 columns: welcome strip · This month · Spending by Category · Last 6 months · Accounts beside Uncategorised and Latest Tag. On phones (one column) the most actionable come first: welcome strip · This month · Uncategorised · Last 6 months · Spending by Category · Accounts · Latest Tag.
+- **Dashboard** is a bento grid: 3 columns → 2 below 1150px → 1 below 700px. It follows the data, not the calendar: the welcome strip and Last 6 months end at the Owner view's end month (the month of its latest Transaction, never later than the last complete month). Order on desktop: welcome strip (full width) · Accounts · Last import · Uncategorised · Last 6 months (full width) · Latest Tag (full width). With 2 columns: welcome strip · Last 6 months · Accounts beside Last import · Uncategorised beside Latest Tag. On phones (one column) the most actionable come first: welcome strip · Uncategorised · Last 6 months · Last import · Accounts · Latest Tag. Last import has one row per Account or Multi-currency account: its name, how far its data reaches ("through 31.10.2026") and the import date muted below it; a reach behind the last complete month sits on a `--coral-soft` pill with `--exp-ink` text, the others stay quiet.
 - Airy means generous padding inside UI components and few elements per component. When a component feels busy, remove secondary labels before shrinking type.
 - Responsive down to 320px; check 390px.
 
@@ -72,7 +72,7 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 
 Inline SVG, no chart library, styled from the tokens. Charts are smooth and soft, never spiky or boxed:
 
-- **Trend lines** (Last 6 months and any time series): smooth curves with horizontal tangents at each point so they never overshoot (cubic Bézier with control points at the horizontal midpoint), stroke 3px with round caps, a vertical gradient fill under each line from the series colour at 38% opacity to 0 at 90% height, an end marker (`--panel` circle with the series stroke) on the latest point, 3–4 faint `--grid` gridlines, muted axis labels, the current month label in `--ink`. Income = `--lime-line`, Expense = `--coral`.
+- **Trend lines** (Last 6 months and any time series): smooth curves with horizontal tangents at each point so they never overshoot (cubic Bézier with control points at the horizontal midpoint), stroke 3px with round caps, a vertical gradient fill under each line from the series colour at 38% opacity to 0 at 90% height, an end marker (`--panel` circle with the series stroke) on the latest point, 3–4 faint `--grid` gridlines, muted axis labels, the latest month's label in `--ink`. Income = `--lime-line`, Expense = `--coral`.
 - **Donuts and rings**: thick strokes with round line caps and small gaps between segments; the total sits in the centre in `--ink`, with a small muted currency label.
 - **Bars and progress**: 10–12px pill tracks (`--track`) with fully rounded fills; stacked bars have 4px gaps and rounded segments.
 - Legends: 8px dots + muted labels, values right-aligned in tabular figures.
@@ -92,7 +92,7 @@ The foundation lives in `web/src/styles/` (`tokens.css`, `base.css`, `shell.css`
 
 Frankie is Treasury's mascot: a white Swiss cow with brown patches, a pink snout, a gold cowbell, a coin slot on its back and a plug under its belly — a cow-shaped money box. Its name nods to the Swiss franc.
 
-- **Where**: only at the left of the Dashboard's welcome strip, next to the greeting and this month's net. Keep it special: no Frankie in lists, forms or the nav.
+- **Where**: only at the left of the Dashboard's welcome strip, next to the greeting and the end month's net. Keep it special: no Frankie in lists, forms or the nav.
 - **Moods**: `neutral` (sits, blinks, chews cud with tiny green grass pixels falling), `happy` (coins slide into the slot, gets slightly rounder, dog-like tail wag and happy wiggle), `very-happy` (the happy wiggle, then the "heel kick" run: bucks, trots off, peeks back, returns and sits), `sad` (the plug pops open, coins fall out of it, gets slightly thinner, droopy ears, frown). Which mood shows is decided by the app, not by Frankie.
 - **Room**: during `very-happy` Frankie leaves its own box; give its host about 2.2× its width and a little headroom so it isn't clipped.
 - **Motion**: animations are gentle loops; under `prefers-reduced-motion: reduce` each mood is a still pose.
