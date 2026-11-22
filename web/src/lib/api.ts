@@ -137,6 +137,12 @@ export type Account = {
   multiCurrencyAccountId: string | null
   /** The balance in CHF at today's exchange rate (unchanged for CHF); null while the rate is missing. */
   balanceChf: number | null
+  /** ISO date its data reaches: the later of its latest Transaction and its statements' latest closing balance; null when it has neither. */
+  reach: string | null
+  /** ISO date-time its most recent Source file was imported (its Multi-currency account's, for an Account in one); null when never imported. */
+  lastImportedAt: string | null
+  /** The reach is before the last day of the last complete calendar month, or missing. */
+  lagging: boolean
 }
 
 /** Computed on every read: it disappears once the balances match again. */
@@ -186,6 +192,12 @@ export type MultiCurrencyAccount = {
   totalBalance: number | null
   /** The same total in CHF at today's rates; null while a rate is missing. */
   totalBalanceChf: number | null
+  /** ISO date its data reaches: the latest reach among its Accounts; null when none has one. */
+  reach: string | null
+  /** ISO date-time its most recent Source file was imported; null when never imported. */
+  lastImportedAt: string | null
+  /** The reach is before the last day of the last complete calendar month, or missing. */
+  lagging: boolean
 }
 
 export type NewMultiCurrencyAccount = {
