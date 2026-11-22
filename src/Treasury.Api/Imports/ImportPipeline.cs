@@ -62,11 +62,14 @@ public sealed class ImportPipeline(
             var integration = integrations.Find(target.IntegrationKey) ?? throw new ImportFailedException(
                 $"The Integration '{target.IntegrationKey}' of {target.Description} isn't available.");
             var statement = integration.Read(content);
+            // What the file held that isn't imported (e.g. a section Treasury doesn't track): warnings, like the
+            // steps' own.
+            var notes = statement.Notes.ToList();
             var legs = target switch
             {
                 Account account => [new Leg(account, IsNew: false, ValidateRows(statement, account))],
-                MultiCurrencyAccount multiCurrencyAccount =>
-                    LegsByCurrency(multiCurrencyAccount, ValidateRows(VerifyIdentifier(multiCurrencyAccount, statement))),
+                MultiCurrencyAccount multiCurrencyAccount => LegsByCurrency(multiCurrencyAccount,
+                    ValidateRows(VerifyIdentifier(multiCurrencyAccount, statement)), notes),
                 _ => throw new InvalidOperationException($"Unknown import target {target.GetType()}"),
             };
             var now = clock.GetUtcNow();
@@ -101,7 +104,7 @@ public sealed class ImportPipeline(
 
             // Committed: from here on the import stands, whatever happens to the file move or the rate request.
             var created = legs.Where(l => l.IsNew).Select(l => l.Account).ToList();
-            return await AfterCommitAsync(target, content, file, statement, contexts, stored, created);
+            return await AfterCommitAsync(target, content, file, notes, contexts, stored, created);
         }
         catch (Exception e) when (e is ImportFailedException or StatementFormatException)
         {
@@ -186,7 +189,11 @@ public sealed class ImportPipeline(
     /// and checked too (ADR-0010). A currency without an Account gets a new (not yet saved) one: "&lt;its name&gt;
     /// &lt;CUR&gt;", its Owner, opened on the statement's opening date (the day before its period starts) with its
     /// opening balance for the currency.
-    private static List<Leg> LegsByCurrency(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement)
+    ///
+    /// A currency without an Account gets none, and no leg, when the statement shows no money in it, or only a
+    /// balance in a currency Treasury has no exchange rates for (said in <paramref name="notes"/>).
+    private static List<Leg> LegsByCurrency(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement,
+        List<string> notes)
     {
         for (var i = 0; i < statement.Rows.Count; i++)
             if (string.IsNullOrWhiteSpace(statement.Rows[i].Currency))
@@ -211,10 +218,16 @@ public sealed class ImportPipeline(
             // The statement shows no money in the currency (no row, no balance other than zero): no Account for it.
             if (rows.Count == 0 && balances is { OpeningBalance: 0, Closing.Amount: 0 }) continue;
             if (!Currencies.IsSupported(currency))
-                throw new ImportFailedException(
-                    $"The statement has {(rows.Count > 0 ? "rows" : "a balance")} in {currency}, but Treasury keeps " +
-                    "Accounts only in currencies it has exchange rates for (the ECB reference rates). Nothing was " +
-                    "imported.");
+            {
+                const string onlyWithRates =
+                    "but Treasury keeps Accounts only in currencies it has exchange rates for (the ECB reference rates)";
+                if (rows.Count > 0)
+                    throw new ImportFailedException(
+                        $"The statement has rows in {currency}, {onlyWithRates}. Nothing was imported.");
+                notes.Add(
+                    $"The statement has a balance in {currency}, {onlyWithRates}, so the {currency} balance isn't tracked.");
+                continue;
+            }
             if (balances is null)
                 throw new ImportFailedException(
                     $"The statement doesn't say the {currency} opening balance, so Treasury can't open an Account " +
@@ -249,7 +262,7 @@ public sealed class ImportPipeline(
     }
 
     private async Task<ImportResult> AfterCommitAsync(IImportTarget target, SourceFileContent content, IncomingFile file,
-        ParsedStatement statement, List<ImportContext> contexts, SourceFile stored, List<Account> created)
+        List<string> notes, List<ImportContext> contexts, SourceFile stored, List<Account> created)
     {
         var transactions = contexts.SelectMany(c => c.Transactions).ToList();
         var placedAt = "";
@@ -266,9 +279,8 @@ public sealed class ImportPipeline(
         }
         logger.LogInformation("Imported {Count} Transactions from {File} into {Target}",
             transactions.Count, content.FileName, target.Slug);
-        // What the Integration saw but didn't read (e.g. a section Treasury doesn't track) is a warning too.
         return ImportResult.Success(stored, transactions.Count, contexts.Sum(c => c.SkippedCount),
-            statement.Notes.Concat(contexts.SelectMany(c => c.Warnings)), placedAt, created);
+            notes.Concat(contexts.SelectMany(c => c.Warnings)), placedAt, created);
     }
 
     private ImportResult Fail(IImportTarget target, SourceFileContent content, IncomingFile file, string? keptCopy,
