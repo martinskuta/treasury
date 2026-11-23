@@ -5,8 +5,7 @@ using Treasury.Api.Integrations;
 
 namespace Treasury.Api.Tests.Integrations;
 
-/// Seam 2: the camt.053 readers (tkb, postfinance), Source file content in, parsed statement out (samples in Tkb/).
-/// The banks share everything but key, name and export hint, so most tests use TKB.
+/// Seam 2: the camt.053 reader (tkb), Source file content in, parsed statement out (samples in Tkb/).
 public class Camt053IntegrationTests
 {
     private static readonly Camt053Integration Reader = Camt053Integration.Tkb;
@@ -22,31 +21,6 @@ public class Camt053IntegrationTests
         await Assert.That(Reader.Key).IsEqualTo("tkb");
         await Assert.That(Reader.Name).IsEqualTo("TKB");
         await Assert.That(Reader.CanProvideIdentifier).IsTrue();
-    }
-
-    [Test]
-    public async Task PostFinance_is_registered_as_postfinance_and_reads_the_same_statements()
-    {
-        var postFinance = Camt053Integration.PostFinance;
-        var name = "camt053-2026-10-31.xml";
-
-        await Assert.That(postFinance.Key).IsEqualTo("postfinance");
-        await Assert.That(postFinance.Name).IsEqualTo("PostFinance");
-        await Assert.That(postFinance.CanProvideIdentifier).IsTrue();
-        await Assert.That(postFinance.HoldsSeveralCurrencies).IsFalse();
-        var statement = postFinance.Read(new SourceFileContent(name, Sample(name)));
-        await Assert.That(statement.Rows).IsEquivalentTo(ReadSample(name).Rows);
-        await Assert.That(statement.AccountIdentifier).IsEqualTo("CH1889144434487348535");
-    }
-
-    [Test]
-    public async Task PostFinance_rejects_a_non_camt053_file_with_a_hint_to_export_from_e_finance()
-    {
-        var e = Assert.Throws<StatementFormatException>(() => Camt053Integration.PostFinance.Read(
-            new SourceFileContent("export.csv", Encoding.UTF8.GetBytes("Datum;Text;Betrag\n"))));
-
-        await Assert.That(e.Message).Contains("camt.053");
-        await Assert.That(e.Message).Contains("PostFinance e-finance");
     }
 
     [Test]

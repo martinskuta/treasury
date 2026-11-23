@@ -2,7 +2,7 @@ namespace Treasury.Api.Integrations;
 
 /// A bank whose statements are read as ISO 20022 camt.053, as a single XML file or a zip with one or more of them
 /// (documented in README "camt.053 banks"). Banks differ only in key, name and where to export from: see
-/// <see cref="Tkb"/> and <see cref="PostFinance"/>. Reading and checking camt.053 is <see cref="Camt053Reader"/>'s
+/// <see cref="Tkb"/>. Reading and checking camt.053 is <see cref="Camt053Reader"/>'s
 /// job; this class turns its statements into rows and owns the description and counterparty composition.
 /// The banks' CSV exports are not supported.
 public sealed class Camt053Integration(string key, string name, string exportHint) : IIntegration
@@ -11,11 +11,8 @@ public sealed class Camt053Integration(string key, string name, string exportHin
     public static Camt053Integration Tkb { get; } =
         new("tkb", "TKB", "Export the statement as camt.053 (XML or zip) from TKB e-banking.");
 
-    public static Camt053Integration PostFinance { get; } =
-        new("postfinance", "PostFinance", "Export the statement as camt.053 (XML or zip) from PostFinance e-finance.");
-
     /// All camt.053 banks, for registration.
-    public static IReadOnlyList<Camt053Integration> All { get; } = [Tkb, PostFinance];
+    public static IReadOnlyList<Camt053Integration> All { get; } = [Tkb];
 
     public string Key { get; } = key;
 

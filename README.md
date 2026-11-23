@@ -142,16 +142,14 @@ date,amount,description,counterparty,reference,original_amount,original_currency
     paid, e.g. `-48.00` and `EUR`, next to the `amount` the Account was charged
 - No Account identifier and no closing balance, so Accounts using it can't have an identifier.
 
-### camt.053 banks: TKB (`tkb`) and PostFinance (`postfinance`)
+### camt.053 banks: TKB (`tkb`)
 
-These banks are read the same way, from their ISO 20022 **camt.053** statement:
-
-- **TKB** (Thurgauer Kantonalbank): download the account statement from TKB e-banking as camt.053.
-- **PostFinance**: download the account statement from PostFinance e-finance as camt.053.
+TKB (Thurgauer Kantonalbank) is read from its ISO 20022 **camt.053** statement: download the account statement from
+TKB e-banking as camt.053.
 
 Import the file as it is: a single XML file or the zip (one or more XML statements; other files in the zip, such as
-a PDF copy, are ignored). A zip is one Source file, so undoing its import removes all of it. The banks' CSV exports
-are not supported.
+a PDF copy, are ignored). A zip is one Source file, so undoing its import removes all of it. The bank's CSV export
+is not supported.
 
 - Enter the IBAN as the Account's identifier to have statements for another account rejected.
 - Each camt.053 `Ntry` with status `BOOK` becomes a Transaction; other statuses (such as `PDNG`) are skipped. A
@@ -170,6 +168,35 @@ are not supported.
   touch, one ending when the next starts, are fine; without `FrToDt` a statement runs from its first booking date to
   its closing balance date), a zip without XML or larger than 50 MB unpacked, and anything that isn't camt.053 (CSV,
   camt.052, camt.054).
+
+### PostFinance (`postfinance`)
+
+PostFinance offers no camt.053 for a private account, so it is read from the **Kontoauszug** PDF it delivers
+(ADR-0012): download the account statement as **PDF** from PostFinance e-finance, in **German**, and import the file
+as it is. A statement of any period works (monthly, quarterly, yearly), also one without movements.
+
+- Enter the IBAN as the Account's identifier to have statements for another account rejected. The statement's
+  currency (printed after the IBAN) must be the Account's.
+- Each row of the table becomes a Transaction, dated with its booking date (`Datum`, which the statement prints on a
+  day's first row only; `Valuta` is ignored), with `Gutschrift` as money in (positive) and `Lastschrift` as money
+  out (negative). The description is the row's text block as printed, one line per printed line; words the
+  statement wraps (`AUFTRAG CH-DD-` / `BASISLASTSCHRIFT`) are not rejoined.
+- The counterparty is the line after `ZAHLUNGSEMPFÄNGER:`, `ABSENDER:` or `AUFTRAGGEBER:`, for a TWINT purchase the
+  merchant line (after `VOM <date>`), and `PostFinance` for a price it charges. It is empty otherwise, for example
+  for a plain `LASTSCHRIFT`, where the statement doesn't say which line is the payee.
+- A price PostFinance charges (a row starting with `PREIS FÜR`) gets the Tag `fee`, put there by the import as for
+  Revolut's fees.
+- PostFinance Transactions have no bank reference (the ids the statement prints exist on some kinds of row only and
+  stay in the description), so the description is part of what makes a Transaction a duplicate. Importing the same
+  or an overlapping statement again is safe.
+- The closing `Kontostand` is used for the balance check.
+- The original amount and currency of a foreign-currency purchase are not read yet; what the statement prints
+  about them stays in the description.
+- Rejected (nothing imported): a statement that doesn't agree with itself (the opening `Kontostand` plus the rows
+  must equal the closing `Kontostand`, the `Gutschrift` and `Lastschrift` amounts must add up to the `Total` line,
+  and every printed `Saldo` must equal the balance after its row), a table line that is neither a row nor part of a
+  row's text (the message names the page and the line), and anything that isn't a Kontoauszug PDF in German
+  (camt.053, CSV, the credit-card invoice, another PDF, a statement in French, Italian or English).
 
 ### Revolut (`revolut`)
 
