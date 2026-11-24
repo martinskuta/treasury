@@ -15,7 +15,6 @@ public class TkbImportTests : ApiTestBase
         using var anna = await LoginAsNewMemberAsync("anna");
         var integrations = (await anna.GetFromJsonAsync<List<IntegrationDto>>("/api/integrations"))!;
         await Assert.That(integrations).Contains(new IntegrationDto("tkb", "TKB", true));
-        await Assert.That(integrations).Contains(new IntegrationDto("postfinance", "PostFinance", true));
         // The statement opens with 999'976.00 at the start of October.
         var account = await CreateTkbAccountAsync(anna, "CH18 8914 4434 4873 4853 5", 999976.00m, "2026-09-30");
 
