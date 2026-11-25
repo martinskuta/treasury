@@ -15,9 +15,10 @@ public static class AccountEndpoints
     public const int MaxIdentifierLength = 64;
 
     public record CreateAccountRequest(string? Name, OwnerRequest? Owner, string? IntegrationKey, string? Currency,
-        decimal? OpeningBalance, DateOnly? OpeningDate, string? Identifier);
+        decimal? OpeningBalance, DateOnly? OpeningDate, IReadOnlyList<string?>? Identifiers);
 
-    public record RenameAccountRequest(string? Name);
+    /// <param name="Identifiers">Left out (null) = keep them as they are; an empty list removes them all.</param>
+    public record UpdateAccountRequest(string? Name, IReadOnlyList<string?>? Identifiers);
 
     /// <param name="Reach">The date the Account's data reaches: the later of its latest Transaction date and its
     /// statements' latest closing balance date; null when it has neither (#37).</param>
@@ -25,7 +26,7 @@ public static class AccountEndpoints
     /// an Account in one); null when there is none.</param>
     /// <param name="Lagging">The reach is before the last day of the last complete calendar month, or missing.</param>
     public record AccountResponse(Guid Id, string Name, string Slug, OwnerResponse Owner, string IntegrationKey,
-        string Currency, decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance,
+        string Currency, decimal OpeningBalance, DateOnly OpeningDate, IReadOnlyList<string> Identifiers, decimal Balance,
         BalanceWarningResponse? BalanceWarning, Guid? MultiCurrencyAccountId, decimal? BalanceChf, DateOnly? Reach,
         DateTimeOffset? LastImportedAt, bool Lagging);
 
@@ -39,7 +40,7 @@ public static class AccountEndpoints
         builder.Services.AddSingleton<IngestFolders>();
     }
 
-    /// /api/accounts: the Accounts the current Member can see (own + Family's), creating and renaming them.
+    /// /api/accounts: the Accounts the current Member can see (own + Family's), creating and editing them.
     public static void MapAccounts(this RouteGroupBuilder api)
     {
         var accounts = api.MapGroup("/accounts");
@@ -82,7 +83,8 @@ public static class AccountEndpoints
             AccountValidation.Currency(request.Currency, "currency", errors);
             AccountValidation.Opening(request.OpeningBalance, request.OpeningDate, errors);
 
-            var identifier = AccountValidation.Identifier(request.Identifier, integration, errors);
+            var identifiers = AccountValidation.Identifiers(request.Identifiers, integration, errors);
+            await AccountValidation.UniqueIdentifiersAsync(db, identifiers, null, viewer, errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!owner!.Value.IsManageableBy(viewer)) return Results.Forbid();
@@ -97,7 +99,7 @@ public static class AccountEndpoints
                 Currency = request.Currency!,
                 OpeningBalance = request.OpeningBalance!.Value,
                 OpeningDate = request.OpeningDate!.Value,
-                Identifier = identifier,
+                Identifiers = identifiers,
             };
             folders.Create(slug);
             db.Accounts.Add(account);
@@ -106,8 +108,8 @@ public static class AccountEndpoints
             return Results.Created($"/api/accounts/{account.Id}", await ToResponseAsync(db, converter, clock, account));
         });
 
-        accounts.MapPatch("/{id:guid}", async (Guid id, RenameAccountRequest request, ClaimsPrincipal user,
-            TreasuryDbContext db, ChfConverter converter, TimeProvider clock) =>
+        accounts.MapPatch("/{id:guid}", async (Guid id, UpdateAccountRequest request, ClaimsPrincipal user,
+            TreasuryDbContext db, IntegrationRegistry integrations, ChfConverter converter, TimeProvider clock) =>
         {
             var viewer = ViewerId(user);
             // Another Member's personal Account is invisible, so it is a 404 rather than a 403.
@@ -118,9 +120,17 @@ public static class AccountEndpoints
             var errors = new Dictionary<string, string[]>();
             var name = request.Name?.Trim();
             AccountValidation.Name(name, MaxNameLength, errors);
+            var identifiers = AccountValidation.Identifiers(request.Identifiers,
+                integrations.Find(account.IntegrationKey), errors);
+            if (account.MultiCurrencyAccountId is not null && identifiers.Count > 0)
+                errors["identifiers"] = [
+                    "An Account in a Multi-currency account has no Identifiers of its own; give them to the " +
+                    "Multi-currency account."];
+            await AccountValidation.UniqueIdentifiersAsync(db, identifiers, account.Id, viewer, errors);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
             account.Name = name!;
+            if (request.Identifiers is not null) account.Identifiers = identifiers;
             await db.SaveChangesAsync();
             return Results.Ok(await ToResponseAsync(db, converter, clock, account));
         });
@@ -152,7 +162,7 @@ public static class AccountEndpoints
         IReadOnlyDictionary<Guid, decimal> balances, IReadOnlyDictionary<Guid, BalanceMismatch> mismatches,
         TodaysRates rates, AccountReach reach) =>
         new(a.Id, a.Name, a.Slug, OwnerResponse.From(a.Owner, memberNames), a.IntegrationKey, a.Currency,
-            a.OpeningBalance, a.OpeningDate, a.Identifier, balances[a.Id],
+            a.OpeningBalance, a.OpeningDate, a.Identifiers, balances[a.Id],
             mismatches.TryGetValue(a.Id, out var m)
                 ? new BalanceWarningResponse(m.Date, m.StatementBalance, m.CalculatedBalance,
                     new TransactionEndpoints.SourceFileRef(m.SourceFileId, m.FileName))

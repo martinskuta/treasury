@@ -5,7 +5,8 @@ using System.Text;
 
 namespace Treasury.Api.Tests;
 
-/// #11: the identifier check (wrong-folder protection) and the closing-balance warning.
+/// #11: the Identifier check (wrong-folder protection, with Identifiers learned on import: ADR-0002) and the
+/// closing-balance warning.
 public class ImportChecksTests : ApiTestBase
 {
     [Test]
@@ -26,8 +27,11 @@ public class ImportChecksTests : ApiTestBase
         await Assert.That(await anna.GetFromJsonAsync<List<SourceFileDto>>($"/api/accounts/{account.Id}/source-files")).IsEmpty();
         var failed = Path.Combine(App.IngestRoot, account.Slug, "failed", "wrong.txt");
         await Assert.That(await File.ReadAllTextAsync(failed)).IsEqualTo(statement.ToString());
-        await Assert.That(await File.ReadAllTextAsync(failed + ".error.txt")).Contains("CH93 0076 2011 6238 5295 7");
+        await Assert.That(await File.ReadAllTextAsync(failed + ".error.txt")).Contains("CH93 0076 2011 6238 5295 7")
+            .And.Contains("add it to its Identifiers");
         await Assert.That(Directory.GetFiles(Path.Combine(App.IngestRoot, account.Slug, "processed"))).IsEmpty();
+        // Nothing is learned from a rejected statement.
+        await Assert.That((await GetAccountAsync(anna, account.Id)).Identifiers).IsEquivalentTo(["CH93 0076 2011 6238 5295 7"]);
     }
 
     [Test]
@@ -64,7 +68,7 @@ public class ImportChecksTests : ApiTestBase
     }
 
     [Test]
-    public async Task The_identifier_check_is_skipped_when_the_account_has_no_identifier()
+    public async Task The_first_import_into_an_account_without_identifiers_gives_it_those_the_statement_shows()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var account = await CreateAccountAsync(anna, "TKB");
@@ -73,6 +77,99 @@ public class ImportChecksTests : ApiTestBase
             new TestStatement().Identifier("CH44 3199 9123 0008 8901 2").Row("2026-11-18", -12.50m, "Coffee"));
 
         await Assert.That(result.ImportedCount).IsEqualTo(1);
+        await Assert.That((await GetAccountAsync(anna, account.Id)).Identifiers).IsEquivalentTo(["CH44 3199 9123 0008 8901 2"]);
+        await Assert.That(result.Warnings).IsEquivalentTo([
+            "The Account \"TKB\" now also has the Identifier CH44 3199 9123 0008 8901 2, which this statement shows.",
+        ]);
+    }
+
+    [Test]
+    public async Task A_statement_showing_a_known_and_a_new_identifier_adds_the_new_one()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "Revolut", identifier: "GB33 BUKB 2020 1555 5555 55");
+
+        // A statement over the period in which the bank moved the account to a new IBAN shows both.
+        var result = await UploadOkAsync(anna, account.Id, "2018-2026.txt", new TestStatement()
+            .Identifier("LT121000011101001000").Identifier("GB33BUKB20201555555555").Row("2026-11-18", -12.50m, "Coffee"));
+        // From then on, a statement showing only the new IBAN is accepted.
+        var newer = await UploadOkAsync(anna, account.Id, "2026-12.txt",
+            new TestStatement().Identifier("LT121000011101001000").Row("2026-12-02", -3m, "Tea"));
+
+        await Assert.That(result.Warnings).Count().IsEqualTo(1);
+        await Assert.That(newer.ImportedCount).IsEqualTo(1);
+        await Assert.That(newer.Warnings).IsEmpty();
+        await Assert.That((await GetAccountAsync(anna, account.Id)).Identifiers)
+            .IsEquivalentTo(["GB33 BUKB 2020 1555 5555 55", "LT121000011101001000"]);
+    }
+
+    [Test]
+    public async Task A_statement_whose_rows_are_all_imported_already_still_adds_its_new_identifiers()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "Revolut", identifier: "GB33BUKB20201555555555");
+        await UploadOkAsync(anna, account.Id, "2018.txt", new TestStatement()
+            .Identifier("GB33BUKB20201555555555").Row("2018-03-21", 100m, "Top-up"));
+
+        var again = await UploadOkAsync(anna, account.Id, "2018-again.txt", new TestStatement()
+            .Identifier("GB33BUKB20201555555555").Identifier("LT121000011101001000").Row("2018-03-21", 100m, "Top-up"));
+
+        await Assert.That(again.ImportedCount).IsEqualTo(0);
+        await Assert.That((await GetAccountAsync(anna, account.Id)).Identifiers)
+            .IsEquivalentTo(["GB33BUKB20201555555555", "LT121000011101001000"]);
+    }
+
+    [Test]
+    public async Task A_statement_that_fails_after_the_identifier_check_adds_no_identifier()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAccountAsync(anna, "TKB");
+
+        // The row is in EUR, but the Account is in CHF.
+        var res = await UploadAsync(anna, account.Id, "eur.txt", new TestStatement()
+            .Identifier("CH44 3199 9123 0008 8901 2").Row("2026-11-18", -12.50m, "Coffee", currency: "EUR"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        await Assert.That((await GetAccountAsync(anna, account.Id)).Identifiers).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_statement_showing_an_identifier_of_another_account_is_rejected_and_names_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        await CreateAccountAsync(anna, "TKB", identifier: "CH44 3199 9123 0008 8901 2");
+        var other = await CreateAccountAsync(anna, "New account");
+
+        var res = await UploadAsync(anna, other.Id, "tkb.txt",
+            new TestStatement().Identifier("CH4431999123000889012").Row("2026-11-18", -12.50m, "Coffee"));
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"][0]).Contains("CH4431999123000889012").And.Contains("the Account \"TKB\"");
+        await Assert.That((await GetAccountAsync(anna, other.Id)).Identifiers).IsEmpty();
+        await Assert.That(await ListAsync(anna)).IsEmpty();
+    }
+
+    [Test]
+    public async Task Another_members_personal_account_holding_the_identifier_is_not_named()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        await CreateAccountAsync(bob, "Bob's secret savings", identifier: "CH44 3199 9123 0008 8901 2");
+        var res = await anna.PostAsJsonAsync("/api/accounts", new
+        {
+            name = "Joint", owner = new { kind = "family" }, integrationKey = "test", currency = "CHF",
+            openingBalance = 0m, openingDate = "2026-10-31",
+        });
+        var joint = (await res.Content.ReadFromJsonAsync<Account>())!;
+
+        var upload = await UploadAsync(anna, joint.Id, "bobs.txt",
+            new TestStatement().Identifier("CH44 3199 9123 0008 8901 2").Row("2026-11-18", -12.50m, "Coffee"));
+
+        await Assert.That(upload.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await upload.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"][0]).Contains("another Member's account")
+            .And.DoesNotContain("secret");
     }
 
     [Test]
@@ -277,7 +374,7 @@ public class ImportChecksTests : ApiTestBase
         var res = await client.PostAsJsonAsync("/api/accounts", new
         {
             name, owner = new { kind = "member", memberId = me.Id }, integrationKey, currency = "CHF", openingBalance,
-            openingDate, identifier,
+            openingDate, identifiers = identifier is null ? null : new[] { identifier },
         });
         if (res.StatusCode != HttpStatusCode.Created)
             throw new InvalidOperationException($"Create account failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
@@ -302,5 +399,5 @@ public class ImportChecksTests : ApiTestBase
 
     private record BalanceWarning(DateOnly Date, decimal StatementBalance, decimal CalculatedBalance, SourceFileDto SourceFile);
 
-    private record Account(Guid Id, string Slug, decimal Balance, BalanceWarning? BalanceWarning);
+    private record Account(Guid Id, string Slug, decimal Balance, BalanceWarning? BalanceWarning, List<string> Identifiers);
 }

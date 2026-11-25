@@ -25,9 +25,10 @@ public class MultiCurrencyAccount : IOwned, IImportTarget
     /// One of <see cref="Currencies.All"/>: the currency the Multi-currency account's total balance is shown in.
     public required string MainCurrency { get; init; }
 
-    /// Optional identifier of the whole Multi-currency account (e.g. the IBAN its statements carry), only when the
-    /// Integration can provide one to check against. The Accounts in it have no identifier of their own.
-    public string? Identifier { get; set; }
+    /// The Identifiers of the whole Multi-currency account (e.g. the IBANs its statements show), only when the
+    /// Integration can provide one to check against; like an Account's (ADR-0002). The Accounts in it have none of
+    /// their own.
+    public List<string> Identifiers { get; set; } = [];
 
     public List<Account> Accounts { get; init; } = [];
 

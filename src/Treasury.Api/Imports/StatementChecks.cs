@@ -1,45 +1,53 @@
 using System.Globalization;
 using Treasury.Api.Accounts;
+using Treasury.Api.Data;
 using Treasury.Api.Integrations;
 
 namespace Treasury.Api.Imports;
 
 public static class StatementChecks
 {
-    /// The #11 safety checks on every import: identifier (Check stage) and closing balance (Verify stage).
-    public static void AddStatementChecks(this WebApplicationBuilder builder)
-    {
-        builder.Services.AddScoped<IImportStep, IdentifierCheck>();
+    /// The #11 safety check run on every import's legs: closing balance (Verify stage). The Identifier check runs
+    /// on the whole statement, before it is split into legs (<see cref="IdentifierCheck"/>).
+    public static void AddStatementChecks(this WebApplicationBuilder builder) =>
         builder.Services.AddScoped<IImportStep, ClosingBalanceCheck>();
-    }
 }
 
-/// Rejects a statement dropped into the wrong Account's folder: when both the Account and the statement have an
-/// identifier and they don't match (<see cref="AccountIdentifiers.Matches"/>), nothing is imported and the file goes
-/// to failed/. Skipped when either side has no identifier.
+/// The wrong-folder protection and the learning of Identifiers (GLOSSARY: Identifier, ADR-0002). A statement is
+/// accepted when it shows no Identifier, when the target has none yet, or when one it shows matches one of the
+/// target's (<see cref="AccountIdentifiers.Matches"/>); the others it shows are then the target's too. Otherwise
+/// nothing is imported and the file goes to failed/.
 ///
-/// A Multi-currency account has the identifier, not its Accounts (ADR-0010), and a statement for it may have no
-/// leg at all, so the pipeline runs <see cref="Verify"/> on the whole statement before splitting it by currency.
-public sealed class IdentifierCheck : IImportStep
+/// It runs on the whole statement, before a Multi-currency account's is split by currency: the Multi-currency
+/// account has the Identifiers, not its Accounts, and a statement for it may have no leg at all.
+public static class IdentifierCheck
 {
-    public ImportStage Stage => ImportStage.Check;
-
-    public Task RunAsync(ImportContext context, CancellationToken ct)
+    /// The Identifiers the statement shows that the target doesn't have yet, to add to it when the import succeeds.
+    /// Throws <see cref="ImportFailedException"/> when the statement shows only Identifiers the target doesn't have,
+    /// or one that belongs to another account.
+    public static async Task<IReadOnlyList<string>> VerifyAsync(TreasuryDbContext db, IImportTarget target,
+        ParsedStatement statement, CancellationToken ct)
     {
-        Verify(context.Account, context.Statement);
-        return Task.CompletedTask;
-    }
-
-    /// Throws <see cref="ImportFailedException"/> when the statement is for another identifier than the target's.
-    public static void Verify(IImportTarget target, ParsedStatement statement)
-    {
-        var expected = target.Identifier;
-        var actual = statement.AccountIdentifier;
-        if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrWhiteSpace(actual)) return;
-        if (!AccountIdentifiers.Matches(expected, actual))
+        var shown = statement.AccountIdentifiers.Where(i => !string.IsNullOrWhiteSpace(i)).Select(i => i.Trim())
+            .DistinctBy(AccountIdentifiers.Normalise).ToList();
+        bool IsKnown(string identifier) => target.Identifiers.Any(known => AccountIdentifiers.Matches(known, identifier));
+        if (target.Identifiers.Count > 0 && shown.Count > 0 && !shown.Any(IsKnown))
             throw new ImportFailedException(
-                $"This statement is for account {actual.Trim()}, but {target.Description} has the identifier " +
-                $"{expected}. Was it dropped into the wrong folder? Nothing was imported.");
+                $"This statement is for account {string.Join(", ", shown)}, but {target.Description} has the " +
+                $"Identifiers {string.Join(", ", target.Identifiers)}. Was it dropped into the wrong folder? If the " +
+                "bank gave the account a new IBAN or card, add it to its Identifiers and drop the file again. " +
+                "Nothing was imported.");
+
+        var learned = shown.Where(i => !IsKnown(i)).ToList();
+        if (learned.Count == 0) return [];
+        var taken = await TakenIdentifiers.LoadAsync(db, target.Id, ct);
+        foreach (var identifier in learned)
+            if (taken.HolderOf(identifier) is { } holder)
+                throw new ImportFailedException(
+                    $"This statement shows the Identifier {identifier}, which belongs to " +
+                    $"{TakenIdentifiers.Describe(holder, owner => owner == target.Owner)}. Was it dropped into the " +
+                    "wrong folder? Nothing was imported.");
+        return learned;
     }
 }
 

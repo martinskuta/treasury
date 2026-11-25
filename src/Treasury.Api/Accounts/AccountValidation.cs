@@ -1,3 +1,4 @@
+using Treasury.Api.Data;
 using Treasury.Api.Integrations;
 using Treasury.Api.Ownership;
 
@@ -28,17 +29,35 @@ internal static class AccountValidation
                 "Choose a currency Treasury has exchange rates for (an ISO code such as CHF, EUR, USD or GBP)."];
     }
 
-    /// The optional identifier of an Account or a Multi-currency account: trimmed, blank = none. Allowed only when
-    /// the Integration can provide one to check against.
-    public static string? Identifier(string? identifier, IIntegration? integration,
+    /// The Identifiers of an Account or a Multi-currency account: trimmed, blank ones dropped, each once (after
+    /// <see cref="AccountIdentifiers.Normalise"/>). Allowed only when the Integration can provide one to check
+    /// against.
+    public static List<string> Identifiers(IEnumerable<string?>? identifiers, IIntegration? integration,
         Dictionary<string, string[]> errors)
     {
-        var trimmed = string.IsNullOrWhiteSpace(identifier) ? null : identifier.Trim();
-        if (trimmed is not null && integration is { CanProvideIdentifier: false })
-            errors["identifier"] = ["This Integration can't check an identifier; leave it empty."];
-        else if (trimmed?.Length > AccountEndpoints.MaxIdentifierLength)
-            errors["identifier"] = [$"Use at most {AccountEndpoints.MaxIdentifierLength} characters."];
+        var trimmed = (identifiers ?? []).Where(i => !string.IsNullOrWhiteSpace(i)).Select(i => i!.Trim())
+            .DistinctBy(AccountIdentifiers.Normalise).ToList();
+        if (trimmed.Count > 0 && integration is { CanProvideIdentifier: false })
+            errors["identifiers"] = ["This Integration can't check an Identifier; leave them empty."];
+        else if (trimmed.FirstOrDefault(i => i.Length > AccountEndpoints.MaxIdentifierLength) is { } tooLong)
+            errors["identifiers"] = [$"Use at most {AccountEndpoints.MaxIdentifierLength} characters ({tooLong})."];
         return trimmed;
+    }
+
+    /// Each Identifier belongs to one account only (ADR-0002): none of <paramref name="identifiers"/> may be one of
+    /// another account than <paramref name="accountId"/> (null for a new one).
+    public static async Task UniqueIdentifiersAsync(TreasuryDbContext db, IReadOnlyList<string> identifiers,
+        Guid? accountId, Guid viewer, Dictionary<string, string[]> errors)
+    {
+        if (identifiers.Count == 0 || errors.ContainsKey("identifiers")) return;
+        var taken = await TakenIdentifiers.LoadAsync(db, accountId);
+        var clashes = identifiers
+            .Select(i => (Identifier: i, Holder: taken.HolderOf(i)))
+            .Where(c => c.Holder is not null)
+            .Select(c => $"{c.Identifier} is already an Identifier of " +
+                $"{TakenIdentifiers.Describe(c.Holder!, owner => owner.IsVisibleTo(viewer))}.")
+            .ToArray();
+        if (clashes.Length > 0) errors["identifiers"] = clashes;
     }
 
     public static void Opening(decimal? balance, DateOnly? date, Dictionary<string, string[]> errors)

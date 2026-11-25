@@ -129,7 +129,8 @@ export type Account = {
   openingBalance: number
   /** ISO date, e.g. "2026-01-01" */
   openingDate: string
-  identifier: string | null
+  /** IBANs / last card digits its statements are checked against (empty for an Account in a Multi-currency account). */
+  identifiers: string[]
   balance: number
   /** Set when the most recent statement's closing balance differs from the calculated balance on that date. */
   balanceWarning: BalanceWarning | null
@@ -161,7 +162,8 @@ export type NewAccount = {
   currency: Currency
   openingBalance: number | null
   openingDate: string | null
-  identifier: string | null
+  /** Only when the Integration can provide one. */
+  identifiers: string[]
 }
 
 /** The Accounts the current Member can see: their own and the Family's. */
@@ -170,8 +172,9 @@ export const listAccounts = (signal?: AbortSignal) => apiFetch<Account[]>('/api/
 export const createAccount = (account: NewAccount) =>
   apiFetch<Account>('/api/accounts', { method: 'POST', body: account })
 
-export const renameAccount = (id: string, name: string) =>
-  apiFetch<Account>(`/api/accounts/${id}`, { method: 'PATCH', body: { name } })
+/** Renames an Account and, when `identifiers` is given, replaces its Identifiers. */
+export const updateAccount = (id: string, changes: { name: string; identifiers?: string[] }) =>
+  apiFetch<Account>(`/api/accounts/${id}`, { method: 'PATCH', body: changes })
 
 // ---- Multi-currency accounts ----
 
@@ -184,8 +187,8 @@ export type MultiCurrencyAccount = {
   owner: Owner
   integrationKey: string
   mainCurrency: Currency
-  /** Optional identifier (e.g. IBAN) its statements are checked against; its Accounts have none of their own. */
-  identifier: string | null
+  /** IBANs its statements are checked against; its Accounts have none of their own. */
+  identifiers: string[]
   /** The main-currency Account first. */
   accounts: Account[]
   /** Sum of its Accounts' balances in the main currency at today's rates; null while a rate is missing. */
@@ -209,7 +212,7 @@ export type NewMultiCurrencyAccount = {
   openingBalance: number | null
   openingDate: string | null
   /** Only when the Integration can provide one. */
-  identifier: string | null
+  identifiers: string[]
 }
 
 export const listMultiCurrencyAccounts = (signal?: AbortSignal) =>
@@ -218,8 +221,8 @@ export const listMultiCurrencyAccounts = (signal?: AbortSignal) =>
 export const createMultiCurrencyAccount = (multiCurrencyAccount: NewMultiCurrencyAccount) =>
   apiFetch<MultiCurrencyAccount>('/api/multi-currency-accounts', { method: 'POST', body: multiCurrencyAccount })
 
-/** Renames a Multi-currency account and, when `identifier` is given, sets its identifier ('' removes it). */
-export const updateMultiCurrencyAccount = (id: string, changes: { name: string; identifier?: string }) =>
+/** Renames a Multi-currency account and, when `identifiers` is given, replaces its Identifiers. */
+export const updateMultiCurrencyAccount = (id: string, changes: { name: string; identifiers?: string[] }) =>
   apiFetch<MultiCurrencyAccount>(`/api/multi-currency-accounts/${id}`, { method: 'PATCH', body: changes })
 
 /** Every Owner something can be assigned to: the Family first, then each Member. */

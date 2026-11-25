@@ -74,8 +74,8 @@ public interface IImportTarget
     /// Key of the Integration that reads its statements.
     string IntegrationKey { get; }
 
-    /// The identifier its statements must carry (e.g. an IBAN), if it has one.
-    string? Identifier { get; }
+    /// The Identifiers (e.g. IBANs) its statements are checked against, and that imports add to (ADR-0002).
+    List<string> Identifiers { get; set; }
 
     /// What it is, for messages to Members: the Account "…" or the Multi-currency account "…".
     string Description { get; }

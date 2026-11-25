@@ -26,7 +26,7 @@ public class GenericCsvTests
     {
         var statement = ReadSample("full.csv");
 
-        await Assert.That(statement.AccountIdentifier).IsNull();
+        await Assert.That(statement.AccountIdentifiers).IsEmpty();
         await Assert.That(statement.ClosingBalance).IsNull();
         await Assert.That(statement.Rows).IsEquivalentTo(new[]
         {

@@ -10,7 +10,8 @@ namespace Treasury.Api.Integrations;
 /// - a fee (that second row, or a row Revolut's Category calls Fees) suggests the Tag "fee"
 /// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
 ///   gives: each row's running balance, each currency's closing balance and its Total row (Money in/out and Fees)
-/// - the IBAN is the Account identifier; the balances of every Personal Account, also of one holding nothing
+/// - every IBAN of the Personal Accounts is an Identifier (the old and the new one, when Revolut moved the login to
+///   new IBANs during the period); the balances of every Personal Account, also of one holding nothing
 /// - a current account that isn't a Personal Account (e.g. a joint account) is not read; a note names it
 /// - other sections (investments, savings, crypto) are not read; when one has entries, a note says so
 public sealed class RevolutIntegration : IIntegration
@@ -19,7 +20,7 @@ public sealed class RevolutIntegration : IIntegration
 
     public string Name => "Revolut";
 
-    /// The Custom statement shows the IBAN of the Revolut login.
+    /// The Custom statement shows the IBANs of the Revolut login.
     public bool CanProvideIdentifier => true;
 
     /// One Revolut login holds several currencies (GLOSSARY: Multi-currency account).
@@ -38,12 +39,6 @@ public sealed class RevolutIntegration : IIntegration
         foreach (var table in pdf.Tables.Where(t => pdf.Summaries.All(s => s.Currency != t.Currency)))
             throw Rejected($"The {table.Currency} account has a transaction statement, but it is not in the statement's summaries.");
 
-        var ibans = pdf.Summaries.Select(s => s.Iban).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (ibans.Count > 1)
-            throw Rejected(
-                $"The statement's accounts show more than one IBAN ({string.Join(", ", ibans)}), so Treasury can't " +
-                "tell which Revolut login it belongs to.");
-
         var rows = new List<StatementRow>();
         var balances = new List<CurrencyBalances>();
         foreach (var summary in pdf.Summaries)
@@ -56,7 +51,8 @@ public sealed class RevolutIntegration : IIntegration
                 new ClosingBalance(pdf.PeriodEnd, summary.Closing)));
         }
 
-        return new ParsedStatement(rows, ibans.SingleOrDefault(),
+        var ibans = pdf.Summaries.SelectMany(s => s.Ibans).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return new ParsedStatement(rows, ibans,
             BalancesByCurrency: balances.OrderBy(b => b.Currency, StringComparer.Ordinal).ToList(),
             Notes: pdf.SkippedAccounts
                 .Select(account => $"The statement also has \"{account}\", which Treasury doesn't import.")

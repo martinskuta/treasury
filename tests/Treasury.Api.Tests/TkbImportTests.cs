@@ -57,7 +57,7 @@ public class TkbImportTests : ApiTestBase
         var res = await client.PostAsJsonAsync("/api/accounts", new
         {
             name = "TKB", owner = new { kind = "member", memberId = me.Id }, integrationKey = "tkb", currency = "CHF",
-            openingBalance, openingDate, identifier,
+            openingBalance, openingDate, identifiers = new[] { identifier },
         });
         if (res.StatusCode != HttpStatusCode.Created)
             throw new InvalidOperationException($"Create account failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");

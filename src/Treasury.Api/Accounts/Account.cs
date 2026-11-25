@@ -33,8 +33,10 @@ public class Account : IOwned, IImportTarget
     /// The date of the opening balance; the balance is the opening balance plus the Transactions after it (spec #1).
     public DateOnly OpeningDate { get; init; }
 
-    /// Optional IBAN / last card digits, only when the Integration can provide one to check against.
-    public string? Identifier { get; init; }
+    /// The IBANs / last card digits its statements may show (GLOSSARY: Identifier), only when the Integration can
+    /// provide one to check against. Each belongs to this Account only; imports add the ones a statement shows
+    /// (ADR-0002). Always empty for an Account in a Multi-currency account: the Multi-currency account has them.
+    public List<string> Identifiers { get; set; } = [];
 
     /// The Multi-currency account this Account belongs to, if any (ADR-0009). Fixed: an Account is never moved
     /// into, out of or between Multi-currency accounts. Such an Account has no Ingest folder of its own (its Slug is

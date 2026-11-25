@@ -31,7 +31,7 @@ public class Camt053IntegrationTests
         var statement = ReadSample(name);
 
         await Assert.That(statement.Rows).Count().IsEqualTo(55);
-        await Assert.That(statement.AccountIdentifier).IsEqualTo("CH1889144434487348535");
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo(["CH1889144434487348535"]);
         await Assert.That(statement.ClosingBalance).IsEqualTo(new ClosingBalance(new DateOnly(2026, 10, 31), 1023381.13m));
     }
 
@@ -187,7 +187,7 @@ public class Camt053IntegrationTests
     {
         var statement = ReadSample("camt053-001-08.xml");
 
-        await Assert.That(statement.AccountIdentifier).IsEqualTo("CH9300762011623852957");
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo(["CH9300762011623852957"]);
         await Assert.That(statement.ClosingBalance).IsEqualTo(new ClosingBalance(new DateOnly(2026, 10, 31), 180m));
         await Assert.That(statement.Rows).IsEquivalentTo(new[]
         {
@@ -249,7 +249,7 @@ public class Camt053IntegrationTests
         var statement = Reader.Read(new SourceFileContent("download.zip", zip));
 
         await Assert.That(string.Join(",", statement.Rows.Select(r => r.Reference))).IsEqualTo("A,B,C,D");
-        await Assert.That(statement.AccountIdentifier).IsEqualTo(Iban);
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo([Iban]);
         await Assert.That(statement.ClosingBalance).IsEqualTo(new ClosingBalance(new DateOnly(2026, 11, 4), 84m));
     }
 
