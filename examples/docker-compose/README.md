@@ -39,6 +39,13 @@ Runs Treasury from the published image `ghcr.io/martinskuta/treasury`, without c
 
 Back up both: see [docs/backup.md](../../docs/backup.md).
 
+### Dashboard telemetry
+
+By default the Aspire dashboard loses the API's logs, traces and metrics whenever its container restarts. To keep
+them, switch the dashboard to the `Resume` or `Run` persistence mode: the comments on the `compose-dashboard`
+service in `docker-compose.yaml` describe the three modes and hold the lines to uncomment. The telemetry then lives
+in the Docker volume `<folder name>_treasury-dashboard-data`; it needs no backup.
+
 ## Update
 
 ```bash
@@ -57,12 +64,15 @@ folder instead of its `dc` helper, and `.env` instead of `.env.Production`.
 
 ## Regenerating `docker-compose.yaml`
 
-The file is generated from the Aspire AppHost (ADR-0004) and not edited by hand. After changing
-`src/Treasury.AppHost/AppHost.cs`, regenerate it from the repository root:
+The services, variables and volumes in the file are generated from the Aspire AppHost (ADR-0004), not written by
+hand. The only hand-written part is comments: the telemetry storage notes on `compose-dashboard` and the
+commented-out `treasury-dashboard-data` volume at the end. After changing `src/Treasury.AppHost/AppHost.cs`,
+regenerate the file from the repository root and put those comments back:
 
 ```bash
 aspire publish -o deploy
 cp deploy/docker-compose.yaml examples/docker-compose/docker-compose.yaml
+git diff examples/docker-compose/docker-compose.yaml   # shows the comments that were dropped; restore them
 ```
 
 A new variable in the generated `deploy/.env` also needs a line in `.env.example`.
