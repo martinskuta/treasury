@@ -54,6 +54,9 @@ The compose files are generated from the AppHost (ADR-0004), never edited by han
 follow [docs/deployment.md](docs/deployment.md) (parameters, data folder, first login, network share, updates) and set
 up backups with [docs/backup.md](docs/backup.md) (pg_dump, data folder, restore).
 
+To self-host from the published image `ghcr.io/martinskuta/treasury` without building anything, use the ready-made
+compose file in [examples/docker-compose](examples/docker-compose/README.md).
+
 ```bash
 aspire publish -o deploy    # writes deploy/docker-compose.yaml and deploy/.env
 aspire deploy -o deploy     # also builds the image and runs docker compose up
