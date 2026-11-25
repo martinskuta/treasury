@@ -1,0 +1,79 @@
+name: Publish container image
+
+# Builds the Treasury image (API + React app in one container, ADR-0004) with the Aspire AppHost, the same way
+# `aspire deploy` does at home, and pushes it to GitHub Container Registry as
+#   ghcr.io/<owner>/<repo>:latest  and  ghcr.io/<owner>/<repo>:<commit sha>
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-image
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install Aspire CLI
+        run: |
+          curl -sSL https://aspire.dev/install.sh | bash
+          echo "$HOME/.aspire/bin" >> "$GITHUB_PATH"
+
+      # The AppHost's parameters must have a value for the pipeline to run. They only end up in the generated
+      # compose .env, never in the image, so placeholders are enough here.
+      - name: Build image
+        run: |
+          env 'Parameters__admin-password=Not-used-1n-the-image!' \
+              'Parameters__postgres-password=not-used-in-the-image' \
+              aspire do build --non-interactive --nologo
+
+      # `aspire do build` leaves the image in the local Docker engine as api:latest (`aspire deploy` tags it
+      # api:aspire-deploy-<timestamp>); take whichever `api` image is newest.
+      - name: Find built image
+        id: built
+        run: |
+          docker image ls
+          image=$(docker image ls api --format '{{.Repository}}:{{.Tag}}' | head -n 1)
+          if [ -z "$image" ]; then
+            echo "::error::aspire do build did not leave an 'api' image in the local Docker engine"
+            exit 1
+          fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push
+        run: |
+          image="${IMAGE,,}"   # registry paths must be lowercase
+          docker tag "${{ steps.built.outputs.image }}" "$image:${{ github.sha }}"
+          docker tag "${{ steps.built.outputs.image }}" "$image:latest"
+          docker push "$image:${{ github.sha }}"
+          docker push "$image:latest"
+          echo "Published \`$image:${{ github.sha }}\` and \`$image:latest\`" >> "$GITHUB_STEP_SUMMARY"
