@@ -3,6 +3,36 @@ services:
     image: "mcr.microsoft.com/aspire/nightly/dashboard:17.0"
     environment:
       ASPIRE_DASHBOARD_TELEMETRY_OPTOUT: "true"
+      # --- Telemetry storage ---------------------------------------------------------------------------------
+      # The dashboard keeps the API's logs, traces and metrics in a SQLite database. ASPIRE_DASHBOARD_PERSISTENCE_MODE
+      # decides what happens to it when the dashboard container restarts. To uncomment a line below, remove
+      # its "# " and keep the indentation.
+      #
+      # None (default; nothing to set): a temporary database inside the container. Telemetry is lost whenever the
+      #   dashboard container is restarted or recreated.
+      #
+      # Resume: one database that is reused across restarts; new telemetry is appended and the oldest is dropped
+      #   once the limits are reached (100,000 log entries, 100,000 traces, 50,000 points per metric dimension).
+      #   Uncomment the three variables below, the "volumes" block of this service, and "treasury-dashboard-data"
+      #   under the top-level "volumes" at the end of the file.
+      #
+      # Run: a new database on every dashboard start; earlier starts stay available read-only under "Recordings"
+      #   in the dashboard (the 10 most recent, plus the ones you pin). Same as Resume, with the mode set to "Run".
+      #
+      # Keep the mode and the application name unchanged once chosen. The stored telemetry is not encrypted and
+      # can contain sensitive data. The database file never shrinks; to start over, stop the stack and delete the
+      # volume `<project>_treasury-dashboard-data`.
+      #
+      # ASPIRE_DASHBOARD_PERSISTENCE_MODE: "Resume"
+      # ASPIRE_DASHBOARD_APPLICATION_NAME: "treasury"
+      # ASPIRE_DASHBOARD_DATA_DIRECTORY: "/home/app/dashboard-data"
+    # Resume / Run: the volume that holds the database. It must be mounted at /home/app, the home of the
+    # dashboard's non-root user; mounted anywhere else it belongs to root and the dashboard cannot write to it.
+    # volumes:
+    #   - type: "volume"
+    #     target: "/home/app"
+    #     source: "treasury-dashboard-data"
+    #     read_only: false
     ports:
       - "18888:18888"
     expose:
@@ -66,3 +96,6 @@ networks:
 volumes:
   treasury-pgdata:
     driver: "local"
+  # Resume / Run telemetry storage of the dashboard (see compose-dashboard above).
+  # treasury-dashboard-data:
+  #   driver: "local"
