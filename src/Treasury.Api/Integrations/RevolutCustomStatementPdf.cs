@@ -72,6 +72,8 @@ internal sealed record RevolutCustomStatementPdf(
 
     private static readonly Regex AccountHeading = new(@"^(?<kind>.+ Account) \((?<currency>[A-Z]{3})\)$");
 
+    /// "Account Number (IBAN) LT12…", or for a period over which Revolut moved the account to a new IBAN, one line
+    /// per IBAN: "Account Number (LT IBAN) LT12…" and "Account Number (GB IBAN) GB29…".
     private static readonly Regex IbanLine =
         new(@"^Account Number \((?:\w+ )?IBAN\) (?<iban>[A-Z]{2}\d{2}(?: ?[A-Z0-9])+?)(?= Opening | Closing | Days |$)");
 
@@ -224,8 +226,8 @@ internal sealed record RevolutCustomStatementPdf(
                 return alreadyRead ? throw Unreadable($"{where} has two {twice}") : match.Groups[group].Value;
             }
 
-            if (Found(IbanLine, "iban", _summary.Iban is not null, "IBANs") is { } iban)
-                _summary.Iban = iban.Replace(" ", "");
+            if (IbanLine.Match(line.Text) is { Success: true } iban)
+                _summary.Ibans.Add(iban.Groups["iban"].Value.Replace(" ", ""));
             if (Found(OpeningBalance, "amount", _summary.Opening is not null, "opening balances") is { } opening)
                 _summary.Opening = ParseAmount(opening, $"{where}, opening balance");
             if (Found(ClosingBalance, "amount", _summary.Closing is not null, "closing balances") is { } closing)
@@ -264,7 +266,7 @@ internal sealed record RevolutCustomStatementPdf(
         }
 
         public IReadOnlyList<RevolutAccountSummary> Summaries() => _summaries
-            .Select(s => new RevolutAccountSummary(s.Currency, s.Iban,
+            .Select(s => new RevolutAccountSummary(s.Currency, s.Ibans,
                 s.Opening ?? throw Unreadable($"the {s.Currency} account's opening balance wasn't found"),
                 s.Closing ?? throw Unreadable($"the {s.Currency} account's closing balance wasn't found")))
             .ToList();
@@ -297,7 +299,7 @@ internal sealed record RevolutCustomStatementPdf(
     private sealed class SummaryInProgress(string currency)
     {
         public string Currency => currency;
-        public string? Iban { get; set; }
+        public List<string> Ibans { get; } = [];
         public decimal? Opening { get; set; }
         public decimal? Closing { get; set; }
     }
@@ -361,8 +363,9 @@ internal sealed record RevolutCustomStatementPdf(
 }
 
 /// An account's page under "Current Accounts Summaries".
-/// <param name="Iban">Null when the statement shows "N/A".</param>
-internal sealed record RevolutAccountSummary(string Currency, string? Iban, decimal Opening, decimal Closing);
+/// <param name="Ibans">In the order printed; empty when the statement shows "N/A", two when the account was moved to
+/// a new IBAN during the period.</param>
+internal sealed record RevolutAccountSummary(string Currency, IReadOnlyList<string> Ibans, decimal Opening, decimal Closing);
 
 /// An account's table under "Current Accounts Transaction Statements".
 internal sealed record RevolutAccountTable(string Currency, IReadOnlyList<RevolutTableRow> Rows, RevolutTableTotal Total);

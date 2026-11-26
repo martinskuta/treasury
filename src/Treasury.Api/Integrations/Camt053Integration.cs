@@ -27,7 +27,7 @@ public sealed class Camt053Integration(string key, string name, string exportHin
         var statements = Camt053Reader.Read(file, exportHint);
         var rows = statements.SelectMany(s => s.Entries).Where(e => e.IsBooked).SelectMany(Rows).ToList();
         var closing = statements.MaxBy(s => s.To)!.Closing;
-        return new ParsedStatement(rows, statements[0].Iban, new ClosingBalance(closing.Date, closing.Amount));
+        return new ParsedStatement(rows, [statements[0].Iban], new ClosingBalance(closing.Date, closing.Amount));
     }
 
     /// One row per booked entry, except a batch (several transaction details) whose details all have amounts that

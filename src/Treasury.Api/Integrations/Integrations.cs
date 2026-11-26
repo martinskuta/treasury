@@ -46,7 +46,8 @@ public sealed class SourceFileContent(string fileName, byte[] bytes)
 
 /// What an Integration read from a Source file.
 /// <param name="Rows">The statement's movements, in file order.</param>
-/// <param name="AccountIdentifier">IBAN / last card digits, when the format has one (see CanProvideIdentifier).</param>
+/// <param name="AccountIdentifiers">The IBANs / last card digits the statement shows, when the format has them (see
+/// CanProvideIdentifier); several when the account had several during the statement's period.</param>
 /// <param name="ClosingBalance">The statement's closing balance, when the format has one (single-currency formats).</param>
 /// <param name="BalancesByCurrency">For a format holding several currencies (Multi-currency account): the balances of
 /// each currency the statement lists, also of one with no rows and a zero balance (the import decides which
@@ -56,11 +57,13 @@ public sealed class SourceFileContent(string fileName, byte[] bytes)
 /// doesn't track), written for a Member.</param>
 public sealed record ParsedStatement(
     IReadOnlyList<StatementRow> Rows,
-    string? AccountIdentifier = null,
+    IReadOnlyList<string>? AccountIdentifiers = null,
     ClosingBalance? ClosingBalance = null,
     IReadOnlyList<CurrencyBalances>? BalancesByCurrency = null,
     IReadOnlyList<string>? Notes = null)
 {
+    public IReadOnlyList<string> AccountIdentifiers { get; init; } = AccountIdentifiers ?? [];
+
     public IReadOnlyList<CurrencyBalances> BalancesByCurrency { get; init; } = BalancesByCurrency ?? [];
 
     public IReadOnlyList<string> Notes { get; init; } = Notes ?? [];

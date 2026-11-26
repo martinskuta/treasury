@@ -19,7 +19,7 @@ public class AccountTests : ApiTestBase
             currency = "CHF",
             openingBalance = 1234.50m,
             openingDate = "2026-01-01",
-            identifier = "CH93 0076 2011 6238 5295 7",
+            identifiers = new[] { "CH93 0076 2011 6238 5295 7" },
         });
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
@@ -33,7 +33,7 @@ public class AccountTests : ApiTestBase
         await Assert.That(account.Currency).IsEqualTo("CHF");
         await Assert.That(account.OpeningBalance).IsEqualTo(1234.50m);
         await Assert.That(account.OpeningDate).IsEqualTo(new DateOnly(2026, 1, 1));
-        await Assert.That(account.Identifier).IsEqualTo("CH93 0076 2011 6238 5295 7");
+        await Assert.That(account.Identifiers).IsEquivalentTo(["CH93 0076 2011 6238 5295 7"]);
     }
 
     [Test]
@@ -263,13 +263,13 @@ public class AccountTests : ApiTestBase
     }
 
     [Test]
-    public async Task The_identifier_is_optional()
+    public async Task Identifiers_are_optional()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
 
         var account = await CreateAsync(anna, NewAccount("TKB", Family, identifier: null));
 
-        await Assert.That(account.Identifier).IsNull();
+        await Assert.That(account.Identifiers).IsEmpty();
     }
 
     [Test]
@@ -280,7 +280,60 @@ public class AccountTests : ApiTestBase
         var res = await anna.PostAsJsonAsync("/api/accounts",
             NewAccount("Cash", Family, integrationKey: "test-noid", identifier: "1234"));
 
-        await AssertValidationErrorAsync(res, "identifier");
+        await AssertValidationErrorAsync(res, "identifiers");
+    }
+
+    [Test]
+    public async Task An_accounts_identifiers_can_be_edited_and_are_kept_when_left_out()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var account = await CreateAsync(anna, NewAccount("TKB card", Family, identifier: "1234"));
+        var url = $"/api/accounts/{account.Id}";
+
+        // The card was reissued: its new digits are added, the old ones kept for older statements.
+        var edited = await anna.PatchAsJsonAsync(url, new { name = "TKB card", identifiers = new[] { "1234", " 5678 " } });
+
+        await Assert.That(edited.StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await edited.Content.ReadFromJsonAsync<Account>())!.Identifiers).IsEquivalentTo(["1234", "5678"]);
+        await anna.PatchAsJsonAsync(url, new { name = "TKB debit card" });
+        var renamed = (await anna.GetFromJsonAsync<Account>(url))!;
+        await Assert.That(renamed.Name).IsEqualTo("TKB debit card");
+        await Assert.That(renamed.Identifiers).IsEquivalentTo(["1234", "5678"]);
+    }
+
+    [Test]
+    public async Task An_identifier_of_another_account_is_refused_on_create_and_on_edit()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var tkb = await CreateAsync(anna, NewAccount("TKB", Family, identifier: "CH93 0076 2011 6238 5295 7"));
+        var card = await CreateAsync(anna, NewAccount("Card", Family, identifier: "5413 **** **** 1234"));
+
+        var created = await anna.PostAsJsonAsync("/api/accounts",
+            NewAccount("TKB again", Family, identifier: "CH9300762011623852957"));
+        var edited = await anna.PatchAsJsonAsync($"/api/accounts/{card.Id}",
+            new { name = "Card", identifiers = new[] { "5413 **** **** 1234", "CH93 0076 2011 6238 5295 7" } });
+        // An account's own Identifiers are no clash.
+        var own = await anna.PatchAsJsonAsync($"/api/accounts/{tkb.Id}",
+            new { name = "TKB", identifiers = new[] { "CH93 0076 2011 6238 5295 7" } });
+
+        await Assert.That(await ErrorAsync(created, "identifiers")).Contains("the Account \"TKB\"");
+        await AssertValidationErrorAsync(edited, "identifiers");
+        await Assert.That((await anna.GetFromJsonAsync<Account>($"/api/accounts/{card.Id}"))!.Identifiers)
+            .IsEquivalentTo(["5413 **** **** 1234"]);
+        await Assert.That(own.StatusCode).IsEqualTo(HttpStatusCode.OK);
+    }
+
+    [Test]
+    public async Task An_identifier_of_another_members_personal_account_is_refused_without_naming_it()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        using var bob = await LoginAsNewMemberAsync("bob");
+        await CreateAsync(bob, NewAccount("Bob's secret savings", await MeAsync(bob), identifier: "CH93 0076 2011 6238 5295 7"));
+
+        var res = await anna.PostAsJsonAsync("/api/accounts",
+            NewAccount("TKB", await MeAsync(anna), identifier: "CH93 0076 2011 6238 5295 7"));
+
+        await Assert.That(await ErrorAsync(res, "identifiers")).Contains("another Member's account").And.DoesNotContain("secret");
     }
 
     [Test]
@@ -316,7 +369,7 @@ public class AccountTests : ApiTestBase
         currency,
         openingBalance,
         openingDate = "2026-01-01",
-        identifier,
+        identifiers = identifier is null ? null : new[] { identifier },
     };
 
     private static async Task<Account> CreateAsync(HttpClient client, object request)
@@ -352,6 +405,15 @@ public class AccountTests : ApiTestBase
         await Assert.That(problem!.Errors.Keys).Contains(field);
     }
 
+    /// Asserts a validation problem on the field and returns its messages.
+    private static async Task<string> ErrorAsync(HttpResponseMessage res, string field)
+    {
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors.Keys).Contains(field);
+        return string.Join(" ", problem.Errors[field]);
+    }
+
     private record ValidationProblem(Dictionary<string, string[]> Errors);
 
     private record Integration(string Key, string Name, bool CanProvideIdentifier);
@@ -364,5 +426,5 @@ public class AccountTests : ApiTestBase
     private record OwnerDto(string Kind, Guid? MemberId, string Name);
 
     private record Account(Guid Id, string Name, string Slug, OwnerDto Owner, string IntegrationKey, string Currency,
-        decimal OpeningBalance, DateOnly OpeningDate, string? Identifier, decimal Balance, decimal? BalanceChf);
+        decimal OpeningBalance, DateOnly OpeningDate, List<string> Identifiers, decimal Balance, decimal? BalanceChf);
 }

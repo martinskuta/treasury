@@ -16,10 +16,10 @@ public static class MultiCurrencyAccountEndpoints
     public const int MaxNameLength = AccountEndpoints.MaxNameLength - 4;
 
     public record CreateMultiCurrencyAccountRequest(string? Name, OwnerRequest? Owner, string? IntegrationKey,
-        string? MainCurrency, decimal? OpeningBalance, DateOnly? OpeningDate, string? Identifier);
+        string? MainCurrency, decimal? OpeningBalance, DateOnly? OpeningDate, IReadOnlyList<string?>? Identifiers);
 
-    /// <param name="Identifier">Left out (null) = keep the identifier as it is; blank = remove it.</param>
-    public record UpdateMultiCurrencyAccountRequest(string? Name, string? Identifier);
+    /// <param name="Identifiers">Left out (null) = keep them as they are; an empty list removes them all.</param>
+    public record UpdateMultiCurrencyAccountRequest(string? Name, IReadOnlyList<string?>? Identifiers);
 
     /// <param name="TotalBalance">The sum of its Accounts' balances in the main currency at today's exchange rates;
     /// null while a needed rate is missing.</param>
@@ -29,7 +29,7 @@ public static class MultiCurrencyAccountEndpoints
     /// <param name="LastImportedAt">When its most recent Source file was imported; null when there is none.</param>
     /// <param name="Lagging">The reach is before the last day of the last complete calendar month, or missing.</param>
     public record MultiCurrencyAccountResponse(Guid Id, string Name, string Slug, OwnerResponse Owner,
-        string IntegrationKey, string MainCurrency, string? Identifier, IReadOnlyList<AccountResponse> Accounts,
+        string IntegrationKey, string MainCurrency, IReadOnlyList<string> Identifiers, IReadOnlyList<AccountResponse> Accounts,
         decimal? TotalBalance, decimal? TotalBalanceChf, DateOnly? Reach, DateTimeOffset? LastImportedAt, bool Lagging);
 
     public static void MapMultiCurrencyAccounts(this RouteGroupBuilder api)
@@ -71,7 +71,8 @@ public static class MultiCurrencyAccountEndpoints
 
             AccountValidation.Currency(request.MainCurrency, "mainCurrency", errors);
             AccountValidation.Opening(request.OpeningBalance, request.OpeningDate, errors);
-            var identifier = AccountValidation.Identifier(request.Identifier, integration, errors);
+            var identifiers = AccountValidation.Identifiers(request.Identifiers, integration, errors);
+            await AccountValidation.UniqueIdentifiersAsync(db, identifiers, null, viewer, errors);
 
             if (errors.Count > 0) return Results.ValidationProblem(errors);
             if (!owner!.Value.IsManageableBy(viewer)) return Results.Forbid();
@@ -84,7 +85,7 @@ public static class MultiCurrencyAccountEndpoints
                 Slug = slug,
                 IntegrationKey = integration!.Key,
                 MainCurrency = request.MainCurrency!,
-                Identifier = identifier,
+                Identifiers = identifiers,
                 Accounts =
                 {
                     new Account
@@ -120,12 +121,13 @@ public static class MultiCurrencyAccountEndpoints
             var errors = new Dictionary<string, string[]>();
             var name = request.Name?.Trim();
             AccountValidation.Name(name, MaxNameLength, errors);
-            var identifier = AccountValidation.Identifier(request.Identifier,
+            var identifiers = AccountValidation.Identifiers(request.Identifiers,
                 integrations.Find(multiCurrencyAccount.IntegrationKey), errors);
+            await AccountValidation.UniqueIdentifiersAsync(db, identifiers, multiCurrencyAccount.Id, viewer, errors);
             if (errors.Count > 0) return Results.ValidationProblem(errors);
 
             multiCurrencyAccount.Name = name!;
-            if (request.Identifier is not null) multiCurrencyAccount.Identifier = identifier;
+            if (request.Identifiers is not null) multiCurrencyAccount.Identifiers = identifiers;
             await db.SaveChangesAsync();
             return Results.Ok((await ToResponsesAsync(db, converter, clock, [multiCurrencyAccount])).Single());
         });
@@ -151,7 +153,7 @@ public static class MultiCurrencyAccountEndpoints
                 .Select(a => ToResponse(a, names, balances, mismatches, rates, reach)).ToList();
             var converted = accounts.Select(a => rates.Convert(a.Balance, a.Currency, m.MainCurrency));
             return new MultiCurrencyAccountResponse(m.Id, m.Name, m.Slug, OwnerResponse.From(m.Owner, names),
-                m.IntegrationKey, m.MainCurrency, m.Identifier, accounts, SumOrNull(converted),
+                m.IntegrationKey, m.MainCurrency, m.Identifiers, accounts, SumOrNull(converted),
                 SumOrNull(accounts.Select(a => a.BalanceChf)), reach.Of(m), reach.LastImportedAt(m),
                 reach.IsLagging(m));
         }).ToList();

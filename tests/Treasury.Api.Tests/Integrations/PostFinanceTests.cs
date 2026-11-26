@@ -77,7 +77,7 @@ public class PostFinanceTests
         });
         await Assert.That(statement.Rows.Take(6).SelectMany(r => r.SuggestedTags)).IsEmpty();
         await Assert.That(statement.Rows).Count().IsEqualTo(7);
-        await Assert.That(statement.AccountIdentifier).IsEqualTo(PostFinanceKontoauszug.Iban);
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo([PostFinanceKontoauszug.Iban]);
         await Assert.That(statement.ClosingBalance).IsEqualTo(new ClosingBalance(Oct(31), 2911.70m));
         await Assert.That(statement.BalancesByCurrency).IsEmpty();
         await Assert.That(statement.Notes).IsEmpty();

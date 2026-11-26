@@ -85,7 +85,7 @@ public class PostFinanceImportTests : ApiTestBase
         var res = await client.PostAsJsonAsync("/api/accounts", new
         {
             name = "PostFinance", owner = new { kind = "member", memberId = me.Id }, integrationKey = "postfinance",
-            currency = "CHF", openingBalance, openingDate, identifier,
+            currency = "CHF", openingBalance, openingDate, identifiers = identifier is null ? null : new[] { identifier },
         });
         if (res.StatusCode != HttpStatusCode.Created)
             throw new InvalidOperationException($"Create account failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");

@@ -25,6 +25,7 @@ var api = builder.AddDotnetProject("api", "../Treasury.Api/Treasury.Api.csproj")
     .WithExternalHttpEndpoints()
     .PublishAsDockerComposeService((_, service) =>
     {
+        service.User = "${PUID:-1026}:${PGID:-100}";
         service.Restart = "unless-stopped";
         // Fixed host port instead of the random default.
         service.Ports.Clear();

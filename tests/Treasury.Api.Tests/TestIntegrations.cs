@@ -5,7 +5,7 @@ namespace Treasury.Api.Tests;
 
 /// Fake Integration behind the API seam (no real bank formats in API tests), with a trivial text format:
 /// <code>
-/// # identifier: CH93 0000 1111      (optional; ignored by an Integration that can't provide identifiers)
+/// # identifier: CH93 0000 1111      (optional, any number; ignored by an Integration that can't provide identifiers)
 /// # closing: 2026-11-30 1234.50     (optional: date and closing balance)
 /// # balances: EUR 2026-10-31 50 2026-11-30 35.50   (optional, one per currency of a multi-currency statement:
 ///                                    currency, opening date and balance, closing date and balance)
@@ -27,7 +27,7 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
     public ParsedStatement Read(SourceFileContent file)
     {
         var rows = new List<StatementRow>();
-        string? identifier = null;
+        var identifiers = new List<string>();
         ClosingBalance? closing = null;
         var balances = new List<CurrencyBalances>();
         var notes = new List<string>();
@@ -39,7 +39,7 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
             if (line.Length == 0) continue;
             if (line.StartsWith("# identifier:", StringComparison.Ordinal))
             {
-                if (CanProvideIdentifier) identifier = line["# identifier:".Length..].Trim();
+                if (CanProvideIdentifier) identifiers.Add(line["# identifier:".Length..].Trim());
                 continue;
             }
             if (line.StartsWith("# note:", StringComparison.Ordinal))
@@ -81,7 +81,7 @@ public sealed class TestIntegration(string key, string name, bool canProvideIden
                 SuggestedTags = Opt(8)?.Split(',') ?? [],
             });
         }
-        return new ParsedStatement(rows, identifier, closing, balances, notes);
+        return new ParsedStatement(rows, identifiers, closing, balances, notes);
     }
 
     private static DateOnly ParseDate(string value, string at) =>

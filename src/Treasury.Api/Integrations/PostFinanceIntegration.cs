@@ -34,7 +34,7 @@ public sealed class PostFinanceIntegration : IIntegration
         {
             SuggestedTags = IsPrice(row) ? FeeTags : [],
         }).ToList();
-        return new ParsedStatement(rows, pdf.Iban, new ClosingBalance(pdf.Closing.Date, pdf.Closing.Amount));
+        return new ParsedStatement(rows, [pdf.Iban], new ClosingBalance(pdf.Closing.Date, pdf.Closing.Amount));
     }
 
     private static decimal Signed(PostFinanceRow row) => row.Credit ?? -row.Debit!.Value;

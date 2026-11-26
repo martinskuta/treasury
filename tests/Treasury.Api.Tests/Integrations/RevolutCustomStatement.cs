@@ -99,6 +99,24 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                 PutRight(page, 294, y, Body, account.Iban ?? "N/A");
                 Put(page, Middle, y, Body, "Closing date");
                 y -= 19;
+                if (account.GbIban is { } gbIban)
+                {
+                    Put(page, Left, y, Body, "Account Number (GB IBAN)");
+                    PutRight(page, 294, y, Body, gbIban);
+                    y -= 19;
+                }
+            }
+            else if (account.GbIban is { } gbIban)
+            {
+                Put(page, Left, y, Body, "Account Number (LT IBAN)");
+                PutRight(page, 294, y, Body, account.Iban ?? "N/A");
+                Put(page, Middle, y, Body, "Opening date");
+                PutRight(page, Right, y, Body, "Mar 1, 2020");
+                y -= 19;
+                Put(page, Left, y, Body, "Account Number (GB IBAN)");
+                PutRight(page, 294, y, Body, gbIban);
+                Put(page, Middle, y, Body, "Closing date");
+                y -= 19;
             }
             else
             {
@@ -287,6 +305,7 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
         internal string? Iban => iban;
         internal string Zero => zero;
         internal string? GbNumber { get; private set; }
+        internal string? GbIban { get; private set; }
         internal bool SummaryOnly { get; private set; }
         internal bool TransactionsOnly { get; private set; }
         private readonly List<object> _rows = [];
@@ -333,6 +352,10 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
 
         /// Prints "Account Number GB" above "Account Number (LT IBAN)", as Revolut does for the GBP account.
         public AccountBuilder GbAccountNumber(string number) { GbNumber = number; return this; }
+
+        /// Prints "Account Number (GB IBAN)" beneath the IBAN, which is then "Account Number (LT IBAN)", as Revolut
+        /// does for a period over which it moved the login from a British to a Lithuanian IBAN.
+        public AccountBuilder FormerGbIban(string iban) { GbIban = iban; return this; }
 
         /// Leaves the account out of "Current Accounts Transaction Statements".
         public AccountBuilder OnlyInSummaries() { SummaryOnly = true; return this; }

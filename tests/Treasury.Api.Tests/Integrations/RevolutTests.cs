@@ -59,7 +59,7 @@ public class RevolutTests
             new CurrencyBalances("EUR", Nov(1), 5.00m, new ClosingBalance(Nov(20), 159.50m)),
             new CurrencyBalances("USD", Nov(1), 120.00m, new ClosingBalance(Nov(20), 108.00m)),
         });
-        await Assert.That(statement.AccountIdentifier).IsEqualTo(RevolutCustomStatement.Iban);
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo([RevolutCustomStatement.Iban]);
         await Assert.That(statement.ClosingBalance).IsNull();
         await Assert.That(statement.Notes).IsEmpty();
     }
@@ -449,25 +449,45 @@ public class RevolutTests
     }
 
     [Test]
-    public async Task Two_different_ibans_reject_the_file()
+    public async Task Every_iban_the_personal_accounts_show_is_an_identifier_once()
     {
-        var error = ErrorOf(new RevolutCustomStatement()
+        var statement = Read(new RevolutCustomStatement()
             .Account("CHF", "100.00 CHF", "100.00 CHF")
-            .Account("EUR", "€5.00", "€5.00", iban: "LT601010012345678901", zero: "€0.00"));
+            .Account("EUR", "€5.00", "€5.00", iban: "LT601010012345678901", zero: "€0.00")
+            .Account("USD", "$0.00", "$0.00", zero: "$0.00"));
 
-        await Assert.That(error).Contains("more than one IBAN").And.Contains(RevolutCustomStatement.Iban)
-            .And.Contains("LT601010012345678901");
+        await Assert.That(statement.AccountIdentifiers)
+            .IsEquivalentTo([RevolutCustomStatement.Iban, "LT601010012345678901"]);
     }
 
     [Test]
-    public async Task Accounts_without_an_iban_and_a_british_account_number_do_not_change_the_identifier()
+    public async Task A_period_over_which_revolut_moved_the_login_to_a_new_iban_shows_the_old_and_the_new_one()
+    {
+        const string gbIban = "GB33BUKB20201555555555";
+        var statement = Read(new RevolutCustomStatement("Mar 1, 2018 - Oct 31, 2026")
+            .Account("CHF", "0.00 CHF", "100.00 CHF", t => t
+                .Row("Mar 21, 2018", "Top-up by *0315", "Top up", "100.00 CHF", "100.00 CHF")
+                .Total("100.00 CHF")
+                .FormerGbIban(gbIban))
+            .Account("GBP", "£0.00", "£0.00", t => t.GbAccountNumber("12345678").FormerGbIban(gbIban), zero: "£0.00")
+            // A currency closed before the move shows only the old IBAN.
+            .Account("HRK", "0.00 HRK", "0.00 HRK", iban: gbIban));
+
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo([RevolutCustomStatement.Iban, gbIban]);
+        await Assert.That(statement.Rows).Count().IsEqualTo(1);
+        await Assert.That(statement.BalancesByCurrency.Select(b => (b.Currency, b.Closing.Amount)))
+            .IsEquivalentTo([("CHF", 100.00m), ("GBP", 0m), ("HRK", 0m)]);
+    }
+
+    [Test]
+    public async Task Accounts_without_an_iban_and_a_british_account_number_add_no_identifier()
     {
         var statement = Read(new RevolutCustomStatement()
             .Account("ISK", "6,400 ISK", "6,400 ISK", iban: null, zero: "0 ISK")
             .Account("GBP", "£15.40", "£15.40", t => t.GbAccountNumber("12345678"), zero: "£0.00")
             .Account("CHF", "100.00 CHF", "100.00 CHF"));
 
-        await Assert.That(statement.AccountIdentifier).IsEqualTo(RevolutCustomStatement.Iban);
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo([RevolutCustomStatement.Iban]);
         await Assert.That(statement.BalancesByCurrency.Select(b => b.Currency)).IsEquivalentTo(["CHF", "GBP", "ISK"]);
     }
 
@@ -476,7 +496,7 @@ public class RevolutTests
     {
         var statement = Read(new RevolutCustomStatement().Account("ISK", "6,400 ISK", "6,400 ISK", iban: null, zero: "0 ISK"));
 
-        await Assert.That(statement.AccountIdentifier).IsNull();
+        await Assert.That(statement.AccountIdentifiers).IsEmpty();
     }
 
     [Test]
@@ -518,7 +538,7 @@ public class RevolutTests
         await Assert.That(statement.BalancesByCurrency.Select(b => (b.Currency, b.OpeningBalance, b.Closing.Amount)))
             .IsEquivalentTo([("CHF", 100.00m, 90.00m), ("EUR", 5.00m, 5.00m)]);
         // The joint account's IBAN is another one.
-        await Assert.That(statement.AccountIdentifier).IsEqualTo(RevolutCustomStatement.Iban);
+        await Assert.That(statement.AccountIdentifiers).IsEquivalentTo([RevolutCustomStatement.Iban]);
     }
 
     [Test]

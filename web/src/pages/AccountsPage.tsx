@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Balance } from '../components/Balance'
 import { FormField } from '../components/FormField'
+import { IdentifiersField } from '../components/IdentifiersField'
 import { SelectField } from '../components/SelectField'
 import {
   ApiError,
@@ -13,8 +14,8 @@ import {
   listIntegrations,
   listMultiCurrencyAccounts,
   listSourceFiles,
-  renameAccount,
   sourceFileContentUrl,
+  updateAccount,
   updateMultiCurrencyAccount,
   type Account,
   type Currency,
@@ -134,6 +135,7 @@ export function AccountsPage() {
                     key={account.id}
                     account={account}
                     integrationName={integrationName(account.integrationKey)}
+                    canHaveIdentifiers={canProvideIdentifier(account.integrationKey)}
                     onRenamed={renamed =>
                       setAccounts(list => list?.map(x => (x.id === renamed.id ? renamed : x)) ?? null)
                     }
@@ -149,29 +151,25 @@ export function AccountsPage() {
   )
 }
 
-/** The identifier field's label, the same wherever an identifier is entered. */
-const identifierLabel = 'Identifier (optional: IBAN or last card digits)'
-
 /**
- * Inline form editing a name and, with `hasIdentifierField`, an identifier; calls onSave with the new name and the
- * identifier, trimmed ('' = none), and closes when it resolves.
+ * Inline form editing a name and, with `hasIdentifiersField`, the Identifiers; calls onSave with the new name and
+ * the Identifiers as typed, and closes when it resolves.
  */
-function NameAndIdentifierForm({
+function NameAndIdentifiersForm({
   initialName,
-  hasIdentifierField = false,
-  initialIdentifier = null,
+  hasIdentifiersField = false,
+  initialIdentifiers = [],
   onSave,
   onClose,
 }: {
   initialName: string
-  hasIdentifierField?: boolean
-  /** null = none yet. */
-  initialIdentifier?: string | null
-  onSave: (name: string, identifier: string) => Promise<void>
+  hasIdentifiersField?: boolean
+  initialIdentifiers?: string[]
+  onSave: (name: string, identifiers: string[]) => Promise<void>
   onClose: () => void
 }) {
   const [name, setName] = useState(initialName)
-  const [identifier, setIdentifier] = useState(initialIdentifier ?? '')
+  const [identifiers, setIdentifiers] = useState(initialIdentifiers)
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
@@ -180,7 +178,7 @@ function NameAndIdentifierForm({
     setBusy(true)
     setErrors({})
     try {
-      await onSave(name, identifier.trim())
+      await onSave(name, identifiers)
       onClose()
     } catch (err) {
       setErrors(toErrors(err))
@@ -200,14 +198,8 @@ function NameAndIdentifierForm({
         errors={errors.name ?? errors.form}
         onChange={e => setName(e.target.value)}
       />
-      {hasIdentifierField && (
-        <FormField
-          label={identifierLabel}
-          name="identifier"
-          value={identifier}
-          errors={errors.identifier}
-          onChange={e => setIdentifier(e.target.value)}
-        />
+      {hasIdentifiersField && (
+        <IdentifiersField value={identifiers} errors={errors.identifiers} onChange={setIdentifiers} />
       )}
       <div className="form-actions">
         <button type="submit" className="button-primary button-small" disabled={busy}>
@@ -222,8 +214,8 @@ function NameAndIdentifierForm({
 }
 
 /**
- * A Multi-currency account: its Ingest folder, identifier and total, with its Accounts nested (renamable, never
- * moved). Its identifier can be edited when its Integration can provide one.
+ * A Multi-currency account: its Ingest folder, Identifiers and total, with its Accounts nested (renamable, never
+ * moved). Its Identifiers can be edited when its Integration can provide one.
  */
 function MultiCurrencyAccountRow({
   multiCurrencyAccount,
@@ -245,14 +237,14 @@ function MultiCurrencyAccountRow({
         <AccountIcon label={initial(multiCurrencyAccount.name)} tone="multi" />
         <div className="acct-name">
           {editing ? (
-            <NameAndIdentifierForm
+            <NameAndIdentifiersForm
               initialName={multiCurrencyAccount.name}
-              hasIdentifierField={canHaveIdentifier}
-              initialIdentifier={multiCurrencyAccount.identifier}
-              onSave={async (name, identifier) => {
+              hasIdentifiersField={canHaveIdentifier}
+              initialIdentifiers={multiCurrencyAccount.identifiers}
+              onSave={async (name, identifiers) => {
                 await updateMultiCurrencyAccount(
                   multiCurrencyAccount.id,
-                  canHaveIdentifier ? { name, identifier } : { name },
+                  canHaveIdentifier ? { name, identifiers } : { name },
                 )
                 onChanged()
               }}
@@ -263,7 +255,7 @@ function MultiCurrencyAccountRow({
           )}
           <small>
             {multiCurrencyAccount.owner.name} · {integrationName} · Multi-currency account
-            {multiCurrencyAccount.identifier && <> · {multiCurrencyAccount.identifier}</>}
+            {multiCurrencyAccount.identifiers.length > 0 && <> · {multiCurrencyAccount.identifiers.join(', ')}</>}
           </small>
         </div>
         <div className="acct-bal">
@@ -313,14 +305,17 @@ function MultiCurrencyAccountRow({
   )
 }
 
+/** An Account; a plain one's Identifiers can be edited when its Integration can provide one. */
 function AccountRow({
   account,
   integrationName,
+  canHaveIdentifiers = false,
   onRenamed,
   onImported,
 }: {
   account: Account
   integrationName: string
+  canHaveIdentifiers?: boolean
   onRenamed: (a: Account) => void
   onImported: () => void
 }) {
@@ -340,9 +335,13 @@ function AccountRow({
         )}
         <div className="acct-name">
           {editing ? (
-            <NameAndIdentifierForm
+            <NameAndIdentifiersForm
               initialName={account.name}
-              onSave={async name => onRenamed(await renameAccount(account.id, name))}
+              hasIdentifiersField={canHaveIdentifiers}
+              initialIdentifiers={account.identifiers}
+              onSave={async (name, identifiers) =>
+                onRenamed(await updateAccount(account.id, canHaveIdentifiers ? { name, identifiers } : { name }))
+              }
               onClose={() => setEditing(false)}
             />
           ) : (
@@ -361,7 +360,7 @@ function AccountRow({
             ) : (
               <>
                 {account.owner.name} · {integrationName}
-                {account.identifier && <> · {account.identifier}</>}
+                {account.identifiers.length > 0 && <> · {account.identifiers.join(', ')}</>}
               </>
             )}
           </small>
@@ -376,7 +375,7 @@ function AccountRow({
           {!editing && (
             <>
               <button type="button" className="button-link" onClick={() => setEditing(true)}>
-                Rename
+                {canHaveIdentifiers ? 'Edit' : 'Rename'}
               </button>
               <button type="button" className="button-link" aria-expanded={importing} onClick={() => setImporting(v => !v)}>
                 {importing ? 'Close imports' : 'Imports'}
@@ -589,7 +588,7 @@ function NewAccountForm({
   const [currency, setCurrency] = useState<Currency>('CHF')
   const [openingBalance, setOpeningBalance] = useState('0.00')
   const [openingDate, setOpeningDate] = useState('')
-  const [identifier, setIdentifier] = useState('')
+  const [identifiers, setIdentifiers] = useState<string[]>([])
   const [errors, setErrors] = useState<Errors>({})
   const [busy, setBusy] = useState(false)
 
@@ -597,7 +596,7 @@ function NewAccountForm({
   // An Integration holding several currencies is used only through a Multi-currency account (ADR-0009).
   const multiCurrency = integration?.holdsSeveralCurrencies ?? false
   const offerIdentifier = integration?.canProvideIdentifier ?? false
-  const enteredIdentifier = offerIdentifier && identifier.trim() ? identifier.trim() : null
+  const enteredIdentifiers = offerIdentifier ? identifiers : []
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -618,7 +617,7 @@ function NewAccountForm({
           mainCurrency: currency,
           openingBalance: balance,
           openingDate: openingDate || null,
-          identifier: enteredIdentifier,
+          identifiers: enteredIdentifiers,
         })
       } else {
         await createAccount({
@@ -628,7 +627,7 @@ function NewAccountForm({
           currency,
           openingBalance: balance,
           openingDate: openingDate || null,
-          identifier: enteredIdentifier,
+          identifiers: enteredIdentifiers,
         })
       }
       onCreated()
@@ -709,13 +708,7 @@ function NewAccountForm({
         onChange={e => setOpeningDate(e.target.value)}
       />
       {offerIdentifier && (
-        <FormField
-          label={identifierLabel}
-          name="identifier"
-          value={identifier}
-          errors={errors.identifier}
-          onChange={e => setIdentifier(e.target.value)}
-        />
+        <IdentifiersField value={identifiers} errors={errors.identifiers} onChange={setIdentifiers} />
       )}
       {errors.form && (
         <p className="form-error" role="alert">

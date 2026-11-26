@@ -2,7 +2,7 @@
 
 Revolut Personal has no API, and its CSV account statement has to be exported one currency at a time, which made a monthly import of a Multi-currency account a chore. Revolut's **Custom statement** covers every currency account in one document, so the `revolut` Integration reads that PDF and nothing else; the CSV reader is removed. One export and one drop per month now covers all currencies.
 
-Reading a PDF is fragile, so the reader trusts nothing it can't verify: the statement gives an opening balance, a closing balance and a total per currency and a running balance per row, and a file is rejected unless all of them agree with the rows that were read. The PDF also carries the IBAN, which the CSV never did, so a Multi-currency account can have an identifier that is checked on import like an Account's.
+Reading a PDF is fragile, so the reader trusts nothing it can't verify: the statement gives an opening balance, a closing balance and a total per currency and a running balance per row, and a file is rejected unless all of them agree with the rows that were read. The PDF also carries the IBAN, which the CSV never did, so a Multi-currency account has Identifiers that are checked and learned on import like an Account's (ADR-0002). A statement whose period spans a change of IBAN shows each currency's old and new IBAN together ("LT IBAN" and "GB IBAN").
 
 This amends ADR-0009. An Account for a new currency is opened from the statement's opening balance for the period (dated the first day of the period; an opening balance is the balance at the start of its date), not from a running balance before the first row, and a currency that has a balance but no rows in the period gets an Account too. A currency with no rows and a zero balance gets none.
 

@@ -28,6 +28,10 @@ _Avoid_: Wallet, pocket, bank account (when meaning any Account)
 A group of Accounts of one Owner that one provider holds together, one Account per currency (for example a Revolut login with CHF, EUR and USD). It has a main currency, in which its total balance is shown, and gets an Account for a new currency automatically when a statement first shows money in that currency (a Transaction or a balance other than zero). It is not itself an Account, and the Accounts in it are ordinary Accounts.
 _Avoid_: Account group, parent account, wallet, sub-account (for the Accounts in it)
 
+**Identifier**:
+An IBAN, account number or last card digits that a statement shows to say which Account it is for. An Account or Multi-currency account can have several, because a bank can move it to a new IBAN or reissue its card, and an Identifier belongs to one of them only. A statement is accepted into an Ingest folder when it shows no Identifier, when the account has none yet, or when it shows at least one the account has; once imported, the account gains the other Identifiers it shows.
+_Avoid_: Account number, IBAN (when meaning any Identifier)
+
 **Owner**:
 The Member, or the Family as a whole, that an Account or Transaction belongs to. A Transaction's Owner defaults to its Account's Owner but can be changed to the Family or any Member.
 _Avoid_: Payer, holder, assignee

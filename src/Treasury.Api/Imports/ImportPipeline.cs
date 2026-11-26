@@ -13,15 +13,16 @@ namespace Treasury.Api.Imports;
 /// The single import pipeline (spec #1 "Ingestion pipeline"), fed by the upload endpoints and the Ingest folder
 /// scan (#8). One call imports one file into one Account, or into a Multi-currency account (#25, ADR-0009):
 ///
-///  1. read      — the Integration parses the file; rows are validated. Into a Multi-currency account, the rows are
+///  1. read      — the Integration parses the file; the statement's Identifiers are checked against the target's
+///                 (<see cref="IdentifierCheck"/>); rows are validated. Into a Multi-currency account, the rows are
 ///                 split by currency, one "leg" per currency the statement has rows or balances in, each for its
 ///                 Account in that currency; a currency without an Account that the statement shows money in
 ///                 gets one (saved with the import), opened with the statement's opening balance for that
 ///                 currency, on the first day of the statement's period (ADR-0010)
-///  2. Check     — IImportStep stage: reject the file (identifier mismatch, #11; a Multi-currency account's
-///                 identifier is checked in step 1, before the split)
+///  2. Check     — IImportStep stage: reject the file
 ///  3. Deduplicate — IImportStep stage: drop rows already imported (#9) from <see cref="ImportContext.Rows"/>
-///  4. store     — keep ONE Source file and create its Transactions (saved inside a DB transaction)
+///  4. store     — keep ONE Source file and create its Transactions, and give the target the Identifiers the
+///                 statement showed that it didn't have yet (saved inside a DB transaction)
 ///  5. Match     — IImportStep stage: Transfers and Contributions (#16)
 ///  6. Classify  — IImportStep stage: date-range Tags (#14), the Tags the Integration suggests, then Rules (#15)
 ///  7. Verify    — IImportStep stage: closing balance (#11), adds <see cref="ImportContext.Warnings"/>
@@ -65,9 +66,11 @@ public sealed class ImportPipeline(
             // What the file held that isn't imported (e.g. a section Treasury doesn't track): warnings, like the
             // steps' own.
             var notes = statement.Notes.ToList();
-            // A Multi-currency account's Accounts have no identifier of their own, so the whole statement is
-            // checked once, before it is split into legs (an Account's is checked by the IdentifierCheck step).
-            if (target is MultiCurrencyAccount) IdentifierCheck.Verify(target, statement);
+            var learned = await IdentifierCheck.VerifyAsync(db, target, statement, ct);
+            if (learned.Count > 0)
+                notes.Add($"{Capitalised(target.Description)} now also has the Identifier{(learned.Count > 1 ? "s" : "")} " +
+                    $"{string.Join(", ", learned)}, which this statement shows.");
+            List<string>? identifiers = learned.Count > 0 ? [.. target.Identifiers, .. learned] : null;
             var legs = target switch
             {
                 Account account => [new Leg(account, IsNew: false, ValidateRows(statement, account))],
@@ -103,7 +106,7 @@ public sealed class ImportPipeline(
                 ImportedByMemberId = file.ImportedByMemberId,
             };
 
-            await StoreAsync(legs, contexts, stored, now, ct);
+            await StoreAsync(target, identifiers, legs, contexts, stored, now, ct);
 
             // Committed: from here on the import stands, whatever happens to the file move or the rate request.
             var created = legs.Where(l => l.IsNew).Select(l => l.Account).ToList();
@@ -129,11 +132,12 @@ public sealed class ImportPipeline(
     /// How often a save is tried when a concurrent save keeps taking the slug picked for a new Account.
     private const int SlugAttempts = 5;
 
-    /// Stores the Source file, the Transactions and the Accounts the import creates, runs the steps from Match on,
-    /// and commits. A new Account's slug is picked right before saving; when a concurrent save (an import into
-    /// another Multi-currency account) took it meanwhile, the unique index rejects it and the slugs are picked again.
-    private async Task StoreAsync(List<Leg> legs, List<ImportContext> contexts, SourceFile stored, DateTimeOffset now,
-        CancellationToken ct)
+    /// Stores the Source file, the Transactions, the Accounts the import creates and the target's new
+    /// <paramref name="identifiers"/> (null = unchanged), runs the steps from Match on, and commits. A new Account's
+    /// slug is picked right before saving; when a concurrent save (an import into another Multi-currency account)
+    /// took it meanwhile, the unique index rejects it and the slugs are picked again.
+    private async Task StoreAsync(IImportTarget target, List<string>? identifiers, List<Leg> legs,
+        List<ImportContext> contexts, SourceFile stored, DateTimeOffset now, CancellationToken ct)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -145,7 +149,7 @@ public sealed class ImportPipeline(
             }
             try
             {
-                await SaveAsync(legs, contexts, stored, now, ct);
+                await SaveAsync(target, identifiers, legs, contexts, stored, now, ct);
                 return;
             }
             catch (DbUpdateException e) when (attempt < SlugAttempts && e.InnerException is PostgresException
@@ -160,8 +164,8 @@ public sealed class ImportPipeline(
 
     private const string AccountSlugIndex = "IX_Accounts_Slug";
 
-    private async Task SaveAsync(List<Leg> legs, List<ImportContext> contexts, SourceFile stored, DateTimeOffset now,
-        CancellationToken ct) =>
+    private async Task SaveAsync(IImportTarget target, List<string>? identifiers, List<Leg> legs,
+        List<ImportContext> contexts, SourceFile stored, DateTimeOffset now, CancellationToken ct) =>
             // The execution strategy (Npgsql retries) re-runs the whole unit on a transient failure.
             await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
             {
@@ -169,6 +173,14 @@ public sealed class ImportPipeline(
                 foreach (var leg in legs)
                     if (leg.IsNew) db.Accounts.Add(leg.Account);
                     else db.Attach(leg.Account);
+                if (identifiers is not null)
+                {
+                    // An Account target is attached as a leg; a Multi-currency account is attached here. Marked
+                    // modified rather than detected: a retry attaches the target with the Identifiers already set.
+                    if (db.Entry((object)target).State == EntityState.Detached) db.Attach((object)target);
+                    target.Identifiers = identifiers;
+                    db.Entry((object)target).Property(nameof(IImportTarget.Identifiers)).IsModified = true;
+                }
                 stored.CurrencyClosingBalances.Clear();
                 await using var tx = await db.Database.BeginTransactionAsync(ct);
                 foreach (var context in contexts)
@@ -252,6 +264,9 @@ public sealed class ImportPipeline(
         }
         return legs;
     }
+
+    /// "the Account …" as the start of a sentence.
+    private static string Capitalised(string text) => char.ToUpperInvariant(text[0]) + text[1..];
 
     /// The currency's ISO code the way Accounts store it.
     private static string CurrencyCode(string currency) => currency.Trim().ToUpperInvariant();
@@ -384,7 +399,7 @@ public sealed record ImportResult(
 /// The stages where later features hook into the pipeline, in the order they run.
 public enum ImportStage
 {
-    /// Before anything is stored: may reject the whole file (throw ImportFailedException). E.g. identifier (#11).
+    /// Before anything is stored: may reject the whole file (throw ImportFailedException).
     Check = 10,
 
     /// Before anything is stored: removes rows from ImportContext.Rows and counts them in SkippedCount (#9).
@@ -421,7 +436,7 @@ public sealed class ImportContext
 
     public required SourceFileContent File { get; init; }
 
-    /// What the Integration read (all rows, identifier, closing balance).
+    /// What the Integration read (all rows, Identifiers, closing balance).
     public required ParsedStatement Statement { get; init; }
 
     public Guid? ImportedByMemberId { get; init; }

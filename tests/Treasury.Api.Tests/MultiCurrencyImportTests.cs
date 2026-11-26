@@ -231,7 +231,7 @@ public class MultiCurrencyImportTests : ApiTestBase
     }
 
     [Test]
-    public async Task A_multi_currency_account_without_an_identifier_accepts_any_statement()
+    public async Task A_multi_currency_account_without_identifiers_accepts_any_statement_and_takes_its_identifiers()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
         var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 1000m, openingDate: "2026-10-31",
@@ -243,6 +243,42 @@ public class MultiCurrencyImportTests : ApiTestBase
 
         await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
         await Assert.That(await ListAsync(anna)).Count().IsEqualTo(1);
+        // Its Accounts get none of their own.
+        var reloaded = await GetGroupAsync(anna, group.Id);
+        await Assert.That(reloaded.Identifiers).IsEquivalentTo(["LT60 1010 0123 4567 8901"]);
+        await Assert.That(reloaded.Accounts.Single().Identifiers).IsEmpty();
+    }
+
+    [Test]
+    public async Task A_revolut_custom_statement_over_a_change_of_iban_adds_the_old_iban_to_the_multi_currency_account()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        const string gbIban = "GB33BUKB20201555555555";
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 0m, openingDate: "2018-02-28",
+            integrationKey: "revolut", identifier: "LT12 1000 0111 0100 1000");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", "custom-statement_2018-2026.pdf",
+            new RevolutCustomStatement("Mar 1, 2018 - Oct 31, 2026")
+                .Account("CHF", "0.00 CHF", "100.00 CHF", t => t
+                    .Row("Mar 21, 2018", "Top-up by *0315", "Top up", "100.00 CHF", "100.00 CHF")
+                    .Total("100.00 CHF")
+                    .FormerGbIban(gbIban))
+                .Build());
+        // A statement from before the change shows only the old IBAN, and is now accepted.
+        var old = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports", "custom-statement_2018.pdf",
+            new RevolutCustomStatement("Mar 1, 2018 - Mar 31, 2018")
+                .Account("CHF", "0.00 CHF", "100.00 CHF", t => t
+                    .Row("Mar 21, 2018", "Top-up by *0315", "Top up", "100.00 CHF", "100.00 CHF")
+                    .Total("100.00 CHF"), iban: gbIban)
+                .Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await Assert.That((await res.Content.ReadFromJsonAsync<ImportResult>())!.Warnings).IsEquivalentTo([
+            $"The Multi-currency account \"Revolut\" now also has the Identifier {gbIban}, which this statement shows.",
+        ]);
+        await Assert.That(old.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        await Assert.That((await old.Content.ReadFromJsonAsync<ImportResult>())!.SkippedCount).IsEqualTo(1);
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Identifiers).IsEquivalentTo(["LT12 1000 0111 0100 1000", gbIban]);
     }
 
     [Test]
@@ -546,7 +582,9 @@ public class MultiCurrencyImportTests : ApiTestBase
         var octoberResult = (await october.Content.ReadFromJsonAsync<ImportResult>())!;
         var novemberResult = (await november.Content.ReadFromJsonAsync<ImportResult>())!;
         await Assert.That((octoberResult.ImportedCount, novemberResult.ImportedCount)).IsEqualTo((2, 5));
-        await Assert.That(octoberResult.Warnings.Concat(novemberResult.Warnings)).IsEmpty();
+        // The first statement gives the Multi-currency account its IBAN.
+        await Assert.That(octoberResult.Warnings).IsEquivalentTo([LearnedIban]);
+        await Assert.That(novemberResult.Warnings).IsEmpty();
         await Assert.That(octoberResult.CreatedAccounts).IsEmpty();
         await Assert.That(novemberResult.CreatedAccounts.Select(a => a.Name)).IsEquivalentTo(["Revolut EUR"]);
         var accounts = (await GetGroupAsync(anna, group.Id)).Accounts;
@@ -710,7 +748,7 @@ public class MultiCurrencyImportTests : ApiTestBase
         var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
         await Assert.That(result.ImportedCount).IsEqualTo(0);
         await Assert.That(result.CreatedAccounts.Select(a => a.Name)).IsEquivalentTo(["Revolut USD"]);
-        await Assert.That(result.Warnings).IsEmpty();
+        await Assert.That(result.Warnings).IsEquivalentTo([LearnedIban]);
         await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => (a.Currency, a.Balance, a.BalanceWarning)))
             .IsEquivalentTo([("CHF", 2500m, (BalanceWarning?)null), ("USD", 120m, null)]);
         await Assert.That((await SourceFilesAsync(anna, group.Id)).Select(f => (f.FileName, f.TransactionCount)))
@@ -759,6 +797,10 @@ public class MultiCurrencyImportTests : ApiTestBase
     private static TestStatement OneEuroRow() => new TestStatement()
         .Balances("EUR", "2026-10-31", 50m, "2026-11-30", 40m)
         .Row("2026-11-06", -10m, "Trattoria", currency: "EUR");
+
+    /// What the first Revolut import into a Multi-currency account without Identifiers says.
+    private const string LearnedIban =
+        $"The Multi-currency account \"Revolut\" now also has the Identifier {RevolutCustomStatement.Iban}, which this statement shows.";
 
     private const string OctoberStatement = "custom-statement_2026-10-01_2026-10-31.pdf";
     private const string NovemberStatement = "custom-statement_2026-11-01_2026-11-20.pdf";
@@ -831,7 +873,8 @@ public class MultiCurrencyImportTests : ApiTestBase
         owner ??= new { kind = "member", memberId = await MemberIdAsync(client) };
         var res = await client.PostAsJsonAsync("/api/multi-currency-accounts", new
         {
-            name, owner, integrationKey, mainCurrency = "CHF", openingBalance, openingDate, identifier,
+            name, owner, integrationKey, mainCurrency = "CHF", openingBalance, openingDate,
+            identifiers = identifier is null ? null : new[] { identifier },
         });
         if (res.StatusCode != HttpStatusCode.Created)
             throw new InvalidOperationException($"Create failed: {(int)res.StatusCode} {await res.Content.ReadAsStringAsync()}");
@@ -858,9 +901,11 @@ public class MultiCurrencyImportTests : ApiTestBase
     private record BalanceWarning(DateOnly Date, decimal StatementBalance, decimal CalculatedBalance);
 
     private record Account(Guid Id, string Name, OwnerDto Owner, string Currency, decimal OpeningBalance,
-        DateOnly OpeningDate, decimal Balance, BalanceWarning? BalanceWarning, Guid? MultiCurrencyAccountId);
+        DateOnly OpeningDate, decimal Balance, BalanceWarning? BalanceWarning, Guid? MultiCurrencyAccountId,
+        List<string> Identifiers);
 
-    private record Group(Guid Id, string Name, string Slug, OwnerDto Owner, List<Account> Accounts, decimal? TotalBalance);
+    private record Group(Guid Id, string Name, string Slug, OwnerDto Owner, List<Account> Accounts, decimal? TotalBalance,
+        List<string> Identifiers);
 
     /// Polls one Multi-currency account until the condition holds. Exchange rates are fetched in the background on a
     /// schedule, so the clock is moved past the next run between polls.
