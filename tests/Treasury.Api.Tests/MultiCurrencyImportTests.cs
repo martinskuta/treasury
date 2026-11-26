@@ -785,6 +785,70 @@ public class MultiCurrencyImportTests : ApiTestBase
             ]);
     }
 
+    [Test]
+    public async Task A_wrong_printed_opening_balance_is_replaced_by_the_balance_the_account_held_with_a_warning()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+        var url = $"/api/multi-currency-accounts/{group.Id}/imports";
+        await UploadAsync(anna, url, OctoberStatement, October().Build());
+        // Leaves 40 EUR in the EUR Account.
+        await UploadAsync(anna, url, NovemberStatement, November().Build());
+
+        // December prints the EUR opening balance as 0.00, but its rows start from the 40 EUR the Account held.
+        var res = await UploadAsync(anna, url, "custom-statement_2026-12-01_2026-12-31.pdf", December("€0.00").Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.Created);
+        var result = (await res.Content.ReadFromJsonAsync<ImportResult>())!;
+        await Assert.That(result.ImportedCount).IsEqualTo(1);
+        await Assert.That(result.Warnings.Single()).Contains("EUR opening balance on 01.12.2026 is 0.00 EUR")
+            .And.Contains("rows start from 40.00 EUR").And.Contains("Revolut EUR held that day");
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => (a.Currency, a.Balance, a.BalanceWarning)))
+            .IsEquivalentTo([("CHF", 890m, (BalanceWarning?)null), ("EUR", 30m, null)]);
+    }
+
+    [Test]
+    public async Task A_wrong_printed_opening_balance_is_rejected_when_the_account_held_neither()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2500m, openingDate: "2026-09-30",
+            integrationKey: "revolut");
+        var url = $"/api/multi-currency-accounts/{group.Id}/imports";
+        await UploadAsync(anna, url, OctoberStatement, October().Build());
+        await UploadAsync(anna, url, NovemberStatement, November().Build());
+
+        // The rows start from 40 EUR and the statement prints 5 EUR, but a Kiosk row left the Account with 25 EUR.
+        await anna.PostAsJsonAsync("/api/transactions", new
+        {
+            accountId = (await GetGroupAsync(anna, group.Id)).Accounts.Single(a => a.Currency == "EUR").Id,
+            date = "2026-11-25", amount = -15m, description = "Kiosk",
+        });
+        var res = await UploadAsync(anna, url, "custom-statement_2026-12-01_2026-12-31.pdf", December("€5.00").Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"].Single()).Contains("is 5.00 EUR").And.Contains("rows start from 40.00 EUR")
+            .And.Contains("Revolut EUR held 25.00 EUR").And.Contains("Nothing was imported");
+    }
+
+    [Test]
+    public async Task A_wrong_printed_opening_balance_of_a_currency_without_an_account_is_rejected()
+    {
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var group = await CreateGroupAsync(anna, "Revolut", openingBalance: 2450m, openingDate: "2026-11-30",
+            integrationKey: "revolut");
+
+        var res = await UploadAsync(anna, $"/api/multi-currency-accounts/{group.Id}/imports",
+            "custom-statement_2026-12-01_2026-12-31.pdf", December("€0.00").Build());
+
+        await Assert.That(res.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var problem = (await res.Content.ReadFromJsonAsync<ValidationProblem>())!;
+        await Assert.That(problem.Errors["file"].Single()).Contains("rows start from 40.00 EUR")
+            .And.Contains("no EUR balance from that day");
+        await Assert.That((await GetGroupAsync(anna, group.Id)).Accounts.Select(a => a.Currency)).IsEquivalentTo(["CHF"]);
+    }
+
     // ---- helpers ----
 
     /// One CHF row and one row in EUR, a currency the Multi-currency account has no Account for yet.
@@ -824,6 +888,14 @@ public class MultiCurrencyImportTests : ApiTestBase
             .Row("Nov 6, 2026", "Payment from Acme, Inc.", "Top up", "€50.00", "€50.00")
             .Row("Nov 8, 2026", "Trattoria", "Merchant", "-€10.00", "€40.00")
             .Total("€40.00"), zero: "€0.00");
+
+    /// Continues November: EUR goes from 40 to 30, under the EUR opening balance Revolut prints as <paramref name="printedEuroOpening"/>.
+    private static RevolutCustomStatement December(string printedEuroOpening) =>
+        new RevolutCustomStatement("Dec 1, 2026 - Dec 31, 2026")
+            .Account("CHF", "890.00 CHF", "890.00 CHF")
+            .Account("EUR", printedEuroOpening, "€30.00", t => t
+                .Row("Dec 3, 2026", "Trattoria", "Merchant", "-€10.00", "€30.00")
+                .Total("-€10.00"), zero: "€0.00");
 
     private static async Task<List<SourceFileDto>> SourceFilesAsync(HttpClient client, Guid groupId) =>
         (await client.GetFromJsonAsync<List<SourceFileDto>>($"/api/multi-currency-accounts/{groupId}/source-files"))!;

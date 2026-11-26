@@ -330,6 +330,23 @@ public class RevolutTests
     }
 
     [Test]
+    public async Task A_printed_opening_balance_the_first_row_does_not_follow_from_is_passed_on_with_the_rows_start()
+    {
+        // Revolut printed 0.00 HRK, but the currency held 6'946.77 HRK: the rows agree with everything else.
+        var statement = Read(new RevolutCustomStatement()
+            .Account("CHF", "100.00 CHF", "100.00 CHF")
+            .Account("HRK", "0.00 HRK", "4,617.57 HRK", t => t
+                .Row("Nov 3, 2026", "Swiss Luxury Apartments", "Merchant", "-1,170.99 HRK", "5,775.78 HRK")
+                .Row("Nov 4, 2026", "Zalando", "Merchant", "-1,158.21 HRK", "4,617.57 HRK")
+                .Total("-2,329.20 HRK"), zero: "0.00 HRK"));
+
+        var kuna = statement.BalancesByCurrency.Single(b => b.Currency == "HRK");
+        await Assert.That((kuna.OpeningBalance, kuna.PrintedOpeningBalance)).IsEqualTo((6946.77m, (decimal?)0m));
+        await Assert.That(statement.BalancesByCurrency.Single(b => b.Currency == "CHF").PrintedOpeningBalance).IsNull();
+        await Assert.That(statement.Rows.Count).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task Rows_that_do_not_end_at_the_closing_balance_reject_the_file()
     {
         var error = ErrorOf(new RevolutCustomStatement()

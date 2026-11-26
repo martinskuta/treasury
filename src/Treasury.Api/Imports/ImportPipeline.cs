@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -75,7 +76,7 @@ public sealed class ImportPipeline(
             {
                 Account account => [new Leg(account, IsNew: false, ValidateRows(statement, account))],
                 MultiCurrencyAccount multiCurrencyAccount =>
-                    LegsByCurrency(multiCurrencyAccount, ValidateRows(statement), notes),
+                    await LegsByCurrencyAsync(multiCurrencyAccount, ValidateRows(statement), notes, ct),
                 _ => throw new InvalidOperationException($"Unknown import target {target.GetType()}"),
             };
             var now = clock.GetUtcNow();
@@ -207,8 +208,11 @@ public sealed class ImportPipeline(
     ///
     /// A currency without an Account gets none, and no leg, when the statement shows no money in it, or only a
     /// balance in a currency Treasury has no exchange rates for (said in <paramref name="notes"/>).
-    private static List<Leg> LegsByCurrency(MultiCurrencyAccount multiCurrencyAccount, ParsedStatement statement,
-        List<string> notes)
+    ///
+    /// A currency whose printed opening balance disagrees with its rows (<see cref="CurrencyBalances.PrintedOpeningBalance"/>)
+    /// is accepted only when its Account held the balance the rows start from on the opening date; then a note says so.
+    private async Task<List<Leg>> LegsByCurrencyAsync(MultiCurrencyAccount multiCurrencyAccount,
+        ParsedStatement statement, List<string> notes, CancellationToken ct)
     {
         for (var i = 0; i < statement.Rows.Count; i++)
             if (string.IsNullOrWhiteSpace(statement.Rows[i].Currency))
@@ -224,7 +228,10 @@ public sealed class ImportPipeline(
             var rows = rowsByCurrency[currency].ToList();
             var balances = statement.BalancesByCurrency.FirstOrDefault(b => CurrencyCode(b.Currency) == currency);
             var legStatement = new ParsedStatement(rows, ClosingBalance: balances?.Closing);
-            if (multiCurrencyAccount.Accounts.FirstOrDefault(a => a.Currency == currency) is { } existing)
+            var existing = multiCurrencyAccount.Accounts.FirstOrDefault(a => a.Currency == currency);
+            if (balances is { PrintedOpeningBalance: { } printed })
+                notes.Add(await CheckPrintedOpeningAsync(currency, balances, printed, existing, ct));
+            if (existing is not null)
             {
                 legs.Add(new Leg(existing, IsNew: false, legStatement));
                 continue;
@@ -263,6 +270,29 @@ public sealed class ImportPipeline(
             legs.Add(new Leg(account, IsNew: true, legStatement));
         }
         return legs;
+    }
+
+    /// The statement prints <paramref name="printed"/> as the currency's opening balance, but its rows start from
+    /// another one. Accepted, with the note returned, when the currency's Account held the balance the rows start
+    /// from at the start of the opening date; otherwise the file is rejected.
+    private async Task<string> CheckPrintedOpeningAsync(string currency, CurrencyBalances balances, decimal printed,
+        Account? account, CancellationToken ct)
+    {
+        string WithCurrency(decimal amount) => $"{Amounts.Format(amount)} {currency}";
+        var day = balances.OpeningDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        var disagree = $"The statement says the {currency} opening balance on {day} is {WithCurrency(printed)}, but its " +
+            $"rows start from {WithCurrency(balances.OpeningBalance)}";
+        decimal? held = account is null || balances.OpeningDate < account.OpeningDate ? null
+            : balances.OpeningDate == account.OpeningDate ? account.OpeningBalance
+            : await AccountBalances.OnAsync(db, account, balances.OpeningDate.AddDays(-1), ct);
+        if (held == balances.OpeningBalance)
+            return $"{disagree}, which is what {account!.Name} held that day. Treasury used " +
+                $"{WithCurrency(balances.OpeningBalance)}.";
+        throw new ImportFailedException(held is { } other
+            ? $"{disagree}, and {account!.Name} held {WithCurrency(other)} that day. An import may be missing, or " +
+              "Treasury misread the PDF. Nothing was imported."
+            : $"{disagree}, and Treasury has no {currency} balance from that day to tell which is right. Import the " +
+              "statement before it first. Nothing was imported.");
     }
 
     /// "the Account …" as the start of a sentence.

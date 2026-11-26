@@ -10,6 +10,9 @@ namespace Treasury.Api.Integrations;
 /// - a fee (that second row, or a row Revolut's Category calls Fees) suggests the Tag "fee"
 /// - reading a PDF is fragile, so the file is rejected unless the rows agree with every figure the statement
 ///   gives: each row's running balance, each currency's closing balance and its Total row (Money in/out and Fees)
+/// - except the opening balance: Revolut sometimes prints a wrong one (0.00 for a currency that held money). When
+///   only the first row's running balance disagrees with it, the balance the rows start from is the currency's
+///   opening balance, and the printed one is passed on for the import to check against the Account's balance
 /// - every IBAN of the Personal Accounts is an Identifier (the old and the new one, when Revolut moved the login to
 ///   new IBANs during the period); the balances of every Personal Account, also of one holding nothing
 /// - a current account that isn't a Personal Account (e.g. a joint account) is not read; a note names it
@@ -44,11 +47,14 @@ public sealed class RevolutIntegration : IIntegration
         foreach (var summary in pdf.Summaries)
         {
             var table = pdf.Tables.Single(t => t.Currency == summary.Currency);
-            Reconcile(summary, table);
+            var opening = Reconcile(summary, table);
             rows.AddRange(table.Rows.SelectMany(row => Rows(summary.Currency, row)));
             // Also of a currency holding nothing: its Account, when it has one, is checked against the zero.
-            balances.Add(new CurrencyBalances(summary.Currency, pdf.PeriodStart, summary.Opening,
-                new ClosingBalance(pdf.PeriodEnd, summary.Closing)));
+            balances.Add(new CurrencyBalances(summary.Currency, pdf.PeriodStart, opening,
+                new ClosingBalance(pdf.PeriodEnd, summary.Closing))
+            {
+                PrintedOpeningBalance = opening == summary.Opening ? null : summary.Opening,
+            });
         }
 
         var ibans = pdf.Summaries.SelectMany(s => s.Ibans).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -62,7 +68,9 @@ public sealed class RevolutIntegration : IIntegration
     }
 
     /// Rejects the file unless the rows that were read agree with the figures the statement gives for the currency.
-    private static void Reconcile(RevolutAccountSummary summary, RevolutAccountTable table)
+    /// Returns the balance the rows start from: the printed opening balance, or the first row's running balance
+    /// before its Money in/out when the printed one doesn't lead to it.
+    private static decimal Reconcile(RevolutAccountSummary summary, RevolutAccountTable table)
     {
         var currency = summary.Currency;
         string WithCurrency(decimal amount) => $"{Amounts.Format(amount)} {currency}";
@@ -80,7 +88,8 @@ public sealed class RevolutIntegration : IIntegration
                     $"The {currency} account has {WithCurrency(amount)} under \"{column}\" in {where}, which Treasury " +
                     "doesn't support yet.");
 
-        var balance = summary.Opening;
+        var opening = table.Rows.Count > 0 ? table.Rows[0].Balance - table.Rows[0].Money : summary.Opening;
+        var balance = opening;
         foreach (var row in table.Rows)
         {
             // Revolut's balance is the previous balance + Money in/out; the Fees column is the part of Money in/out
@@ -111,6 +120,7 @@ public sealed class RevolutIntegration : IIntegration
             throw Rejected(
                 $"The {currency} rows' fees add up to {WithCurrency(fees)}, but the statement's Total row says " +
                 $"{WithCurrency(table.Total.Fees)}.");
+        return opening;
     }
 
     /// The statement and what Treasury read from it disagree: importing could store wrong numbers.

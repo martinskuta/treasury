@@ -531,7 +531,7 @@ function ImportPanel({
         </p>
       ))}
       {result?.warnings.map(w => (
-        <p key={w} className="import-message import-bad">
+        <p key={w} className="import-message import-warn">
           {w}
         </p>
       ))}

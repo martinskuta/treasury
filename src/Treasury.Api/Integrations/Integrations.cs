@@ -79,7 +79,13 @@ public sealed record CurrencyBalances(
     string Currency,
     DateOnly OpeningDate,
     decimal OpeningBalance,
-    ClosingBalance Closing);
+    ClosingBalance Closing)
+{
+    /// The opening balance the statement prints, when it disagrees with <see cref="OpeningBalance"/> (the balance its
+    /// rows start from); null when they agree. The import accepts the statement only when the currency's Account
+    /// held <see cref="OpeningBalance"/> on <see cref="OpeningDate"/>, and says so in a warning.
+    public decimal? PrintedOpeningBalance { get; init; }
+}
 
 /// One movement on a statement.
 /// <param name="Date">Booking date.</param>

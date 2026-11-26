@@ -1,7 +1,7 @@
 /*
  * Design tokens (docs/design-guidelines.md, "Colour" and "Layout and spacing").
  * Light theme only. Every colour in the app comes from here: use var(--token), never a hex value in a component.
- * Meaning is fixed: lime = Income, coral = Expense / needs attention, teal = Transfer, brown = brand / primary action.
+ * Meaning is fixed: lime = Income, coral = Expense / needs attention, amber = warning, teal = Transfer, brown = brand / primary action.
  * Coloured text uses the -ink variant (--inc-ink, --exp-ink, --tr-ink), never the fill colour.
  */
 :root {
@@ -27,6 +27,10 @@
   --coral: #f46060;
   --coral-soft: #fbd9d3;
   --exp-ink: #d24646;
+
+  /* Warnings: worth a look, not an error (an import that went through with a note) */
+  --amber-soft: #f6e8bf;
+  --warn-ink: #8a6414;
 
   /* Transfer, focus ring */
   --teal: #95c8ce;

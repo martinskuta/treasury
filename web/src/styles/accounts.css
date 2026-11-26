@@ -5,7 +5,8 @@
  *   .acct-list / .acct-item     one Account: .acct-line (icon, name + meta, balance), .acct-actions, extras
  *   .acct-sub                   the Accounts of a Multi-currency account, nested under it
  *   .acct-warning               balance mismatch (coral-soft)
- *   .import-panel               upload form, results and Source files, on the cream page colour
+ *   .import-panel               upload form, results and Source files, on the cream page colour; .import-good
+ *                               (imported), .import-warn (imported, with a warning: amber), .import-bad (not imported)
  *   .acct-new                   the New Account form (two columns on wide screens)
  */
 
@@ -252,6 +253,12 @@
 .import-bad {
   background: var(--coral-soft);
   color: var(--exp-ink);
+}
+
+/* A warning about an import that went through: not an error */
+.import-warn {
+  background: var(--amber-soft);
+  color: var(--warn-ink);
 }
 
 .import-message + .import-message {

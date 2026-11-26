@@ -27,6 +27,8 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 | `--coral` | `#F46060` | **Expense** fills and chart line |
 | `--coral-soft` | `#FBD9D3` | Expense / Uncategorised backgrounds |
 | `--exp-ink` | `#D24646` | Expense text, negative amounts, Uncategorised label |
+| `--amber-soft` | `#F6E8BF` | warning backgrounds: an import that went through with something to check |
+| `--warn-ink` | `#8A6414` | warning text |
 | `--teal` | `#95C8CE` | **Transfer** fills, focus ring |
 | `--teal-soft` | `#D8ECEE` | Transfer backgrounds |
 | `--tr-ink` | `#3E8790` | Transfer text and amounts |
@@ -38,7 +40,7 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 | `--brown-tint` / `--brown-hover` | brown at 7% / 6% | segmented track, secondary button inside a UI component / hover |
 | `--shadow-tiny` / `--shadow-float` | brown-tinted shadows | selected segment / floating bars (bulk edit) |
 
-- **Meaning is fixed**: lime = Income / positive, coral = Expense / negative / needs attention, teal = Transfer / neutral movement, brown = brand and primary action. Don't reuse a semantic colour for decoration.
+- **Meaning is fixed**: lime = Income / positive, coral = Expense / negative / needs attention, amber = warning (went through, worth a look), teal = Transfer / neutral movement, brown = brand and primary action. Don't reuse a semantic colour for decoration.
 - Text on a colour uses its `-ink` variant, never the fill colour itself (lime and teal fills are too light for text).
 - **Category series** (donuts, stacked bars) use, in order: `--c1 #714D3A`, `--c2 #95C8CE`, `--c3 #C6E36B`, `--c4 #F59A8E`, `--c5 #C7A48C`, `--c6 #C9E3E6`, `--c7 #DCD9B0`.
 - Frankie's gold (`#E0B23A`) belongs to Frankie and coins only.
@@ -66,7 +68,7 @@ Light theme only. All colours come from these tokens (CSS custom properties on `
 - **Segmented controls** (e.g. mood switcher, toggles): a pill track tinted `rgba(113,77,58,.07)`; the selected segment is `--panel` with a tiny shadow.
 - **Chips / Tag pills**: small (0.72rem, 600), `--lime-soft` background with `--inc-ink` text for Tags; Owner hints as muted chips.
 - **Transaction rows** (Transactions, Uncategorised): grouped by day under a small muted date header; a round 38px icon tinted by kind (Income lime-soft, Expense neutral beige, Transfer teal-soft, Uncategorised coral-soft), Display name (or description) 600, counterparty / Category / Account · Owner on a muted second line (a Reimbursement is drawn like a Transfer; a Transaction made on another Owner's Account ends the line with "Paid back", or with what is still open in `--exp-ink`), amount right-aligned with an optional muted original amount below. Row actions (Edit, Link… / Unlink, Make Contribution / Make Reimbursement, Delete) are small text links that appear on hover/focus with a mouse and sit on their own line on phones; a selected row gets a `--brown-tint` background and bulk edit floats at the bottom (`--shadow-float`). Filters are unlabelled pills (the first option names the filter, plus an accessible name) and fold under a Filters toggle below 768px. Styles: `web/src/styles/transactions.css`.
-- **Lists in Accounts and Settings**: rows separated by spacing, no divider lines; a 38px rounded-square icon before an Account (brown = Multi-currency account, `--teal-soft` = the Family's, `--beige-soft` otherwise), a muted meta line, small text-link actions. Inline edit forms, import panels and similar sit on a `--bg` block (radius 18px) inside the UI component, with their inputs back on `--panel`. Warnings and results are soft tinted notes (`--coral-soft` / `--lime-soft` with the `-ink` text). List pages put the "New …" form in a narrow column beside the list (stacked below 1000px). Styles: `web/src/styles/accounts.css`, `settings.css`; reports in `reports.css`.
+- **Lists in Accounts and Settings**: rows separated by spacing, no divider lines; a 38px rounded-square icon before an Account (brown = Multi-currency account, `--teal-soft` = the Family's, `--beige-soft` otherwise), a muted meta line, small text-link actions. Inline edit forms, import panels and similar sit on a `--bg` block (radius 18px) inside the UI component, with their inputs back on `--panel`. Results are soft tinted notes with the `-ink` text: `--lime-soft` for done, `--amber-soft` / `--warn-ink` for a warning about something that went through (never coral, which reads as an error), `--coral-soft` for an error or a balance mismatch. List pages put the "New …" form in a narrow column beside the list (stacked below 1000px). Styles: `web/src/styles/accounts.css`, `settings.css`; reports in `reports.css`.
 
 ## Charts
 
