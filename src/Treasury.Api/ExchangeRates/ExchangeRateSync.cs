@@ -31,15 +31,24 @@ public sealed class ExchangeRateSync(TreasuryDbContext db, IExchangeRateProvider
         var ranges = new SortedSet<(DateOnly From, DateOnly To)>();
         foreach (var currency in ExchangeRate.FetchedCurrencies)
         {
+            // A retired currency has rates only up to the day before it was replaced; after that it has a fixed rate.
+            var last = today;
+            if (Accounts.Currencies.Retired.TryGetValue(currency, out var retired))
+            {
+                if (needed >= retired.RetiredOn) continue;
+                last = Earliest(today, retired.RetiredOn.AddDays(-1));
+            }
             if (!stored.TryGetValue(currency, out var s))
             {
-                ranges.Add((needed.AddDays(-BackfillLeadDays), today));
+                ranges.Add((needed.AddDays(-BackfillLeadDays), last));
                 continue;
             }
             // Backfill: no stored rate on or before the earliest needed date yet.
             if (s.First > needed) ranges.Add((needed.AddDays(-BackfillLeadDays), s.First.AddDays(-1)));
-            // Daily: anything published after the last stored day.
-            if (s.Last < today) ranges.Add((s.Last.AddDays(1), today));
+            // Daily: anything published after the last stored day. A retired currency is complete once its rates
+            // reach the last business days before it was replaced (no rate is published on its last few days).
+            var complete = retired is not null && s.Last >= retired.RetiredOn.AddDays(-BackfillLeadDays);
+            if (!complete && s.Last < last) ranges.Add((s.Last.AddDays(1), last));
         }
         foreach (var (from, to) in ranges)
         {
