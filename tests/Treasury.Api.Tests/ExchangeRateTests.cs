@@ -152,6 +152,56 @@ public class ExchangeRateTests : ApiTestBase
         await Assert.That(list.Single().ChfAmount).IsEqualTo(-95.00m);
     }
 
+    [Test]
+    public async Task A_kuna_amount_converts_at_the_ecb_rate_before_the_euro_and_at_the_fixed_rate_after()
+    {
+        App.ExchangeRates.Publish("2022-06-01", chf: 1.0300m);
+        App.ExchangeRates.Publish("2022-06-01", "HRK", 7.5000m);
+        App.ExchangeRates.Publish("2026-11-18", chf: 0.9300m); // no HRK: the ECB stopped publishing it in 2023
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var kunas = await CreateAccountAsync(anna, "Revolut HRK", "HRK", openingDate: "2022-05-01");
+
+        await AddAsync(anna, kunas, -750m, "2022-06-02");
+        await AddAsync(anna, kunas, -753.45m, "2026-11-18");
+
+        var list = await EventuallyAsync(anna, l => l.All(t => t.ChfAmount is not null),
+            betweenPolls: () => App.Clock.Advance(TimeSpan.FromHours(1)));
+        // 750 HRK / 7.5 * 1.03 = 103.00 CHF; 753.45 HRK / 7.5345 (fixed) * 0.93 = 93.00 CHF
+        await Assert.That(list.Single(t => t.Date.Year == 2022).ChfAmount).IsEqualTo(-103.00m);
+        await Assert.That(list.Single(t => t.Date.Year == 2026).ChfAmount).IsEqualTo(-93.00m);
+    }
+
+    [Test]
+    public async Task A_retired_currency_is_not_asked_for_after_the_euro_replaced_it()
+    {
+        // Every currency has its rates, so nothing but a retired currency's missing days could trigger a fetch.
+        PublishEveryCurrency("2022-12-30", except: []);
+        PublishEveryCurrency("2025-12-31", except: ["HRK"]);
+        PublishEveryCurrency("2026-11-20", except: ["HRK", "BGN"]);
+        using var anna = await LoginAsNewMemberAsync("anna");
+        var kunas = await CreateAccountAsync(anna, "Revolut HRK", "HRK", openingDate: "2022-12-30");
+        await AddAsync(anna, kunas, -100m, "2022-12-30");
+        await EventuallyAsync(anna, l => l.Single().ChfAmount is not null);
+        var settled = App.ExchangeRates.Requests.Count;
+
+        // A few more scheduled runs on the same day: nothing is missing, so nothing is asked for.
+        for (var i = 0; i < 5; i++)
+        {
+            App.Clock.Advance(TimeSpan.FromMinutes(70));
+            await Task.Delay(100);
+        }
+
+        await Assert.That(App.ExchangeRates.Requests.Skip(settled).Where(r => r.From < new DateOnly(2026, 1, 1)))
+            .IsEmpty();
+    }
+
+    private void PublishEveryCurrency(string date, string[] except)
+    {
+        App.ExchangeRates.Publish(date, chf: 0.95m);
+        foreach (var currency in Treasury.Api.ExchangeRates.ExchangeRate.FetchedCurrencies.Except(except))
+            App.ExchangeRates.Publish(date, currency, 2m);
+    }
+
     // ---- helpers ----
 
     /// Polls GET /api/transactions until the condition holds (background fetching), failing after a few seconds.

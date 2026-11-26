@@ -74,7 +74,6 @@ public class AccountTests : ApiTestBase
     [Test]
     [Arguments("RUB")] // no ECB reference rate
     [Arguments("XYZ")]
-    [Arguments("BGN")] // no longer published since Bulgaria adopted the euro
     [Arguments("gbp")]
     public async Task Currencies_without_an_exchange_rate_are_rejected(string currency)
     {
@@ -87,15 +86,16 @@ public class AccountTests : ApiTestBase
     }
 
     [Test]
-    public async Task The_currencies_to_choose_from_are_every_currency_with_an_exchange_rate()
+    public async Task The_currencies_to_choose_from_are_every_currency_with_an_exchange_rate_including_ones_the_euro_replaced()
     {
         using var anna = await LoginAsNewMemberAsync("anna");
 
         var currencies = (await anna.GetFromJsonAsync<List<string>>("/api/currencies"))!;
 
         await Assert.That(currencies).IsEquivalentTo([
-            "AUD", "BRL", "CAD", "CHF", "CNY", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "IDR", "ILS", "INR", "ISK",
-            "JPY", "KRW", "MXN", "MYR", "NOK", "NZD", "PHP", "PLN", "RON", "SEK", "SGD", "THB", "TRY", "USD", "ZAR",
+            "AUD", "BGN", "BRL", "CAD", "CHF", "CNY", "CZK", "DKK", "EUR", "GBP", "HKD", "HRK", "HUF", "IDR", "ILS",
+            "INR", "ISK", "JPY", "KRW", "MXN", "MYR", "NOK", "NZD", "PHP", "PLN", "RON", "SEK", "SGD", "THB", "TRY",
+            "USD", "ZAR",
         ]);
     }
 

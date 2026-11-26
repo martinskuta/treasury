@@ -53,6 +53,8 @@ public sealed class ChfRates
     private decimal? PerEur(string currency, DateOnly date)
     {
         if (currency == "EUR") return 1m;
+        if (Accounts.Currencies.Retired.TryGetValue(currency, out var retired) && date >= retired.RetiredOn)
+            return retired.PerEur;
         if (!_byCurrency.TryGetValue(currency, out var rates)) return null;
         // Binary search for the last entry with Date <= date.
         int lo = 0, hi = rates.Length - 1, found = -1;
