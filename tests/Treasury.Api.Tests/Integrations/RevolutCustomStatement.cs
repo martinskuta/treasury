@@ -23,6 +23,15 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
     private readonly List<AccountBuilder> _accounts = [];
     private readonly List<(string Heading, string[] Lines)> _sections = [];
     private readonly List<List<Text>> _pages = [];
+    private bool _convertedInUsualFont;
+
+    /// Prints every amount of a non-CHF account the way statements generated since late 2026 do: the converted CHF
+    /// amount in the usual font, and the account's amount small beneath it.
+    public RevolutCustomStatement ConvertedAmountsInUsualFont()
+    {
+        _convertedInUsualFont = true;
+        return this;
+    }
 
     /// A "Personal Account (CUR)": its page in "Current Accounts Summaries" and its table in "Current Accounts
     /// Transaction Statements".
@@ -159,8 +168,9 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                      })
             {
                 Put(page, Middle, y, Body, label);
-                PutRight(page, Right, y, Body, amount);
-                if (converted) PutRight(page, Right, y - 8, Small, Converted);
+                var (usual, small) = converted && _convertedInUsualFont ? (Converted, amount) : (amount, Converted);
+                PutRight(page, Right, y, Body, usual);
+                if (converted) PutRight(page, Right, y - 8, Small, small);
                 y -= converted ? 24 : 19;
             }
         }
@@ -218,7 +228,15 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                     if (pageBreak.RepeatHeader) y = TableHeader(page, y - 36, account);
                     continue;
                 }
-                var cells = ((TableRow)item).Cells(account).Select((cell, column) => Wrap(cell, column, account)).ToArray();
+                var given = ((TableRow)item).Cells(account);
+                // The amounts' second printing, small beneath the cell; null for a cell that isn't printed twice.
+                var small = given.Select((cell, column) =>
+                    !converted || column < 3 || cell.Length == 0 ? null
+                    : _convertedInUsualFont ? cell.Replace('\n', ' ') : Converted).ToArray();
+                var cells = given
+                    .Select((cell, column) => Wrap(small[column] is not null && _convertedInUsualFont ? Converted : cell,
+                        column, account))
+                    .ToArray();
                 for (var column = 0; column < cells.Length; column++)
                 {
                     var lines = cells[column];
@@ -226,10 +244,12 @@ public sealed class RevolutCustomStatement(string period = "Nov 1, 2026 - Nov 30
                         // Fees is right-aligned; every other column is left-aligned.
                         if (column == 7) PutRight(page, 554, y - 12.4 * i, Body, lines[i]);
                         else Put(page, account.Columns[column], y - 12.4 * i, Body, lines[i]);
-                    if (converted && column >= 3 && lines.Length > 0)
+                    if (small[column] is { } text)
                     {
-                        if (column == 7) PutRight(page, 554, y - 8, Small, Converted);
-                        else Put(page, account.Columns[column], y - 8, Small, Converted);
+                        // Beneath the first line of the cell, or beneath its last when the converted amount wraps.
+                        var below = (_convertedInUsualFont ? y - 12.4 * (lines.Length - 1) : y) - 8;
+                        if (column == 7) PutRight(page, 554, below, Small, text);
+                        else Put(page, account.Columns[column], below, Small, text);
                     }
                 }
                 var height = cells.Max(c => c.Length);

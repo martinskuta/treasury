@@ -65,6 +65,40 @@ public class RevolutTests
     }
 
     [Test]
+    public async Task Amounts_are_read_in_the_accounts_currency_when_the_converted_chf_amount_is_in_the_usual_font()
+    {
+        // Statements generated since late 2026 print a non-CHF account's amounts converted to CHF in the usual font,
+        // with the account's own amounts small beneath them; converted, the rows wouldn't add up.
+        var statement = Read(new RevolutCustomStatement("Jun 1, 2025 - Jul 31, 2025")
+            .ConvertedAmountsInUsualFont()
+            .Account("CHF", "100.00 CHF", "130.00 CHF", t => t
+                .Row("Jul 9, 2025", "Exchanged to CHF", "Exchange", "30.00 CHF", "130.00 CHF")
+                .Total("30.00 CHF"))
+            .Account("CZK", "133.32 CZK", "0.00 CZK", t => t
+                .Row("Jun 2, 2025", "Payment from Eva Muster", "Top up", "10,000.00 CZK", "10,133.32\nCZK")
+                .Row("Jul 9, 2025", "Payment from Eva Muster", "Top up", "900,000.00\nCZK", "910,133.32\nCZK")
+                .Row("Jul 9, 2025", "Exchanged to CHF", "Exchange", "-910,133.32\nCZK", "0.00 CZK")
+                .Total("-133.32 CZK"))
+            .Account("EUR", "€767.93", "€746.43", t => t
+                .Row("Jun 20, 2025", "To Olea Events", "Others", "-€21.50", "€746.43", fees: "€0.50")
+                .Total("-€21.50", fees: "€0.50"), zero: "€0.00"));
+
+        await Assert.That(statement.Rows.Where(r => r.Currency != "CHF").Select(r => (r.Currency, r.Amount)))
+            .IsEquivalentTo(new[]
+            {
+                ("CZK", 10000.00m), ("CZK", 900000.00m), ("CZK", -910133.32m), ("EUR", -21.00m), ("EUR", -0.50m),
+            });
+        await Assert.That(statement.BalancesByCurrency.Select(b => (b.Currency, b.OpeningBalance, b.Closing.Amount,
+                b.PrintedOpeningBalance)))
+            .IsEquivalentTo(new[]
+            {
+                ("CHF", 100.00m, 130.00m, (decimal?)null),
+                ("CZK", 133.32m, 0.00m, (decimal?)null),
+                ("EUR", 767.93m, 746.43m, (decimal?)null),
+            });
+    }
+
+    [Test]
     public async Task A_currency_without_rows_has_balances_whether_it_holds_money_or_not()
     {
         var statement = Read(new RevolutCustomStatement("Oct 1, 2026 - Oct 31, 2026")

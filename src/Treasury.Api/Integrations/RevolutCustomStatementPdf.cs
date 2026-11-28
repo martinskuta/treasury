@@ -31,7 +31,9 @@ internal sealed record RevolutCustomStatementPdf(
     private const string TransactionsHeading = "Current Accounts Transaction Statements";
 
     /// The statement is read from word positions, not from its text: table cells wrap, and every amount of a
-    /// non-CHF account has a smaller converted CHF amount beneath it, which is dropped by its font size.
+    /// non-CHF account is printed twice, in the account's currency and converted to CHF, one in the usual font and
+    /// the other in a much smaller one beneath it. Which one is the converted amount depends on when the statement
+    /// was generated (<see cref="InAccountCurrency"/>).
     public static RevolutCustomStatementPdf Read(byte[] bytes)
     {
         if (bytes.AsSpan(0, Math.Min(bytes.Length, 1024)).IndexOf("%PDF-"u8) < 0)
@@ -87,6 +89,23 @@ internal sealed record RevolutCustomStatementPdf(
     private static readonly Regex Amount = new(
         @"^(?<sign>[-−+])?\s*[^\d\s.,+\-−]*\s*(?<sign>[-−+])?(?<number>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(?:[A-Za-z]{3})?$");
 
+    /// A currency code at the end of an amount: "1,250.00 CHF", but not the "AU$" of "AU$0.00".
+    private static readonly Regex TrailingCode = new(@"(?:^|[\d\s])(?<code>[A-Z]{3})$");
+
+    /// Of an amount's two printings, the one in the account's currency. Statements generated until late 2026 print
+    /// it in the usual font with the CHF amount small beneath it ("€25.50" over "27.10 CHF"); later ones the other
+    /// way round ("27.10 CHF" over "€25.50"). The usual-font one is taken unless it names another currency.
+    private static string InAccountCurrency(string? usual, string? small, string currency, string where)
+    {
+        usual ??= "";
+        if (!InOtherCurrency(usual)) return usual;
+        if (small is { Length: > 0 } && !InOtherCurrency(small)) return small;
+        throw Unreadable($"{where} is '{usual}', which is not in {currency}, with no {currency} amount beneath it");
+
+        bool InOtherCurrency(string text) =>
+            TrailingCode.Match(text.Trim()) is { Success: true } code && code.Groups["code"].Value != currency;
+    }
+
     private static bool TryDate(string text, out DateOnly date) =>
         DateOnly.TryParseExact(text, "MMM d, yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
 
@@ -101,27 +120,31 @@ internal sealed record RevolutCustomStatementPdf(
 
     // ---- words to lines ----
 
-    private sealed record Line(double Y, double Size, IReadOnlyList<Word> Words)
+    /// <param name="Small">The line's words are in a font much smaller than the statement's usual one: the second
+    /// printing of the amounts above it, in another currency.</param>
+    private sealed record Line(double Y, double Size, bool Small, IReadOnlyList<Word> Words)
     {
         public string Text { get; } = string.Join(' ', Words.Select(w => w.Text));
     }
 
     /// Every page's words as lines, top to bottom, each line left to right. Words in a font much smaller than the
-    /// statement's usual one (the converted CHF amounts) are dropped.
+    /// statement's usual one are lines of their own.
     private static List<List<Line>> Lines(PdfDocument document)
     {
         var pages = document.GetPages().Select(p => p.GetWords().Where(w => w.Letters.Count > 0).ToList()).ToList();
         // The usual font is the one of the page header's "Generated on the ..." line. (Not the most common one: a
-        // long table of a non-CHF account has about as many converted amounts as other words.)
+        // long table of a non-CHF account has about as many small amounts as other words.)
         var usual = pages.SelectMany(p => p).FirstOrDefault(w => w.Text == "Generated")?.Letters[0].PointSize ?? 0;
+        bool IsSmall(Word word) => word.Letters[0].PointSize < usual * 0.75;
         return pages.Select(words =>
         {
             var lines = new List<List<Word>>();
-            foreach (var word in words.Where(w => w.Letters[0].PointSize >= usual * 0.75).OrderByDescending(Baseline))
-                if (lines.Count > 0 && Baseline(lines[^1][0]) - Baseline(word) < 2) lines[^1].Add(word);
+            foreach (var word in words.OrderByDescending(Baseline))
+                if (lines.Count > 0 && Baseline(lines[^1][0]) - Baseline(word) < 2 && IsSmall(lines[^1][0]) == IsSmall(word))
+                    lines[^1].Add(word);
                 else lines.Add([word]);
             return lines
-                .Select(l => new Line(Baseline(l[0]), l.Max(w => w.Letters[0].PointSize),
+                .Select(l => new Line(Baseline(l[0]), l.Max(w => w.Letters[0].PointSize), IsSmall(l[0]),
                     l.OrderBy(w => w.BoundingBox.Left).ToList()))
                 .ToList();
         }).ToList();
@@ -155,6 +178,12 @@ internal sealed record RevolutCustomStatementPdf(
                 if (line.Text == Title || line.Text == periodText
                     || line.Text.StartsWith("Generated on the ", StringComparison.Ordinal))
                     continue;
+                if (line.Small)
+                {
+                    if (_section == Section.Summaries) SmallSummaryLine(line);
+                    else if (_section == Section.Transactions) SmallTableLine(line);
+                    continue;
+                }
                 if (_section == Section.BeforeFirst)
                 {
                     if (line.Text != SummariesHeading) continue;
@@ -217,6 +246,7 @@ internal sealed record RevolutCustomStatementPdf(
                 return;
             }
             if (_summary is null) return;
+            _summary.Last = null;
             var where = $"the {_summary.Currency} account's summary";
             // What the line gives for one of the summary's figures, which the summary must not have yet.
             string? Found(Regex figure, string group, bool alreadyRead, string twice)
@@ -229,9 +259,22 @@ internal sealed record RevolutCustomStatementPdf(
             if (IbanLine.Match(line.Text) is { Success: true } iban)
                 _summary.Ibans.Add(iban.Groups["iban"].Value.Replace(" ", ""));
             if (Found(OpeningBalance, "amount", _summary.Opening is not null, "opening balances") is { } opening)
-                _summary.Opening = ParseAmount(opening, $"{where}, opening balance");
+                _summary.Last = _summary.Opening = new Printed(opening);
             if (Found(ClosingBalance, "amount", _summary.Closing is not null, "closing balances") is { } closing)
-                _summary.Closing = ParseAmount(closing, $"{where}, closing balance");
+                _summary.Last = _summary.Closing = new Printed(closing);
+        }
+
+        /// The small printing of the summary figure on the line above it.
+        private void SmallSummaryLine(Line line)
+        {
+            if (_summary?.Last is { } figure) figure.Small = figure.Small is null ? line.Text : $"{figure.Small} {line.Text}";
+        }
+
+        /// The small printings of the amounts of the row above it.
+        private void SmallTableLine(Line line)
+        {
+            if (_table?.Columns is null || (_table.Total ?? _table.Rows.LastOrDefault()) is not { } row) return;
+            row.AddSmall(_table.Columns.Split(line));
         }
 
         private void TableLine(Line line)
@@ -254,36 +297,48 @@ internal sealed record RevolutCustomStatementPdf(
             if (cells[Columns.Date].Length > 0)
             {
                 if (_table.Total is not null) throw Unreadable($"{where} continues after its Total row with '{line.Text}'");
-                if (cells[Columns.Date] == "Total") _table.Total = new string[Columns.Count];
-                else if (TryDate(cells[Columns.Date], out _)) _table.Rows.Add(new string[Columns.Count]);
+                if (cells[Columns.Date] == "Total") _table.Total = new TableRowInProgress();
+                else if (TryDate(cells[Columns.Date], out _)) _table.Rows.Add(new TableRowInProgress());
                 else throw Unreadable($"'{cells[Columns.Date]}' in {where} is not a date");
             }
             // A line without a date continues the cells of the row above it (wrapped description or amount).
             var row = _table.Total ?? _table.Rows.LastOrDefault()
                 ?? throw Unreadable($"{where} starts with '{line.Text}', which is not a row");
-            for (var i = 0; i < Columns.Count; i++)
-                if (cells[i].Length > 0) row[i] = row[i] is { Length: > 0 } above ? $"{above} {cells[i]}" : cells[i];
+            row.Add(cells);
         }
 
         public IReadOnlyList<RevolutAccountSummary> Summaries() => _summaries
-            .Select(s => new RevolutAccountSummary(s.Currency, s.Ibans,
-                s.Opening ?? throw Unreadable($"the {s.Currency} account's opening balance wasn't found"),
-                s.Closing ?? throw Unreadable($"the {s.Currency} account's closing balance wasn't found")))
+            .Select(s =>
+            {
+                decimal Figure(Printed? printed, string name)
+                {
+                    var where = $"the {s.Currency} account's {name}";
+                    if (printed is null) throw Unreadable($"{where} wasn't found");
+                    return ParseAmount(InAccountCurrency(printed.Usual, printed.Small, s.Currency, where), where);
+                }
+                return new RevolutAccountSummary(s.Currency, s.Ibans,
+                    Figure(s.Opening, "opening balance"), Figure(s.Closing, "closing balance"));
+            })
             .ToList();
 
         public IReadOnlyList<RevolutAccountTable> Tables() => _tables.Select(t =>
         {
             var where = t.Where;
-            decimal Cell(string?[] row, int column, string name) => ParseAmount(row[column] ?? "", $"{where}, {name}");
+            decimal Cell(TableRowInProgress row, int column, string name)
+            {
+                var cell = $"{where}, {name}";
+                return ParseAmount(InAccountCurrency(row.Usual[column], row.Small[column], t.Currency, cell), cell);
+            }
             var total = t.Total ?? throw Unreadable($"{where} has no Total row");
             return new RevolutAccountTable(t.Currency,
-                t.Rows.Select(r =>
+                t.Rows.Select(row =>
                 {
+                    var r = row.Usual;
                     TryDate(r[Columns.Date]!, out var date);
                     return new RevolutTableRow(date, r[Columns.Description] ?? "", r[Columns.Category] ?? "",
-                        Cell(r, Columns.Money, "Money in/out"), Cell(r, Columns.Balance, "Balance"),
-                        Cell(r, Columns.Tax, "Tax withheld"), Cell(r, Columns.OtherTaxes, "Other taxes"),
-                        Cell(r, Columns.Fees, "Fees"));
+                        Cell(row, Columns.Money, "Money in/out"), Cell(row, Columns.Balance, "Balance"),
+                        Cell(row, Columns.Tax, "Tax withheld"), Cell(row, Columns.OtherTaxes, "Other taxes"),
+                        Cell(row, Columns.Fees, "Fees"));
                 }).ToList(),
                 new RevolutTableTotal(Cell(total, Columns.Money, "Total of Money in/out"),
                     Cell(total, Columns.Tax, "Total of Tax withheld"), Cell(total, Columns.OtherTaxes, "Total of Other taxes"),
@@ -300,8 +355,18 @@ internal sealed record RevolutCustomStatementPdf(
     {
         public string Currency => currency;
         public List<string> Ibans { get; } = [];
-        public decimal? Opening { get; set; }
-        public decimal? Closing { get; set; }
+        public Printed? Opening { get; set; }
+        public Printed? Closing { get; set; }
+
+        /// The figure on the summary's last line, which a small line beneath it prints again.
+        public Printed? Last { get; set; }
+    }
+
+    /// A summary figure's amount as printed in the usual font, and in the small one beneath it.
+    private sealed class Printed(string usual)
+    {
+        public string Usual => usual;
+        public string? Small { get; set; }
     }
 
     private sealed class TableInProgress(string currency)
@@ -312,9 +377,26 @@ internal sealed record RevolutCustomStatementPdf(
         public string Where => $"the {currency} transaction statement";
         public Columns? Columns { get; set; }
 
-        /// The text of each row's cells so far, by column.
-        public List<string?[]> Rows { get; } = [];
-        public string?[]? Total { get; set; }
+        public List<TableRowInProgress> Rows { get; } = [];
+        public TableRowInProgress? Total { get; set; }
+    }
+
+    /// The text of a row's cells so far, by column: in the usual font, and in the small one beneath it.
+    private sealed class TableRowInProgress
+    {
+        public string?[] Usual { get; } = new string?[Columns.Count];
+        public string?[] Small { get; } = new string?[Columns.Count];
+
+        public void Add(string[] cells) => Append(Usual, cells);
+
+        public void AddSmall(string[] cells) => Append(Small, cells);
+
+        /// Wrapped cells are joined by a single space.
+        private static void Append(string?[] row, string[] cells)
+        {
+            for (var i = 0; i < Columns.Count; i++)
+                if (cells[i].Length > 0) row[i] = row[i] is { Length: > 0 } above ? $"{above} {cells[i]}" : cells[i];
+        }
     }
 
     /// Where the table's columns start, taken from its header. Every column is left-aligned except Fees, the last
